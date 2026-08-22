@@ -86,6 +86,7 @@ MIT License
 ## Credits & Inspiration
 
 - Original concept idea by **Qusai** from the Deadlock Modding Discord server.
+- Icons and resource parsing powered by [ValveResourceFormat (Source 2 Viewer)](https://github.com/SteamDatabase/ValveResourceFormat) by SteamDatabase.
 
 ---
 
