@@ -43,7 +43,6 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - **inject nmskeleton**: Injects compiled vanilla .vnmskel reference before compiling.
 - **inject defaultanimgraph2**: Injects compiled hero .vnmgraph reference before compiling.
 - **inject ui animgraph2**: Injects compiled hero UI .vnmgraph reference before compiling.
-- **revert vmdl back**: Automatically restores the clean source .vmdl file after compilation finishes.
 
 ### Visuals
 - **3D preview**: Interactive real-time 3D viewport with textured mesh rendering and camera controls.
@@ -57,7 +56,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 1. Download the latest release from the [Releases](https://github.com/kwlnd/deadlock-vmdl-compiler/releases) page.
 2. Extract the archive and launch DeadlockVmdlCompiler.exe.
 3. Set your **CSWin64 bin directory** (e.g. .../game/csgo/bin/win64 or .../game/bin/win64).
-4. Set your **Citadel Addons directory** (e.g. .../content/citadel_addons).
+4. Set your **CSDK12 Addons directory** (e.g. .../content/citadel_addons).
 5. Select the target addon and model, and click **compile** or **transfer cloth**.
 
 ---
