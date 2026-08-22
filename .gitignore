@@ -1,0 +1,29 @@
+# Build and Compilation Artifacts
+bin/
+obj/
+publish/
+scratch/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE & Editor Folders
+.vs/
+.idea/
+.vscode/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*.class
+
+# Temporary / Log files
+*.log
+*.tmp
+*.bak
+
+# OS Generated
+Thumbs.db
+Desktop.ini
+.DS_Store

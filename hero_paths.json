@@ -1,0 +1,217 @@
+{
+  "abrams": {
+    "skel": "models/heroes_wip/abrams/abrams.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+abrams.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+abrams.vnmgraph"
+  },
+  "archer": {
+    "skel": "models/heroes_staging/archer/archer.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+archer.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+archer.vnmgraph"
+  },
+  "astro": {
+    "skel": "models/heroes_staging/astro/astro.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+astro.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+astro.vnmgraph"
+  },
+  "atlas_detective": {
+    "skel": "models/heroes_staging/atlas_detective_v2/atlas_detective.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+atlas_detective.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+atlas_detective.vnmgraph"
+  },
+  "bebop": {
+    "skel": "models/heroes_staging/atlas_detective_v2/atlas_detective.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+atlas_detective.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+atlas_detective.vnmgraph"
+  },
+  "bookworm": {
+    "skel": "models/heroes_wip/bookworm/bookworm.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+bookworm.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+bookworm.vnmgraph"
+  },
+  "doorman": {
+    "skel": "models/heroes_wip/doorman_v2/doorman.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+doorman.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+doorman.vnmgraph"
+  },
+  "drifter": {
+    "skel": "models/heroes_wip/drifter/drifter.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+drifter.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+drifter.vnmgraph"
+  },
+  "dynamo": {
+    "skel": "models/heroes_wip/dynamo/dynamo.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+dynamo.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+dynamo.vnmgraph"
+  },
+  "familiar": {
+    "skel": "models/heroes_wip/familiar/familiar.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+familiar.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+familiar.vnmgraph"
+  },
+  "fencer": {
+    "skel": "models/heroes_wip/fencer/fencer.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+fencer.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+fencer.vnmgraph"
+  },
+  "frank": {
+    "skel": "models/heroes_wip/frank/frank.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+frank.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+frank.vnmgraph"
+  },
+  "seven": {
+    "skel": "models/heroes_wip/frank/frank.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+frank.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+frank.vnmgraph"
+  },
+  "geist": {
+    "skel": "models/heroes_staging/ghost/ghost.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+geist.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+geist.vnmgraph"
+  },
+  "lady_geist": {
+    "skel": "models/heroes_staging/ghost/ghost.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+geist.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+geist.vnmgraph"
+  },
+  "haze": {
+    "skel": "models/heroes_staging/haze/haze.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+haze.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+haze.vnmgraph"
+  },
+  "inferno": {
+    "skel": "models/heroes_wip/inferno/inferno.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+inferno.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+inferno.vnmgraph"
+  },
+  "infernus": {
+    "skel": "models/heroes_wip/inferno/inferno.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+inferno.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+inferno.vnmgraph"
+  },
+  "ivy": {
+    "skel": "models/heroes_staging/tengu/tengu_v2/dmx/mesh/ivy.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+ivy.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+ivy.vnmgraph"
+  },
+  "kelvin": {
+    "skel": "models/heroes_staging/kelvin_v2/maya/kelvin.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+kelvin.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+kelvin.vnmgraph"
+  },
+  "lash": {
+    "skel": "models/heroes_wip/lash/lash.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+lash.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+lash.vnmgraph"
+  },
+  "mcginnis": {
+    "skel": "models/heroes_wip/mcginnis/mcginnis.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+mcginnis.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+mcginnis.vnmgraph"
+  },
+  "mirage": {
+    "skel": "models/heroes_staging/mirage_v2/mirage.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+mirage.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+mirage.vnmgraph"
+  },
+  "nano": {
+    "skel": "models/heroes_staging/nano/nano_v2/nano.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+calico.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+calico.vnmgraph"
+  },
+  "calico": {
+    "skel": "models/heroes_staging/nano/nano_v2/nano.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+calico.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+calico.vnmgraph"
+  },
+  "necro": {
+    "skel": "models/heroes_wip/necro/necro.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+necro.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+necro.vnmgraph"
+  },
+  "pocket": {
+    "skel": "models/heroes_staging/synth/synth.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+pocket.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+pocket.vnmgraph"
+  },
+  "priest": {
+    "skel": "models/heroes_wip/priest/priest.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+priest.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+priest.vnmgraph"
+  },
+  "punkgoat": {
+    "skel": "models/heroes_wip/punkgoat/punkgoat.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+punkgoat.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+punkgoat.vnmgraph"
+  },
+  "shiv": {
+    "skel": "models/heroes_staging/shiv/shiv.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+shiv.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+shiv.vnmgraph"
+  },
+  "synth": {
+    "skel": "models/heroes_staging/synth/synth.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+synth.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+synth.vnmgraph"
+  },
+  "tengu": {
+    "skel": "models/heroes_staging/tengu/tengu_v2/dmx/mesh/ivy.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+tengu.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+tengu.vnmgraph"
+  },
+  "unicorn": {
+    "skel": "models/heroes_wip/unicorn/unicorn.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+unicorn.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+unicorn.vnmgraph"
+  },
+  "vampirebat": {
+    "skel": "models/heroes_wip/vampirebat/vampirebat.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+vampirebat.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+vampirebat.vnmgraph"
+  },
+  "viper": {
+    "skel": "models/heroes_staging/viper/viper.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+viper.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+viper.vnmgraph"
+  },
+  "hornet": {
+    "skel": "models/heroes_staging/hornet_v3/hornet.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+vindicta.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+vindicta.vnmgraph"
+  },
+  "vindicta": {
+    "skel": "models/heroes_staging/hornet_v3/hornet.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+vindicta.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+vindicta.vnmgraph"
+  },
+  "viscous": {
+    "skel": "models/heroes_staging/kelvin_v2/maya/kelvin.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+viscous_v1.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+viscous_v1.vnmgraph"
+  },
+  "warden": {
+    "skel": "models/heroes_staging/warden/warden.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+warden.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+warden.vnmgraph"
+  },
+  "werewolf": {
+    "skel": "models/heroes_wip/werewolf/werewolf.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+werewolf.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+werewolf.vnmgraph"
+  },
+  "wraith": {
+    "skel": "models/heroes_wip/wraith/wraith.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+wraith.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+wraith.vnmgraph"
+  },
+  "wrecker": {
+    "skel": "models/heroes_staging/wrecker/wrecker.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+wrecker.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+wrecker.vnmgraph"
+  },
+  "yamato": {
+    "skel": "models/heroes_wip/yamato/yamato.vnmskel",
+    "graph": "animgraphs/animgraph2/hero/hero.vnmgraph+yamato.vnmgraph",
+    "ui_graph": "animgraphs/animgraph2/hero/hero_ui.vnmgraph+yamato.vnmgraph"
+  }
+}
