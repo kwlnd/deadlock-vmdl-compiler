@@ -84,5 +84,6 @@ MIT License
 
 ---
 
-## Acknowledgments
-Developed with AI assistance for the Deadlock modding community.
+> [!WARNING]
+> **Notice**: This project was developed with AI assistance for the Deadlock modding community.
+
