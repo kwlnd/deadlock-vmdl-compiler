@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="hero_paths.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </EmbeddedResource>
   </ItemGroup>
 
