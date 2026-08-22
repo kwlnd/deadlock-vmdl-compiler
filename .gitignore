@@ -27,3 +27,5 @@ __pycache__/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+*.zip
