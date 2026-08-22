@@ -69,13 +69,13 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - Windows 10/11 x64
 
 ### Build
-`ash
+```bash
 git clone https://github.com/kwlnd/deadlock-vmdl-compiler.git
 cd deadlock-vmdl-compiler
 
 dotnet build -c Release
 dotnet publish DeadlockVmdlCompiler.csproj -c Release -o ./publish
-`
+```
 
 ---
 
