@@ -46,7 +46,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - **revert vmdl back**: Automatically restores the clean source .vmdl file after compilation finishes.
 
 ### Visuals
-- **3D preview**: Real-time 3D wireframe mesh preview of the selected model.
+- **3D preview**: Interactive real-time 3D viewport with textured mesh rendering and camera controls.
 - **log console**: Real-time output log tracking all compiler steps and status.
 
 ---
@@ -81,3 +81,4 @@ dotnet publish DeadlockVmdlCompiler.csproj -c Release -o ./publish
 
 ## License
 MIT License
+
