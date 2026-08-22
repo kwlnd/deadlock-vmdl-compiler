@@ -86,9 +86,10 @@ MIT License
 
 ## Credits & Inspiration
 
-- Original workflow concept and pipeline idea by **Qusai**.
+- Original concept idea by **Qusai** from the Deadlock Modding Discord server.
 
 ---
 
 > [!WARNING]
 > **Notice**: This project was developed with AI assistance for the Deadlock modding community.
+
