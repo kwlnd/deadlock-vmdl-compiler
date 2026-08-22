@@ -82,3 +82,7 @@ dotnet publish DeadlockVmdlCompiler.csproj -c Release -o ./publish
 ## License
 MIT License
 
+---
+
+## Acknowledgments
+Developed with AI assistance for the Deadlock modding community.
