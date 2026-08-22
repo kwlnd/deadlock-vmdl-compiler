@@ -29,3 +29,8 @@ Desktop.ini
 .DS_Store
 
 *.zip
+
+config.json
+*.pdb
+*.zip
+
