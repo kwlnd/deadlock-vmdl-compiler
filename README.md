@@ -31,7 +31,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 ### Pipeline Actions
 - **compile**: Runs the full automated compilation pipeline (injects AG2 references, compiles via CSWin64 ModelDoc, copies .vmdl_c to addon game directory, and restores source file).
 - **transfer cloth**: Scans skeleton bone chains (hair, braids, tails, props, cuffs, chains, sleeves) and generates valid _class = "Softbody" cloth chains, collision spheres, and links custom .dmx cloth proxy meshes.
-- **fix for modeldoc**: Cleans KV3 syntax, fixes bracket balance, and upgrades legacy ModelDoc definitions.
+- **fix(modeldoc)**: remove all AG2 nodes from decompiled .vmdl to prevent crash.
 - **get ag2 lists**: Scans Deadlock's pak01_dir.vpk to extract up-to-date .vnmskel and .vnmgraph references for all heroes.
 - **restore ag2 list**: Resets and reloads the default built-in hero preset database.
 - **make vpk...**: Packages the active addon folder directly into a .vpk archive.
