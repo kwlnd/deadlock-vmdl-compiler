@@ -4,6 +4,10 @@
   <img src="AppIcon.png" alt="Deadlock VMDL Compiler Logo" width="120" />
 </p>
 
+<p align="center">
+  <img src="preview.png" alt="Deadlock AG2 Compiler Interface" width="850" />
+</p>
+
 A specialized GUI compiler and asset pipeline tool for Valve's Deadlock (Source 2). Bypasses CSDK12 limitations by automating CSWin64 ModelDoc compilation, AnimGraph 2 (AG2) skeleton and graph reference injection, and dynamic cloth physics generation.
 
 ---
@@ -17,13 +21,33 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 
 ---
 
-## Features
+## Interface & Controls Reference
 
-- **CSWin64 ModelDoc Compilation**: Automates compilation using the CSWin64 ModelDoc compiler and exports compiled .vmdl_c files directly into your addon game directory.
-- **AnimGraph 2 (AG2) Pipeline**: Injects vanilla skeleton (.vnmskel) and AnimGraph references (.vnmgraph) prior to compilation to bypass CSDK12 AG2 compiler limitations.
-- **Dynamic Cloth & Softbody Simulation**: Automatically detects bone chains (hair, braids, tails, ears, fur, cuffs, shackles, bolas, sleeves) and creates valid _class = \"Softbody\" nodes with physics curves and collision spheres. Automatically links custom .dmx cloth proxy meshes if present.
-- **Safety & Backups**: Creates automatic .bak backups before modifying files with a 1-click revert option.
-- **Addon Explorer**: Real-time discovery of addons and target .vmdl models in the configured content directory.
+### Model Selection & Presets
+- **discovered addon**: Auto-detects and lists all available addons in your content folder.
+- **target vmdl file**: Selects the target .vmdl model file inside the selected addon.
+- **hero preset**: Auto-detects or selects the hero archetype to assign corresponding skeleton and AnimGraph paths.
+
+### Pipeline Actions
+- **compile**: Runs the full automated compilation pipeline (injects AG2 references, compiles via CSWin64 ModelDoc, copies .vmdl_c to addon game directory, and restores source file).
+- **transfer cloth**: Scans skeleton bone chains (hair, braids, tails, props, cuffs, chains, sleeves) and generates valid _class = "Softbody" cloth chains, collision spheres, and links custom .dmx cloth proxy meshes.
+- **fix for modeldoc**: Cleans KV3 syntax, fixes bracket balance, and upgrades legacy ModelDoc definitions.
+- **get ag2 lists**: Scans Deadlock's pak01_dir.vpk to extract up-to-date .vnmskel and .vnmgraph references for all heroes.
+- **restore ag2 list**: Resets and reloads the default built-in hero preset database.
+- **make vpk...**: Packages the active addon folder directly into a .vpk archive.
+- **export to cswin64**: Copies the prepared source files directly to the CSWin64 workspace for manual inspection.
+
+### Environment Paths & Options
+- **cswin64 installation**: Path to your CSWin64 / CS2 bin directory containing the ModelDoc compiler.
+- **csdk addons folder**: Path to your Deadlock content/citadel_addons directory.
+- **inject nmskeleton**: Injects compiled vanilla .vnmskel reference before compiling.
+- **inject defaultanimgraph2**: Injects compiled hero .vnmgraph reference before compiling.
+- **inject ui animgraph2**: Injects compiled hero UI .vnmgraph reference before compiling.
+- **revert vmdl back**: Automatically restores the clean source .vmdl file after compilation finishes.
+
+### Visuals
+- **3D preview**: Real-time 3D wireframe mesh preview of the selected model.
+- **log console**: Real-time output log tracking all compiler steps and status.
 
 ---
 
@@ -34,7 +58,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 2. Extract the archive and launch DeadlockVmdlCompiler.exe.
 3. Set your **CSWin64 bin directory** (e.g. .../game/csgo/bin/win64 or .../game/bin/win64).
 4. Set your **Citadel Addons directory** (e.g. .../content/citadel_addons).
-5. Select the target addon and model, and click **Compile Model** or **Transfer Cloth**.
+5. Select the target addon and model, and click **compile** or **transfer cloth**.
 
 ---
 
