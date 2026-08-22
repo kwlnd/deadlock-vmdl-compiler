@@ -1,5 +1,9 @@
 # Deadlock VMDL Compiler
 
+<p align="center">
+  <img src="AppIcon.png" alt="Deadlock VMDL Compiler Logo" width="120" />
+</p>
+
 A specialized GUI compiler and asset pipeline tool for Valve's Deadlock (Source 2). Bypasses CSDK12 limitations by automating CSWin64 ModelDoc compilation, AnimGraph 2 (AG2) skeleton and graph reference injection, and dynamic cloth physics generation.
 
 ---
