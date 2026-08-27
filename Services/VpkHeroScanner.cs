@@ -32,7 +32,6 @@ public static class VpkHeroScanner
 
         var resolvedPath = Path.GetFullPath(targetPath);
 
-        // If directory was passed, try to locate pak01_dir.vpk inside
         if (Directory.Exists(resolvedPath))
         {
             var candVpk = Path.Combine(resolvedPath, "pak01_dir.vpk");
@@ -59,12 +58,11 @@ public static class VpkHeroScanner
                 {
                     var entries = ReadVpkDirectory(resolvedPath);
 
-                    // Scan ALL models/heroes, models/heroes_staging, models/heroes_wip, models/characters
+                    // Scan strictly models/heroes, models/heroes_staging, models/heroes_wip
                     var targetEntries = entries.Where(e =>
                         e.Extension.Equals("vmdl_c", StringComparison.OrdinalIgnoreCase) &&
                         (e.Directory.StartsWith("models/heroes", StringComparison.OrdinalIgnoreCase) ||
-                         e.Directory.StartsWith("models/characters", StringComparison.OrdinalIgnoreCase) ||
-                         e.Directory.Contains("heroes", StringComparison.OrdinalIgnoreCase))
+                         e.Directory.StartsWith("models/characters", StringComparison.OrdinalIgnoreCase))
                     ).ToList();
 
                     if (targetEntries.Count == 0)
@@ -101,10 +99,8 @@ public static class VpkHeroScanner
                 }
                 else if (Directory.Exists(resolvedPath))
                 {
-                    // Loose files scan
                     var allVmdlcFiles = Directory.GetFiles(resolvedPath, "*.vmdl_c", SearchOption.AllDirectories)
-                        .Where(f => f.Replace('\\', '/').Contains("/heroes", StringComparison.OrdinalIgnoreCase) ||
-                                    f.Replace('\\', '/').Contains("/characters", StringComparison.OrdinalIgnoreCase))
+                        .Where(f => f.Replace('\\', '/').Contains("/heroes", StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
                     foreach (var filePath in allVmdlcFiles)
@@ -139,7 +135,7 @@ public static class VpkHeroScanner
                     return (false, "Scan completed, but no models with AnimGraph2 nodes were found in the selected VPK.", results);
                 }
 
-                // Merge with existing base database so built-in heroes are preserved
+                // Merge with base database
                 var merged = new Dictionary<string, HeroPreset>(HeroDatabase.GetDatabase(), StringComparer.OrdinalIgnoreCase);
                 foreach (var kv in results)
                 {
@@ -171,54 +167,53 @@ public static class VpkHeroScanner
             if (string.IsNullOrWhiteSpace(text))
                 return (false, null, string.Empty);
 
+            // Must contain m_animGraph2Refs AND m_vecNmSkeletonRefs
+            if (!text.Contains("m_animGraph2Refs", StringComparison.OrdinalIgnoreCase) ||
+                !text.Contains("m_vecNmSkeletonRefs", StringComparison.OrdinalIgnoreCase))
+            {
+                return (false, null, string.Empty);
+            }
+
             string skel = string.Empty;
             string graph = string.Empty;
             string uiGraph = string.Empty;
 
-            // 1. Extract Skeleton: m_vecNmSkeletonRefs = [ resource:"..." ]
-            var skelMatch = Regex.Match(text, @"m_vecNmSkeletonRefs\s*=\s*\[\s*(?:resource:)?\s*""([^""]+\.vnmskel)""", RegexOptions.IgnoreCase);
+            // 1. Skeleton
+            var skelMatch = Regex.Match(text, @"m_vecNmSkeletonRefs\s*=\s*\[[\s\S]*?(?:resource:)?\s*""([^""]+\.vnmskel)""", RegexOptions.IgnoreCase);
             if (skelMatch.Success)
             {
                 skel = skelMatch.Groups[1].Value.Trim();
             }
 
-            // 2. Extract AnimGraphs: m_animGraph2Refs
-            var blockMatches = Regex.Matches(text, @"\{\s*m_sIdentifier\s*=\s*""([^""]*)""[\s\S]*?m_hGraph\s*=\s*(?:resource:)?\s*""([^""]+\.vnmgraph)""\s*\}", RegexOptions.IgnoreCase);
-            foreach (Match bm in blockMatches)
+            // 2. AnimGraph2 references
+            var ag2SectionMatch = Regex.Match(text, @"m_animGraph2Refs\s*=\s*\[([\s\S]*?)\]\s*(?:\r?\n|$)", RegexOptions.IgnoreCase);
+            if (ag2SectionMatch.Success)
             {
-                var id = bm.Groups[1].Value.Trim();
-                var hGraph = bm.Groups[2].Value.Trim();
-
-                if (string.IsNullOrEmpty(id) || id.Equals("default", StringComparison.OrdinalIgnoreCase))
+                var ag2Text = ag2SectionMatch.Groups[1].Value;
+                var itemMatches = Regex.Matches(ag2Text, @"\{[\s\S]*?\}");
+                foreach (Match item in itemMatches)
                 {
-                    if (string.IsNullOrEmpty(graph)) graph = hGraph;
-                }
-                else if (id.Equals("ui", StringComparison.OrdinalIgnoreCase))
-                {
-                    uiGraph = hGraph;
-                }
-            }
+                    var itemStr = item.Value;
+                    var idMatch = Regex.Match(itemStr, @"m_sIdentifier\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase);
+                    var graphMatch = Regex.Match(itemStr, @"m_hGraph\s*=\s*(?:resource:)?\s*""([^""]+\.vnmgraph)""", RegexOptions.IgnoreCase);
 
-            if (string.IsNullOrEmpty(graph) || string.IsNullOrEmpty(uiGraph))
-            {
-                var revMatches = Regex.Matches(text, @"\{\s*m_hGraph\s*=\s*(?:resource:)?\s*""([^""]+\.vnmgraph)""[\s\S]*?m_sIdentifier\s*=\s*""([^""]*)""\s*\}", RegexOptions.IgnoreCase);
-                foreach (Match rm in revMatches)
-                {
-                    var hGraph = rm.Groups[1].Value.Trim();
-                    var id = rm.Groups[2].Value.Trim();
-
-                    if (string.IsNullOrEmpty(id) || id.Equals("default", StringComparison.OrdinalIgnoreCase))
+                    if (graphMatch.Success)
                     {
-                        if (string.IsNullOrEmpty(graph)) graph = hGraph;
-                    }
-                    else if (id.Equals("ui", StringComparison.OrdinalIgnoreCase))
-                    {
-                        uiGraph = hGraph;
+                        var id = idMatch.Success ? idMatch.Groups[1].Value.Trim() : string.Empty;
+                        var gPath = graphMatch.Groups[1].Value.Trim();
+
+                        if (string.IsNullOrEmpty(id) || id.Equals("default", StringComparison.OrdinalIgnoreCase))
+                        {
+                            graph = gPath;
+                        }
+                        else if (id.Equals("ui", StringComparison.OrdinalIgnoreCase))
+                        {
+                            uiGraph = gPath;
+                        }
                     }
                 }
             }
 
-            // Clean prefixes
             if (skel.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
                 skel = skel["resource:".Length..].Trim().Trim('"');
             if (graph.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
@@ -226,12 +221,15 @@ public static class VpkHeroScanner
             if (uiGraph.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
                 uiGraph = uiGraph["resource:".Length..].Trim().Trim('"');
 
-            if (string.IsNullOrWhiteSpace(skel) && string.IsNullOrWhiteSpace(graph))
+            if (string.IsNullOrWhiteSpace(skel) || string.IsNullOrWhiteSpace(graph))
                 return (false, null, string.Empty);
 
-            var heroKey = DeriveHeroKey(dirName, fileName);
-            if (string.IsNullOrEmpty(heroKey))
-                return (false, null, string.Empty);
+            // Strict Hero Key name from .vmdl_c filename
+            var heroKey = fileName.ToLowerInvariant();
+            if (heroKey.EndsWith(".vmdl")) heroKey = heroKey[..^5];
+            if (heroKey.EndsWith("_body")) heroKey = heroKey[..^5];
+            if (heroKey.EndsWith("_model")) heroKey = heroKey[..^6];
+            if (heroKey.EndsWith("_base")) heroKey = heroKey[..^5];
 
             var preset = new HeroPreset
             {
@@ -246,28 +244,6 @@ public static class VpkHeroScanner
         {
             return (false, null, string.Empty);
         }
-    }
-
-    private static string DeriveHeroKey(string dirName, string fileName)
-    {
-        var cleanDir = dirName.Replace('\\', '/').Trim('/');
-        var parts = cleanDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
-
-        for (int i = parts.Length - 1; i >= 0; i--)
-        {
-            var p = parts[i].ToLowerInvariant();
-            if (p != "mesh" && p != "anims" && p != "heroes_staging" && p != "heroes_wip" && p != "heroes" && p != "models" && p != "characters")
-            {
-                return p;
-            }
-        }
-
-        var fn = fileName.ToLowerInvariant();
-        if (fn.EndsWith("_body")) fn = fn[..^5];
-        if (fn.EndsWith("_model")) fn = fn[..^6];
-        if (fn.EndsWith("_base")) fn = fn[..^5];
-
-        return fn;
     }
 
     public static List<VpkEntry> ReadVpkDirectory(string vpkPath)
@@ -285,10 +261,10 @@ public static class VpkHeroScanner
 
         if (version == 2)
         {
-            reader.ReadUInt32(); // fileDataSectionSize
-            reader.ReadUInt32(); // archiveMDESectionSize
-            reader.ReadUInt32(); // otherMDESectionSize
-            reader.ReadUInt32(); // signatureSectionSize
+            reader.ReadUInt32();
+            reader.ReadUInt32();
+            reader.ReadUInt32();
+            reader.ReadUInt32();
         }
 
         while (true)

@@ -30,7 +30,7 @@ public static class VmdlScanner
 
                 var filenameStem = Path.GetFileNameWithoutExtension(file.Name).ToLowerInvariant();
 
-                // Skip known accessory, summon, weapon, and fx suffix files
+                // Skip accessory/fx files
                 if (filenameStem.EndsWith("_dragon") || filenameStem.EndsWith("_horse") || filenameStem.EndsWith("_horse_knight") ||
                     filenameStem.EndsWith("_mace") || filenameStem.EndsWith("_gun") || filenameStem.EndsWith("_weapon") ||
                     filenameStem.EndsWith("_arms") || filenameStem.EndsWith("_fx") || filenameStem.EndsWith("_projectile") ||
@@ -42,14 +42,12 @@ public static class VmdlScanner
                 var db = HeroDatabase.GetDatabase();
                 string? hero = null;
 
-                // 1. Direct match with hero database key (e.g. "bookworm.vmdl" -> "bookworm")
                 if (db.ContainsKey(filenameStem))
                 {
                     hero = filenameStem;
                 }
                 else
                 {
-                    // 2. Check canonical hero body/model names (e.g. "<hero>_body", "<hero>_model", "<hero>_base")
                     foreach (var key in db.Keys)
                     {
                         if (filenameStem == key + "_body" || filenameStem == key + "_model" || filenameStem == key + "_base")
@@ -59,7 +57,6 @@ public static class VmdlScanner
                         }
                     }
 
-                    // 3. Check parent directory name (e.g. folder "hornet_v3" -> "hornet", "bookworm" -> "bookworm")
                     if (string.IsNullOrEmpty(hero))
                     {
                         var parentDir = file.Directory?.Name.ToLowerInvariant() ?? string.Empty;
@@ -74,18 +71,15 @@ public static class VmdlScanner
                     }
                 }
 
-                // If filename/folder does not match a known hero, skip it
                 if (string.IsNullOrEmpty(hero))
                     continue;
 
                 var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(fullPath, searchPath);
-                var display = (!string.IsNullOrEmpty(addonName) && addonName != "addon")
-                    ? $"[{addonName}] {subpath} ({hero})"
-                    : $"{subpath} ({hero})";
 
+                // Clean display without any bracket prefixes
                 results.Add(new DiscoveredModel
                 {
-                    Display = display,
+                    Display = subpath,
                     Hero = hero,
                     FullPath = fullPath,
                     Addon = addonName,
@@ -96,7 +90,7 @@ public static class VmdlScanner
         }
         catch { }
 
-        return results.OrderBy(m => m.Hero).ThenBy(m => m.Display).ToList();
+        return results.OrderBy(m => m.Display).ToList();
     }
 
     public static List<DiscoveredModel> ScanHeroModelsInAddon(string vmdlOrAddonPath, string? citadelAddonsDir = null)

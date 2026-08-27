@@ -45,7 +45,7 @@ public static class DmxModelLoader
             var vmdlDir = Path.GetDirectoryName(vmdlPath) ?? string.Empty;
             var vmdlContent = File.ReadAllText(vmdlPath);
 
-            var meshFiles = FindMeshFiles(vmdlContent, vmdlDir);
+            var meshFiles = FindMeshFiles(vmdlContent, vmdlDir, vmdlPath);
 
             var composite = new SimpleMesh3D
             {
@@ -74,7 +74,7 @@ public static class DmxModelLoader
                 return composite;
             }
 
-            // Try loading from compiled .vmdl_c if available
+            // Fallback: Check compiled .vmdl_c
             var cands = new[]
             {
                 Path.ChangeExtension(vmdlPath, ".vmdl_c"),
@@ -101,9 +101,18 @@ public static class DmxModelLoader
         }
     }
 
-    private static List<string> FindMeshFiles(string vmdlContent, string vmdlDir)
+    private static List<string> FindMeshFiles(string vmdlContent, string vmdlDir, string vmdlPath)
     {
         var results = new List<string>();
+
+        // Find addon root (parent of /models/)
+        string? addonRoot = null;
+        var cleanVmdl = vmdlPath.Replace('\\', '/');
+        var modelsIdx = cleanVmdl.IndexOf("/models/", StringComparison.OrdinalIgnoreCase);
+        if (modelsIdx >= 0)
+        {
+            addonRoot = cleanVmdl[..modelsIdx].Replace('/', Path.DirectorySeparatorChar);
+        }
 
         // 1. Regex find all mesh file references in VMDL
         var matches = Regex.Matches(vmdlContent, "\"([^\\r\\n\"]+\\.(dmx|smd|fbx|obj))\"", RegexOptions.IgnoreCase);
@@ -119,28 +128,66 @@ public static class DmxModelLoader
                 continue;
             }
 
-            var cand1 = Path.Combine(vmdlDir, fn);
-            var cand2 = Path.Combine(vmdlDir, raw);
-            var cand3 = Path.Combine(vmdlDir, "mesh", fn);
+            var candidates = new List<string>
+            {
+                Path.Combine(vmdlDir, fn),
+                Path.Combine(vmdlDir, "mesh", fn),
+                Path.Combine(vmdlDir, raw)
+            };
 
-            if (File.Exists(cand1) && !results.Contains(cand1)) results.Add(cand1);
-            else if (File.Exists(cand2) && !results.Contains(cand2)) results.Add(cand2);
-            else if (File.Exists(cand3) && !results.Contains(cand3)) results.Add(cand3);
+            if (!string.IsNullOrEmpty(addonRoot))
+            {
+                candidates.Add(Path.Combine(addonRoot, raw));
+                candidates.Add(Path.Combine(addonRoot, "models", raw));
+            }
+
+            // Also check parent folders up to 4 levels
+            var curDir = vmdlDir;
+            for (int i = 0; i < 4; i++)
+            {
+                var p = Directory.GetParent(curDir)?.FullName;
+                if (string.IsNullOrEmpty(p)) break;
+                candidates.Add(Path.Combine(p, raw));
+                candidates.Add(Path.Combine(p, fn));
+                candidates.Add(Path.Combine(p, "mesh", fn));
+                curDir = p;
+            }
+
+            foreach (var cand in candidates)
+            {
+                if (File.Exists(cand) && !results.Contains(cand))
+                {
+                    results.Add(cand);
+                    break;
+                }
+            }
         }
 
-        // 2. If nothing found from regex, search vmdlDir recursively
-        if (results.Count == 0 && Directory.Exists(vmdlDir))
+        // 2. If nothing found from regex, search entire directory tree of vmdlDir and addonRoot
+        if (results.Count == 0)
         {
-            var allMeshFiles = Directory.GetFiles(vmdlDir, "*.*", SearchOption.AllDirectories)
-                .Where(f => {
-                    var ext = Path.GetExtension(f).ToLowerInvariant();
-                    var fn = Path.GetFileName(f).ToLowerInvariant();
-                    return (ext == ".dmx" || ext == ".smd" || ext == ".obj") &&
-                           !fn.Contains("_lod") && !fn.Contains("lod1") && !fn.Contains("lod2");
-                })
-                .ToList();
+            var searchFolders = new List<string>();
+            if (Directory.Exists(vmdlDir)) searchFolders.Add(vmdlDir);
+            if (!string.IsNullOrEmpty(addonRoot) && Directory.Exists(addonRoot)) searchFolders.Add(addonRoot);
 
-            results.AddRange(allMeshFiles);
+            foreach (var folder in searchFolders)
+            {
+                var files = Directory.GetFiles(folder, "*.*", SearchOption.AllDirectories)
+                    .Where(f => {
+                        var ext = Path.GetExtension(f).ToLowerInvariant();
+                        var fn = Path.GetFileName(f).ToLowerInvariant();
+                        return (ext == ".dmx" || ext == ".smd" || ext == ".obj") &&
+                               !fn.Contains("_lod") && !fn.Contains("lod1") && !fn.Contains("lod2");
+                    })
+                    .ToList();
+
+                foreach (var f in files)
+                {
+                    if (!results.Contains(f)) results.Add(f);
+                }
+
+                if (results.Count > 0) break;
+            }
         }
 
         return results;
@@ -172,19 +219,19 @@ public static class DmxModelLoader
         try
         {
             var bytes = File.ReadAllBytes(dmxPath);
-            if (bytes.Length < 64) return null;
+            if (bytes.Length < 32) return null;
 
             var header = Encoding.ASCII.GetString(bytes, 0, Math.Min(bytes.Length, 200));
 
-            // Check if Text DMX (KeyValues2)
+            // If Text DMX / KeyValues2
             if (header.Contains("keyvalues2", StringComparison.OrdinalIgnoreCase) ||
-                header.Contains("\"DmeMesh\"", StringComparison.OrdinalIgnoreCase))
+                header.Contains("\"DmeMesh\"", StringComparison.OrdinalIgnoreCase) ||
+                header.Contains("format:model", StringComparison.OrdinalIgnoreCase))
             {
                 var text = Encoding.UTF8.GetString(bytes);
                 return ParseTextDmx(text);
             }
 
-            // Otherwise Binary DMX
             return ParseBinaryDmx(bytes);
         }
         catch
@@ -200,12 +247,17 @@ public static class DmxModelLoader
             var mesh = new SimpleMesh3D();
 
             // Extract position vector3 array
-            // Format: "position" "vector3_array" [ "0.0 0.0 0.0", ... ] OR "position" [ ... ]
             var posBlockMatch = Regex.Match(text, @"""position""\s+(?:""vector3_array""\s+)?\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            if (!posBlockMatch.Success)
+            {
+                // Fallback position match
+                posBlockMatch = Regex.Match(text, @"position\s*=\s*\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            }
+
             if (!posBlockMatch.Success) return null;
 
             var posLines = posBlockMatch.Groups[1].Value;
-            var vecMatches = Regex.Matches(posLines, @"""?(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)""?", RegexOptions.IgnoreCase);
+            var vecMatches = Regex.Matches(posLines, @"(?:""\s*)?(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)(?:\s*"")?", RegexOptions.IgnoreCase);
 
             var positions = new List<Vector3>(vecMatches.Count);
             foreach (Match vm in vecMatches)
@@ -214,7 +266,7 @@ public static class DmxModelLoader
                     float.TryParse(vm.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
                     float.TryParse(vm.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float z))
                 {
-                    // Convert Valve Z-up inches to Standard Y-up meters
+                    // Valve coordinates: X right, Y forward, Z up -> Convert to Y up, Z forward
                     positions.Add(new Vector3(x, z, -y) * 0.0254f);
                 }
             }
@@ -223,8 +275,12 @@ public static class DmxModelLoader
             mesh.Vertices.AddRange(positions);
 
             // Extract faces array
-            // Format: "faces" "int_array" [ 0, 1, 2, -1, 3, 4, 5, -1 ... ]
             var facesBlockMatch = Regex.Match(text, @"""faces""\s+(?:""int_array""\s+)?\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            if (!facesBlockMatch.Success)
+            {
+                facesBlockMatch = Regex.Match(text, @"faces\s*=\s*\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            }
+
             if (facesBlockMatch.Success)
             {
                 var faceTokens = Regex.Matches(facesBlockMatch.Groups[1].Value, @"-?\d+");
@@ -279,7 +335,6 @@ public static class DmxModelLoader
                 }
             }
 
-            // If no face indices, auto-create sequential triangles
             if (mesh.Indices.Count == 0 && mesh.Vertices.Count >= 3)
             {
                 for (int i = 0; i < mesh.Vertices.Count - 2; i += 3)
@@ -578,7 +633,6 @@ public static class DmxModelLoader
                 if (inTriangles)
                 {
                     var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    // Vertex line: bone posX posY posZ normX normY normZ u v
                     if (parts.Length >= 4 &&
                         float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) &&
                         float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
