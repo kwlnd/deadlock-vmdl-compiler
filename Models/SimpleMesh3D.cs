@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Numerics;
 
@@ -10,6 +10,7 @@ public class SimpleMesh3D
     public List<Vector3> Vertices { get; set; } = new();
     public List<int> Indices { get; set; } = new();
     public List<Vector3> Normals { get; set; } = new();
+    public List<uint> TriangleColors { get; set; } = new();
     public Vector3 BoundsMin { get; set; } = new Vector3(-1, -1, -1);
     public Vector3 BoundsMax { get; set; } = new Vector3(1, 1, 1);
     public Vector3 Center { get; set; } = Vector3.Zero;

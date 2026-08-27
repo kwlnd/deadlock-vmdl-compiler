@@ -78,6 +78,7 @@ public static class DmxModelLoader
                     {
                         compositeMesh.Indices.Add(baseIndex + idx);
                     }
+                    compositeMesh.TriangleColors.AddRange(partial.TriangleColors);
                     compositeMesh.BoneCount = Math.Max(compositeMesh.BoneCount, partial.BoneCount);
                 }
             }
@@ -85,7 +86,7 @@ public static class DmxModelLoader
             if (compositeMesh.Vertices.Count > 0)
             {
                 compositeMesh.RecalculateBounds();
-                LogDebug("[3D Loader] Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris, bounds radius=" + compositeMesh.Radius.ToString("F2"));
+                LogDebug("[3D Loader] Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris");
                 return compositeMesh;
             }
 
@@ -181,7 +182,6 @@ public static class DmxModelLoader
                 }
             }
 
-            // Fallback if no RenderMeshList found: scan directory
             if (result.Count == 0 && Directory.Exists(vmdlDir))
             {
                 var allDmx = Directory.GetFiles(vmdlDir, "*.dmx", SearchOption.AllDirectories)
@@ -209,6 +209,36 @@ public static class DmxModelLoader
         }
 
         return null;
+    }
+
+    private static uint GetMaterialColor(string meshName, string faceSetName)
+    {
+        var combined = (meshName + " " + faceSetName).ToLowerInvariant();
+
+        if (combined.Contains("skin") || combined.Contains("face") || combined.Contains("head") || combined.Contains("neck") || combined.Contains("arm"))
+            return 0xFFFFD7BA;
+        if (combined.Contains("hair") || combined.Contains("eyebrow"))
+            return 0xFF3D271D;
+        if (combined.Contains("eye"))
+            return 0xFF3B82F6;
+        if (combined.Contains("teeth"))
+            return 0xFFF5F5F0;
+        if (combined.Contains("beret") || combined.Contains("hat") || combined.Contains("cap"))
+            return 0xFF1E293B;
+        if (combined.Contains("skirt") || combined.Contains("lower") || combined.Contains("dress") || combined.Contains("cloth"))
+            return 0xFF881337;
+        if (combined.Contains("upper") || combined.Contains("jacket") || combined.Contains("vest") || combined.Contains("body") || combined.Contains("torso"))
+            return 0xFF4C0519;
+        if (combined.Contains("book_page") || combined.Contains("page"))
+            return 0xFFEDE8D0;
+        if (combined.Contains("book"))
+            return 0xFF78350F;
+        if (combined.Contains("gun") || combined.Contains("weapon") || combined.Contains("metal") || combined.Contains("barrel"))
+            return 0xFF64748B;
+        if (combined.Contains("dragon") || combined.Contains("summon"))
+            return 0xFFDC2626;
+
+        return 0xFF94A3B8;
     }
 
     private static SimpleMesh3D? ParseDmx(string dmxPath)
@@ -334,6 +364,7 @@ public static class DmxModelLoader
             }
 
             var mesh = new SimpleMesh3D();
+            var meshStem = Path.GetFileNameWithoutExtension(dmxPath);
 
             foreach (var el in elements)
             {
@@ -378,6 +409,8 @@ public static class DmxModelLoader
                                     if (fsi >= 0 && fsi < elements.Count)
                                     {
                                         var fs = elements[fsi];
+                                        uint faceColor = GetMaterialColor(meshStem + " " + el.Name, fs.Name);
+
                                         if (fs.Attrs.TryGetValue("faces", out var fObj) && fObj is int[] faces)
                                         {
                                             int curPolyStart = 0;
@@ -405,6 +438,7 @@ public static class DmxModelLoader
                                                                 mesh.Indices.Add(baseVert + v0);
                                                                 mesh.Indices.Add(baseVert + v1);
                                                                 mesh.Indices.Add(baseVert + v2);
+                                                                mesh.TriangleColors.Add(faceColor);
                                                             }
                                                         }
                                                     }
