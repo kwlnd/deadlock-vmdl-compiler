@@ -4,13 +4,41 @@ using System.Numerics;
 
 namespace DeadlockVmdlCompiler.Models;
 
+public class MeshTexture
+{
+    public string Name { get; set; } = string.Empty;
+    public int Width { get; set; }
+    public int Height { get; set; }
+    public int[] Pixels { get; set; } = Array.Empty<int>();
+    public int FallbackColor { get; set; } = unchecked((int)0xFF94A3B8);
+
+    public int Sample(float u, float v)
+    {
+        if (Pixels.Length == 0 || Width <= 0 || Height <= 0) return FallbackColor;
+
+        u = u - MathF.Floor(u);
+        v = v - MathF.Floor(v);
+
+        int x = (int)(u * Width);
+        int y = (int)(v * Height);
+
+        if (x < 0) x = 0; if (x >= Width) x = Width - 1;
+        if (y < 0) y = 0; if (y >= Height) y = Height - 1;
+
+        return Pixels[y * Width + x];
+    }
+}
+
 public class SimpleMesh3D
 {
     public string MeshName { get; set; } = string.Empty;
     public List<Vector3> Vertices { get; set; } = new();
-    public List<int> Indices { get; set; } = new();
     public List<Vector3> Normals { get; set; } = new();
-    public List<uint> TriangleColors { get; set; } = new();
+    public List<Vector2> TexCoords { get; set; } = new();
+    public List<int> Indices { get; set; } = new();
+    public List<int> TriangleMaterialIds { get; set; } = new();
+    public List<MeshTexture> Materials { get; set; } = new();
+
     public Vector3 BoundsMin { get; set; } = new Vector3(-1, -1, -1);
     public Vector3 BoundsMax { get; set; } = new Vector3(1, 1, 1);
     public Vector3 Center { get; set; } = Vector3.Zero;

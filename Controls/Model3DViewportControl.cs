@@ -125,7 +125,7 @@ public class Model3DViewportControl : Control
 
         if (_depthBuffer == null || _pixelBuffer == null || _bitmap == null) return;
 
-        // Clear Depth & Color Buffer with dark studio background
+        // Clear Depth & Color Buffer with dark studio gradient
         for (int y = 0; y < height; y++)
         {
             float t = (float)y / height;
@@ -234,7 +234,7 @@ public class Model3DViewportControl : Control
             DrawLine(new Vector3(-gridSize, 0, z), new Vector3(gridSize, 0, z), col);
         }
 
-        // Render Mesh with Z-buffer & Studio Shading
+        // Render Mesh with Smooth Normals & Textures
         var mesh = CurrentMesh;
         if (mesh != null && mesh.Vertices.Count > 0)
         {
@@ -269,29 +269,19 @@ public class Model3DViewportControl : Control
                 var v1 = sv1.Value;
                 var v2 = sv2.Value;
 
-                // Calculate 3D normal & Studio Lighting
-                var w0 = mesh.Vertices[i0];
-                var w1 = mesh.Vertices[i1];
-                var w2 = mesh.Vertices[i2];
-                var normal = Vector3.Normalize(Vector3.Cross(w1 - w0, w2 - w0));
+                var n0 = (i0 < mesh.Normals.Count) ? mesh.Normals[i0] : Vector3.UnitY;
+                var n1 = (i1 < mesh.Normals.Count) ? mesh.Normals[i1] : Vector3.UnitY;
+                var n2 = (i2 < mesh.Normals.Count) ? mesh.Normals[i2] : Vector3.UnitY;
 
-                float ndotk = MathF.Max(0, Vector3.Dot(normal, KeyLight));
-                float ndotf = MathF.Max(0, Vector3.Dot(normal, FillLight));
-                float backLight = MathF.Max(0, Vector3.Dot(-normal, KeyLight)) * 0.15f;
-                float lighting = Math.Clamp(0.28f + ndotk * 0.58f + ndotf * 0.18f + backLight, 0.2f, 1.0f);
+                var uv0 = (i0 < mesh.TexCoords.Count) ? mesh.TexCoords[i0] : Vector2.Zero;
+                var uv1 = (i1 < mesh.TexCoords.Count) ? mesh.TexCoords[i1] : Vector2.Zero;
+                var uv2 = (i2 < mesh.TexCoords.Count) ? mesh.TexCoords[i2] : Vector2.Zero;
 
-                uint baseCol = (t < mesh.TriangleColors.Count) ? mesh.TriangleColors[t] : 0xFF94A3B8;
-                byte br = (byte)((baseCol >> 16) & 0xFF);
-                byte bg = (byte)((baseCol >> 8) & 0xFF);
-                byte bb = (byte)(baseCol & 0xFF);
+                int matId = (t < mesh.TriangleMaterialIds.Count) ? mesh.TriangleMaterialIds[t] : 0;
+                var mat = (matId >= 0 && matId < mesh.Materials.Count) ? mesh.Materials[matId] : null;
 
-                byte r = (byte)Math.Clamp((int)(br * lighting), 0, 255);
-                byte g = (byte)Math.Clamp((int)(bg * lighting), 0, 255);
-                byte b = (byte)Math.Clamp((int)(bb * lighting), 0, 255);
-                int finalColor = unchecked((int)(0xFF000000 | ((uint)r << 16) | ((uint)g << 8) | b));
-
-                // Rasterize Triangle with Z-Buffer
-                RasterizeTriangle(v0, v1, v2, finalColor, width, height, _depthBuffer, _pixelBuffer);
+                // Smooth Shaded & Textured Rasterization
+                RasterizeSmoothTriangle(v0, v1, v2, n0, n1, n2, uv0, uv1, uv2, mat, width, height, _depthBuffer, _pixelBuffer);
             }
         }
 
@@ -305,9 +295,12 @@ public class Model3DViewportControl : Control
         context.DrawRectangle(null, BorderPen, new Rect(0.5, 0.5, width - 1, height - 1));
     }
 
-    private static void RasterizeTriangle(
+    private static void RasterizeSmoothTriangle(
         Vector3 v0, Vector3 v1, Vector3 v2,
-        int color, int width, int height,
+        Vector3 n0, Vector3 n1, Vector3 n2,
+        Vector2 uv0, Vector2 uv1, Vector2 uv2,
+        MeshTexture? mat,
+        int width, int height,
         float[] depthBuffer, int[] pixelBuffer)
     {
         int minX = Math.Max(0, (int)MathF.Floor(MathF.Min(v0.X, MathF.Min(v1.X, v2.X))));
@@ -342,7 +335,38 @@ public class Model3DViewportControl : Control
                     if (z < depthBuffer[idx])
                     {
                         depthBuffer[idx] = z;
-                        pixelBuffer[idx] = color;
+
+                        // Smooth Normal Interpolation
+                        float nx = w0 * n0.X + w1 * n1.X + w2 * n2.X;
+                        float ny = w0 * n0.Y + w1 * n1.Y + w2 * n2.Y;
+                        float nz = w0 * n0.Z + w1 * n1.Z + w2 * n2.Z;
+                        float lenSq = nx * nx + ny * ny + nz * nz;
+                        if (lenSq > 0.0001f)
+                        {
+                            float invLen = 1.0f / MathF.Sqrt(lenSq);
+                            nx *= invLen; ny *= invLen; nz *= invLen;
+                        }
+
+                        // Studio Lighting
+                        float ndotk = MathF.Max(0, nx * KeyLight.X + ny * KeyLight.Y + nz * KeyLight.Z);
+                        float ndotf = MathF.Max(0, nx * FillLight.X + ny * FillLight.Y + nz * FillLight.Z);
+                        float backLight = MathF.Max(0, -nx * KeyLight.X - ny * KeyLight.Y - nz * KeyLight.Z) * 0.15f;
+                        float lighting = Math.Clamp(0.28f + ndotk * 0.58f + ndotf * 0.18f + backLight, 0.2f, 1.0f);
+
+                        // UV & Texture Sample
+                        float u = w0 * uv0.X + w1 * uv1.X + w2 * uv2.X;
+                        float v = w0 * uv0.Y + w1 * uv1.Y + w2 * uv2.Y;
+
+                        int baseCol = mat != null ? mat.Sample(u, v) : unchecked((int)0xFF94A3B8);
+                        byte br = (byte)((baseCol >> 16) & 0xFF);
+                        byte bg = (byte)((baseCol >> 8) & 0xFF);
+                        byte bb = (byte)(baseCol & 0xFF);
+
+                        byte r = (byte)Math.Clamp((int)(br * lighting), 0, 255);
+                        byte g = (byte)Math.Clamp((int)(bg * lighting), 0, 255);
+                        byte b = (byte)Math.Clamp((int)(bb * lighting), 0, 255);
+
+                        pixelBuffer[idx] = unchecked((int)(0xFF000000 | ((uint)r << 16) | ((uint)g << 8) | b));
                     }
                 }
             }

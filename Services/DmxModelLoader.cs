@@ -4,9 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using DeadlockVmdlCompiler.Models;
 
 namespace DeadlockVmdlCompiler.Services;
@@ -56,6 +60,10 @@ public static class DmxModelLoader
             var vmdlDir = Path.GetDirectoryName(vmdlPath) ?? string.Empty;
             var vmdlContent = File.ReadAllText(vmdlPath);
 
+            // 1. Resolve material remaps from VMDL
+            var materialDb = BuildMaterialDatabase(vmdlContent, vmdlDir, citadelDir);
+
+            // 2. Resolve render meshes from RenderMeshList
             var dmxFiles = ExtractLod0RenderMeshes(vmdlContent, vmdlDir, citadelDir);
             LogDebug("[3D Loader] Found " + dmxFiles.Count + " mesh file(s): " + string.Join(", ", dmxFiles.Select(Path.GetFileName)));
 
@@ -66,27 +74,17 @@ public static class DmxModelLoader
 
             foreach (var dmx in dmxFiles)
             {
-                var partial = LoadMeshFile(dmx);
+                var partial = ParseDmx(dmx, materialDb, compositeMesh);
                 if (partial != null && partial.Vertices.Count > 0)
                 {
                     LogDebug("[3D Loader] Parsed " + Path.GetFileName(dmx) + ": " + partial.Vertices.Count + " verts, " + (partial.Indices.Count / 3) + " tris");
-                    int baseIndex = compositeMesh.Vertices.Count;
-                    compositeMesh.Vertices.AddRange(partial.Vertices);
-                    compositeMesh.Normals.AddRange(partial.Normals);
-
-                    foreach (var idx in partial.Indices)
-                    {
-                        compositeMesh.Indices.Add(baseIndex + idx);
-                    }
-                    compositeMesh.TriangleColors.AddRange(partial.TriangleColors);
-                    compositeMesh.BoneCount = Math.Max(compositeMesh.BoneCount, partial.BoneCount);
                 }
             }
 
             if (compositeMesh.Vertices.Count > 0)
             {
                 compositeMesh.RecalculateBounds();
-                LogDebug("[3D Loader] Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris");
+                LogDebug("[3D Loader] Composite Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris, " + compositeMesh.Materials.Count + " materials");
                 return compositeMesh;
             }
 
@@ -96,6 +94,190 @@ public static class DmxModelLoader
         catch (Exception ex)
         {
             LogDebug("[3D Loader Exception] " + ex.Message);
+            return null;
+        }
+    }
+
+    private static Dictionary<string, MeshTexture> BuildMaterialDatabase(string vmdlContent, string vmdlDir, string? citadelDir)
+    {
+        var matDb = new Dictionary<string, MeshTexture>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            string? addonRoot = null;
+            var cleanDir = vmdlDir.Replace('\\', '/');
+            var mIdx = cleanDir.IndexOf("/models/", StringComparison.OrdinalIgnoreCase);
+            if (mIdx >= 0)
+            {
+                addonRoot = cleanDir.Substring(0, mIdx).Replace('/', Path.DirectorySeparatorChar);
+            }
+
+            var remaps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var matches = Regex.Matches(vmdlContent, @"from\s*=\s*""([^""]+)""\s*to\s*=\s*""([^""]+)""");
+            foreach (Match m in matches)
+            {
+                var from = Path.GetFileNameWithoutExtension(m.Groups[1].Value);
+                remaps[from] = m.Groups[2].Value;
+                remaps[m.Groups[1].Value] = m.Groups[2].Value;
+            }
+
+            // Also search all .vmat files in vmdlDir and materials/
+            var searchDirs = new List<string>();
+            if (Directory.Exists(vmdlDir)) searchDirs.Add(vmdlDir);
+            var matsDir = Path.Combine(vmdlDir, "materials");
+            if (Directory.Exists(matsDir)) searchDirs.Add(matsDir);
+            if (!string.IsNullOrEmpty(addonRoot))
+            {
+                var addonMats = Path.Combine(addonRoot, "materials");
+                if (Directory.Exists(addonMats)) searchDirs.Add(addonMats);
+            }
+
+            var allVmats = new List<string>();
+            foreach (var d in searchDirs)
+            {
+                allVmats.AddRange(Directory.GetFiles(d, "*.vmat", SearchOption.AllDirectories));
+            }
+
+            foreach (var vmat in allVmats)
+            {
+                var stem = Path.GetFileNameWithoutExtension(vmat);
+                if (!matDb.ContainsKey(stem))
+                {
+                    var tex = LoadMeshTextureFromVmat(vmat, vmdlDir, addonRoot);
+                    if (tex != null)
+                    {
+                        matDb[stem] = tex;
+                        matDb[Path.GetFileName(vmat)] = tex;
+                    }
+                }
+            }
+
+            foreach (var kv in remaps)
+            {
+                if (!matDb.ContainsKey(kv.Key))
+                {
+                    var rel = kv.Value.Replace('/', Path.DirectorySeparatorChar);
+                    var cand1 = Path.Combine(vmdlDir, Path.GetFileName(rel));
+                    var cand2 = Path.Combine(vmdlDir, "materials", Path.GetFileName(rel));
+                    var cand3 = !string.IsNullOrEmpty(addonRoot) ? Path.Combine(addonRoot, rel) : null;
+
+                    string? actualVmat = null;
+                    if (File.Exists(cand1)) actualVmat = cand1;
+                    else if (File.Exists(cand2)) actualVmat = cand2;
+                    else if (cand3 != null && File.Exists(cand3)) actualVmat = cand3;
+
+                    if (actualVmat != null)
+                    {
+                        var tex = LoadMeshTextureFromVmat(actualVmat, vmdlDir, addonRoot);
+                        if (tex != null)
+                        {
+                            matDb[kv.Key] = tex;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return matDb;
+    }
+
+    private static MeshTexture? LoadMeshTextureFromVmat(string vmatPath, string vmdlDir, string? addonRoot)
+    {
+        try
+        {
+            var text = File.ReadAllText(vmatPath);
+            var texMatch = Regex.Match(text, @"TextureColor\d*\s*""([^""]+)""", RegexOptions.IgnoreCase);
+            
+            string? texFile = null;
+            if (texMatch.Success)
+            {
+                var rel = texMatch.Groups[1].Value.Replace('/', Path.DirectorySeparatorChar);
+                var fnOnly = Path.GetFileName(rel);
+
+                var candidates = new List<string>
+                {
+                    Path.Combine(Path.GetDirectoryName(vmatPath) ?? vmdlDir, fnOnly),
+                    Path.Combine(vmdlDir, fnOnly),
+                    Path.Combine(vmdlDir, "materials", fnOnly),
+                    Path.Combine(vmdlDir, rel)
+                };
+
+                if (!string.IsNullOrEmpty(addonRoot))
+                {
+                    candidates.Add(Path.Combine(addonRoot, rel));
+                    candidates.Add(Path.Combine(addonRoot, "materials", fnOnly));
+                }
+
+                foreach (var c in candidates)
+                {
+                    if (File.Exists(c))
+                    {
+                        texFile = c;
+                        break;
+                    }
+                }
+            }
+
+            int fallbackCol = unchecked((int)0xFF94A3B8);
+            var colorMatch = Regex.Match(text, @"g_vColorTint\d*\s*""\[([\d\.\s]+)\]""", RegexOptions.IgnoreCase);
+            if (colorMatch.Success)
+            {
+                var nums = colorMatch.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                if (nums.Length >= 3 &&
+                    float.TryParse(nums[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float r) &&
+                    float.TryParse(nums[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float g) &&
+                    float.TryParse(nums[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float b))
+                {
+                    byte br = (byte)Math.Clamp((int)(r * 255), 0, 255);
+                    byte bg = (byte)Math.Clamp((int)(g * 255), 0, 255);
+                    byte bb = (byte)Math.Clamp((int)(b * 255), 0, 255);
+                    fallbackCol = unchecked((int)(0xFF000000 | ((uint)br << 16) | ((uint)bg << 8) | bb));
+                }
+            }
+
+            if (!string.IsNullOrEmpty(texFile) && File.Exists(texFile))
+            {
+                try
+                {
+                    using var stream = File.OpenRead(texFile);
+                    var bmp = new Bitmap(stream);
+                    int w = bmp.PixelSize.Width;
+                    int h = bmp.PixelSize.Height;
+
+                    // Downscale if too large to conserve RAM / cache
+                    int maxDim = 512;
+                    int targetW = w > maxDim ? maxDim : w;
+                    int targetH = h > maxDim ? maxDim : h;
+
+                    var wb = new WriteableBitmap(new PixelSize(targetW, targetH), new Avalonia.Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+                    using (var locked = wb.Lock())
+                    {
+                        bmp.CopyPixels(new PixelRect(0, 0, targetW, targetH), locked.Address, locked.RowBytes * targetH, locked.RowBytes);
+                        var pixels = new int[targetW * targetH];
+                        Marshal.Copy(locked.Address, pixels, 0, pixels.Length);
+
+                        return new MeshTexture
+                        {
+                            Name = Path.GetFileNameWithoutExtension(vmatPath),
+                            Width = targetW,
+                            Height = targetH,
+                            Pixels = pixels,
+                            FallbackColor = fallbackCol
+                        };
+                    }
+                }
+                catch { }
+            }
+
+            return new MeshTexture
+            {
+                Name = Path.GetFileNameWithoutExtension(vmatPath),
+                FallbackColor = fallbackCol
+            };
+        }
+        catch
+        {
             return null;
         }
     }
@@ -198,50 +380,7 @@ public static class DmxModelLoader
         return result;
     }
 
-    private static SimpleMesh3D? LoadMeshFile(string filePath)
-    {
-        if (!File.Exists(filePath)) return null;
-
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        if (ext == ".dmx")
-        {
-            return ParseDmx(filePath);
-        }
-
-        return null;
-    }
-
-    private static uint GetMaterialColor(string meshName, string faceSetName)
-    {
-        var combined = (meshName + " " + faceSetName).ToLowerInvariant();
-
-        if (combined.Contains("skin") || combined.Contains("face") || combined.Contains("head") || combined.Contains("neck") || combined.Contains("arm"))
-            return 0xFFFFD7BA;
-        if (combined.Contains("hair") || combined.Contains("eyebrow"))
-            return 0xFF3D271D;
-        if (combined.Contains("eye"))
-            return 0xFF3B82F6;
-        if (combined.Contains("teeth"))
-            return 0xFFF5F5F0;
-        if (combined.Contains("beret") || combined.Contains("hat") || combined.Contains("cap"))
-            return 0xFF1E293B;
-        if (combined.Contains("skirt") || combined.Contains("lower") || combined.Contains("dress") || combined.Contains("cloth"))
-            return 0xFF881337;
-        if (combined.Contains("upper") || combined.Contains("jacket") || combined.Contains("vest") || combined.Contains("body") || combined.Contains("torso"))
-            return 0xFF4C0519;
-        if (combined.Contains("book_page") || combined.Contains("page"))
-            return 0xFFEDE8D0;
-        if (combined.Contains("book"))
-            return 0xFF78350F;
-        if (combined.Contains("gun") || combined.Contains("weapon") || combined.Contains("metal") || combined.Contains("barrel"))
-            return 0xFF64748B;
-        if (combined.Contains("dragon") || combined.Contains("summon"))
-            return 0xFFDC2626;
-
-        return 0xFF94A3B8;
-    }
-
-    private static SimpleMesh3D? ParseDmx(string dmxPath)
+    private static SimpleMesh3D? ParseDmx(string dmxPath, Dictionary<string, MeshTexture> matDb, SimpleMesh3D compositeMesh)
     {
         try
         {
@@ -336,7 +475,18 @@ public static class DmxModelLoader
                                 pos++;
                             }
                             break;
-                        case 41: pos += 4 + BitConverter.ToInt32(data, pos) * 8; break;
+                        case 41:
+                            int cnt41 = BitConverter.ToInt32(data, pos); pos += 4;
+                            var uvArr = new Vector2[cnt41];
+                            for (int p = 0; p < cnt41; p++)
+                            {
+                                uvArr[p] = new Vector2(
+                                    BitConverter.ToSingle(data, pos + p * 8),
+                                    BitConverter.ToSingle(data, pos + p * 8 + 4)
+                                );
+                            }
+                            val = uvArr;
+                            pos += cnt41 * 8; break;
                         case 42:
                             int cnt42 = BitConverter.ToInt32(data, pos); pos += 4;
                             var ptArr = new Vector3[cnt42];
@@ -363,8 +513,8 @@ public static class DmxModelLoader
                 }
             }
 
-            var mesh = new SimpleMesh3D();
-            var meshStem = Path.GetFileNameWithoutExtension(dmxPath);
+            var dmxStem = Path.GetFileNameWithoutExtension(dmxPath);
+            int baseVert = compositeMesh.Vertices.Count;
 
             foreach (var el in elements)
             {
@@ -381,25 +531,56 @@ public static class DmxModelLoader
                         var vd = elements[bindIdx];
                         Vector3[]? positions = null;
                         int[]? posIndices = null;
+                        Vector3[]? normals = null;
+                        int[]? normIndices = null;
+                        Vector2[]? uvs = null;
+                        int[]? uvIndices = null;
 
                         foreach (var kv in vd.Attrs)
                         {
-                            if ((kv.Key == "position" || kv.Key == "position" || kv.Key.StartsWith("position")) && kv.Value is Vector3[] pts)
-                            {
-                                positions = pts;
-                            }
-                            if ((kv.Key == "positionIndices" || kv.Key == "position" || kv.Key.StartsWith("position") && kv.Key.EndsWith("Indices")) && kv.Value is int[] idxs)
-                            {
-                                posIndices = idxs;
-                            }
+                            if (kv.Key.StartsWith("position") && kv.Value is Vector3[] pts) positions = pts;
+                            if (kv.Key.StartsWith("position") && kv.Key.EndsWith("Indices") && kv.Value is int[] pIdxs) posIndices = pIdxs;
+                            if (kv.Key.StartsWith("normal") && kv.Value is Vector3[] nrms) normals = nrms;
+                            if (kv.Key.StartsWith("normal") && kv.Key.EndsWith("Indices") && kv.Value is int[] nIdxs) normIndices = nIdxs;
+                            if (kv.Key.StartsWith("texcoord") && kv.Value is Vector2[] uvsArr) uvs = uvsArr;
+                            if (kv.Key.StartsWith("texcoord") && kv.Key.EndsWith("Indices") && kv.Value is int[] uIdxs) uvIndices = uIdxs;
                         }
 
                         if (positions != null && positions.Length > 0)
                         {
-                            int baseVert = mesh.Vertices.Count;
-                            for (int i = 0; i < positions.Length; i++)
+                            // Unified Vertex deduplication and insertion
+                            int GetOrCreateVert(int faceIdx)
                             {
-                                mesh.Vertices.Add(new Vector3(positions[i].X, positions[i].Z, -positions[i].Y) * 0.0254f);
+                                int pI = (posIndices != null && faceIdx < posIndices.Length) ? posIndices[faceIdx] : faceIdx;
+                                var p = (pI >= 0 && pI < positions.Length) ? positions[pI] : Vector3.Zero;
+                                var vYUp = new Vector3(p.X, p.Z, -p.Y) * 0.0254f;
+
+                                var norm = Vector3.UnitY;
+                                if (normals != null && normals.Length > 0)
+                                {
+                                    int nI = (normIndices != null && faceIdx < normIndices.Length) ? normIndices[faceIdx] : faceIdx;
+                                    if (nI >= 0 && nI < normals.Length)
+                                    {
+                                        var rawN = normals[nI];
+                                        norm = Vector3.Normalize(new Vector3(rawN.X, rawN.Z, -rawN.Y));
+                                    }
+                                }
+
+                                var uv = Vector2.Zero;
+                                if (uvs != null && uvs.Length > 0)
+                                {
+                                    int uI = (uvIndices != null && faceIdx < uvIndices.Length) ? uvIndices[faceIdx] : faceIdx;
+                                    if (uI >= 0 && uI < uvs.Length)
+                                    {
+                                        uv = uvs[uI];
+                                    }
+                                }
+
+                                int idx = compositeMesh.Vertices.Count;
+                                compositeMesh.Vertices.Add(vYUp);
+                                compositeMesh.Normals.Add(norm);
+                                compositeMesh.TexCoords.Add(uv);
+                                return idx;
                             }
 
                             if (el.Attrs.TryGetValue("faceSets", out var fsObj) && fsObj is int[] fsIndices)
@@ -409,7 +590,24 @@ public static class DmxModelLoader
                                     if (fsi >= 0 && fsi < elements.Count)
                                     {
                                         var fs = elements[fsi];
-                                        uint faceColor = GetMaterialColor(meshStem + " " + el.Name, fs.Name);
+
+                                        // Resolve material
+                                        MeshTexture? targetMat = null;
+                                        if (matDb.TryGetValue(fs.Name, out var m1)) targetMat = m1;
+                                        else if (matDb.TryGetValue(dmxStem, out var m2)) targetMat = m2;
+                                        else if (matDb.TryGetValue(el.Name, out var m3)) targetMat = m3;
+
+                                        if (targetMat == null)
+                                        {
+                                            targetMat = new MeshTexture { Name = fs.Name, FallbackColor = unchecked((int)0xFF94A3B8) };
+                                        }
+
+                                        int matId = compositeMesh.Materials.IndexOf(targetMat);
+                                        if (matId < 0)
+                                        {
+                                            matId = compositeMesh.Materials.Count;
+                                            compositeMesh.Materials.Add(targetMat);
+                                        }
 
                                         if (fs.Attrs.TryGetValue("faces", out var fObj) && fObj is int[] faces)
                                         {
@@ -423,23 +621,18 @@ public static class DmxModelLoader
                                                     {
                                                         for (int tri = 1; tri < polyLen - 1; tri++)
                                                         {
-                                                            int f0 = faces[curPolyStart];
-                                                            int f1 = faces[curPolyStart + tri];
-                                                            int f2 = faces[curPolyStart + tri + 1];
+                                                            int f0 = curPolyStart;
+                                                            int f1 = curPolyStart + tri;
+                                                            int f2 = curPolyStart + tri + 1;
 
-                                                            int v0 = (posIndices != null && f0 >= 0 && f0 < posIndices.Length) ? posIndices[f0] : f0;
-                                                            int v1 = (posIndices != null && f1 >= 0 && f1 < posIndices.Length) ? posIndices[f1] : f1;
-                                                            int v2 = (posIndices != null && f2 >= 0 && f2 < posIndices.Length) ? posIndices[f2] : f2;
+                                                            int v0 = GetOrCreateVert(f0);
+                                                            int v1 = GetOrCreateVert(f1);
+                                                            int v2 = GetOrCreateVert(f2);
 
-                                                            if (v0 >= 0 && v0 < positions.Length &&
-                                                                v1 >= 0 && v1 < positions.Length &&
-                                                                v2 >= 0 && v2 < positions.Length)
-                                                            {
-                                                                mesh.Indices.Add(baseVert + v0);
-                                                                mesh.Indices.Add(baseVert + v1);
-                                                                mesh.Indices.Add(baseVert + v2);
-                                                                mesh.TriangleColors.Add(faceColor);
-                                                            }
+                                                            compositeMesh.Indices.Add(v0);
+                                                            compositeMesh.Indices.Add(v1);
+                                                            compositeMesh.Indices.Add(v2);
+                                                            compositeMesh.TriangleMaterialIds.Add(matId);
                                                         }
                                                     }
                                                     curPolyStart = fi + 1;
@@ -454,11 +647,7 @@ public static class DmxModelLoader
                 }
             }
 
-            if (mesh.Vertices.Count > 0)
-            {
-                mesh.RecalculateBounds();
-                return mesh;
-            }
+            return compositeMesh;
         }
         catch (Exception ex)
         {
