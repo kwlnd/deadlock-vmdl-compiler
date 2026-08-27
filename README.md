@@ -30,8 +30,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 
 ### Pipeline Actions
 - **compile**: Runs the full automated compilation pipeline (injects AG2 references, compiles via CSWin64 ModelDoc, copies .vmdl_c to addon game directory, and restores source file).
-- **transfer cloth**: scans skeleton bone chains (hair, braids, tails, props, cuffs, chains, sleeves) and generates valid _class = "Softbody" cloth chains, collision spheres, and links custom .dmx cloth proxy meshes. *Note: very hacky workaround, currently hit-or-miss and only partially functional.*
-- **fix(modeldoc)**: remove all AG2 nodes from decompiled .vmdl to prevent crash.
+- **fix(modeldoc)**: Removes all AG2 nodes from decompiled .vmdl to prevent crash.
 - **get ag2 lists**: Scans Deadlock's pak01_dir.vpk to extract up-to-date .vnmskel and .vnmgraph references for all heroes.
 - **restore ag2 list**: Resets and reloads the default built-in hero preset database.
 - **make vpk...**: Packages the active addon folder directly into a .vpk archive.
@@ -45,7 +44,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - **inject ui animgraph2**: Injects compiled hero UI .vnmgraph reference before compiling.
 
 ### Visuals
-- **3D preview**: Interactive real-time 3D viewport with textured mesh rendering and camera controls.
+- **3D preview**: Interactive real-time 3D viewport with mesh rendering and camera controls.
 - **log console**: Real-time output log tracking all compiler steps and status.
 
 ---
@@ -57,7 +56,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 2. Extract the archive and launch DeadlockVmdlCompiler.exe.
 3. Set your **CSWin64 bin directory** (e.g. .../game/csgo/bin/win64 or .../game/bin/win64).
 4. Set your **CSDK12 Addons directory** (e.g. .../content/citadel_addons).
-5. Select the target addon and model, and click **compile** or **transfer cloth**.
+5. Select the target addon and model, and click **compile**.
 
 ---
 
