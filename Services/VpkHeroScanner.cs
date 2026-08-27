@@ -25,7 +25,9 @@ public class VpkEntry
 
 public static class VpkHeroScanner
 {
-    public static async Task<(bool Success, string Message, Dictionary<string, HeroPreset> Presets)> ScanVpkForHeroesAsync(string targetPath)
+    public static async Task<(bool Success, string Message, Dictionary<string, HeroPreset> Presets)> ScanVpkForHeroesAsync(
+        string targetPath,
+        IProgress<(int Current, int Total, string CurrentModel)>? progress = null)
     {
         if (string.IsNullOrWhiteSpace(targetPath))
             return (false, "Target path is empty.", new());
@@ -58,7 +60,6 @@ public static class VpkHeroScanner
                 {
                     var entries = ReadVpkDirectory(resolvedPath);
 
-                    // Scan strictly models/heroes, models/heroes_staging, models/heroes_wip
                     var targetEntries = entries.Where(e =>
                         e.Extension.Equals("vmdl_c", StringComparison.OrdinalIgnoreCase) &&
                         (e.Directory.StartsWith("models/heroes", StringComparison.OrdinalIgnoreCase) ||
@@ -77,8 +78,14 @@ public static class VpkHeroScanner
                         vpkBaseName = vpkBaseName[..^4];
                     }
 
+                    int total = targetEntries.Count;
+                    int current = 0;
+
                     foreach (var entry in targetEntries)
                     {
+                        current++;
+                        progress?.Report((current, total, entry.FileName));
+
                         try
                         {
                             var byteData = ExtractVpkEntryBytes(entry, resolvedPath, vpkBaseDir, vpkBaseName);
@@ -103,8 +110,15 @@ public static class VpkHeroScanner
                         .Where(f => f.Replace('\\', '/').Contains("/heroes", StringComparison.OrdinalIgnoreCase))
                         .ToList();
 
+                    int total = allVmdlcFiles.Count;
+                    int current = 0;
+
                     foreach (var filePath in allVmdlcFiles)
                     {
+                        current++;
+                        var fn = Path.GetFileNameWithoutExtension(filePath);
+                        progress?.Report((current, total, fn));
+
                         try
                         {
                             using var res = new Resource();
@@ -135,7 +149,6 @@ public static class VpkHeroScanner
                     return (false, "Scan completed, but no models with AnimGraph2 nodes were found in the selected VPK.", results);
                 }
 
-                // Merge with base database
                 var merged = new Dictionary<string, HeroPreset>(HeroDatabase.GetDatabase(), StringComparer.OrdinalIgnoreCase);
                 foreach (var kv in results)
                 {
@@ -167,7 +180,6 @@ public static class VpkHeroScanner
             if (string.IsNullOrWhiteSpace(text))
                 return (false, null, string.Empty);
 
-            // Must contain m_animGraph2Refs AND m_vecNmSkeletonRefs
             if (!text.Contains("m_animGraph2Refs", StringComparison.OrdinalIgnoreCase) ||
                 !text.Contains("m_vecNmSkeletonRefs", StringComparison.OrdinalIgnoreCase))
             {
@@ -178,14 +190,12 @@ public static class VpkHeroScanner
             string graph = string.Empty;
             string uiGraph = string.Empty;
 
-            // 1. Skeleton
             var skelMatch = Regex.Match(text, @"m_vecNmSkeletonRefs\s*=\s*\[[\s\S]*?(?:resource:)?\s*""([^""]+\.vnmskel)""", RegexOptions.IgnoreCase);
             if (skelMatch.Success)
             {
                 skel = skelMatch.Groups[1].Value.Trim();
             }
 
-            // 2. AnimGraph2 references
             var ag2SectionMatch = Regex.Match(text, @"m_animGraph2Refs\s*=\s*\[([\s\S]*?)\]\s*(?:\r?\n|$)", RegexOptions.IgnoreCase);
             if (ag2SectionMatch.Success)
             {
@@ -224,7 +234,6 @@ public static class VpkHeroScanner
             if (string.IsNullOrWhiteSpace(skel) || string.IsNullOrWhiteSpace(graph))
                 return (false, null, string.Empty);
 
-            // Strict Hero Key name from .vmdl_c filename
             var heroKey = fileName.ToLowerInvariant();
             if (heroKey.EndsWith(".vmdl")) heroKey = heroKey[..^5];
             if (heroKey.EndsWith("_body")) heroKey = heroKey[..^5];
@@ -309,7 +318,7 @@ public static class VpkHeroScanner
         return entries;
     }
 
-    private static byte[]? ExtractVpkEntryBytes(VpkEntry entry, string dirVpkPath, string vpkBaseDir, string vpkBaseName)
+    public static byte[]? ExtractVpkEntryBytes(VpkEntry entry, string dirVpkPath, string vpkBaseDir, string vpkBaseName)
     {
         if (entry.EntryLength == 0 && entry.PreloadBytes > 0)
             return entry.PreloadData;
@@ -342,6 +351,40 @@ public static class VpkHeroScanner
         }
 
         return buffer;
+    }
+
+    public static byte[]? ExtractFileFromVpk(string vpkPath, string internalPath)
+    {
+        try
+        {
+            if (!File.Exists(vpkPath)) return null;
+            var entries = ReadVpkDirectory(vpkPath);
+
+            var cleanTarget = internalPath.Replace('\\', '/').TrimStart('/');
+            var targetDir = Path.GetDirectoryName(cleanTarget)?.Replace('\\', '/') ?? string.Empty;
+            var targetExt = Path.GetExtension(cleanTarget).TrimStart('.');
+            var targetName = Path.GetFileNameWithoutExtension(cleanTarget);
+
+            var match = entries.FirstOrDefault(e =>
+                e.Extension.Equals(targetExt, StringComparison.OrdinalIgnoreCase) &&
+                e.FileName.Equals(targetName, StringComparison.OrdinalIgnoreCase) &&
+                (string.IsNullOrEmpty(targetDir) || e.Directory.Equals(targetDir, StringComparison.OrdinalIgnoreCase)));
+
+            if (match != null)
+            {
+                var vpkBaseDir = Path.GetDirectoryName(vpkPath) ?? string.Empty;
+                var vpkBaseName = Path.GetFileNameWithoutExtension(vpkPath);
+                if (vpkBaseName.EndsWith("_dir", StringComparison.OrdinalIgnoreCase))
+                {
+                    vpkBaseName = vpkBaseName[..^4];
+                }
+
+                return ExtractVpkEntryBytes(match, vpkPath, vpkBaseDir, vpkBaseName);
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     private static string ReadNullTerminatedString(BinaryReader reader)

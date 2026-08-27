@@ -203,6 +203,12 @@
                             </Grid>
                         </Grid>
 
+                        <!-- VPK Scan Progress Indicator -->
+                        <StackPanel x:Name="PanelScanProgress" IsVisible="False" Margin="0,2,0,0">
+                            <ProgressBar x:Name="PrgScanVpk" Height="3" Foreground="#3B82F6" Background="#212A3B" Minimum="0" Maximum="100"/>
+                            <TextBlock x:Name="LblScanStatus" Text="scanning models in VPK..." FontSize="9.5" Foreground="#94A3B8" Margin="0,2,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+
                     </StackPanel>
                 </Border>
 

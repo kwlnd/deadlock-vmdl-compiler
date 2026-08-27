@@ -18,7 +18,7 @@ public static class DmxModelLoader
 {
     private static readonly ConcurrentDictionary<string, SimpleMesh3D> _modelCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static async Task<SimpleMesh3D?> LoadModelFromVmdlAsync(string vmdlPath)
+    public static async Task<SimpleMesh3D?> LoadModelFromVmdlAsync(string vmdlPath, string? citadelDir = null)
     {
         if (string.IsNullOrWhiteSpace(vmdlPath) || !File.Exists(vmdlPath))
             return null;
@@ -29,7 +29,7 @@ public static class DmxModelLoader
 
         return await Task.Run(() =>
         {
-            var res = LoadModelFromVmdlInternal(fullPath);
+            var res = LoadModelFromVmdlInternal(fullPath, citadelDir);
             if (res != null && res.Vertices.Count > 0)
             {
                 _modelCache[fullPath] = res;
@@ -38,7 +38,7 @@ public static class DmxModelLoader
         });
     }
 
-    private static SimpleMesh3D? LoadModelFromVmdlInternal(string vmdlPath)
+    private static SimpleMesh3D? LoadModelFromVmdlInternal(string vmdlPath, string? citadelDir = null)
     {
         try
         {

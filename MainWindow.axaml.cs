@@ -161,11 +161,12 @@ public partial class MainWindow : Window
         try
         {
             var path = targetPath ?? GetResolvedTargetPath();
+            var citadelDir = TxtCitadelPath.Text?.Trim();
 
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
                 LblMeshName.Text = "mesh: loading preview...";
-                var mesh = await DmxModelLoader.LoadModelFromVmdlAsync(path);
+                var mesh = await DmxModelLoader.LoadModelFromVmdlAsync(path, citadelDir);
                 ModelViewport.CurrentMesh = mesh;
 
                 if (mesh != null && mesh.Vertices.Count > 0)
@@ -602,14 +603,32 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (string.IsNullOrEmpty(vpkPath) || !File.Exists(vpkPath))
-            {
-                Log("[VPK Scan] No pak01_dir.vpk selected.");
-                return;
-            }
-
             Log($"Scanning VPK: {vpkPath}...");
-            var (success, msg, presets) = await VpkHeroScanner.ScanVpkForHeroesAsync(vpkPath);
+            
+            PanelScanProgress.IsVisible = true;
+            PrgScanVpk.Value = 0;
+            LblScanStatus.Text = "Starting VPK scan...";
+            TxtGetListsBtn.Text = "scanning...";
+
+            var progress = new Progress<(int Current, int Total, string CurrentModel)>(p =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (p.Total > 0)
+                    {
+                        PrgScanVpk.Maximum = p.Total;
+                        PrgScanVpk.Value = p.Current;
+                        LblScanStatus.Text = $"scanning ({p.Current}/{p.Total}): {p.CurrentModel}";
+                        TxtGetListsBtn.Text = $"{p.Current}/{p.Total}";
+                    }
+                });
+            });
+
+            var (success, msg, presets) = await VpkHeroScanner.ScanVpkForHeroesAsync(vpkPath, progress);
+            
+            PanelScanProgress.IsVisible = false;
+            TxtGetListsBtn.Text = "get ag2 lists";
+
             if (success && presets.Count > 0)
             {
                 Log($"VPK Scan Complete: Updated {presets.Count} hero presets.");
@@ -627,12 +646,16 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            PanelScanProgress.IsVisible = false;
+            TxtGetListsBtn.Text = "get ag2 lists";
             Log($"[VPK Scan Error] {ex.Message}");
             await DialogService.ShowErrorAsync(this, "VPK Scan Error", ex.Message);
         }
         finally
         {
             _isProcessing = false;
+            PanelScanProgress.IsVisible = false;
+            TxtGetListsBtn.Text = "get ag2 lists";
         }
     }
 
