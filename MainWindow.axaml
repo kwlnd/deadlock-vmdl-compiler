@@ -1,0 +1,354 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:DeadlockVmdlCompiler.Controls"
+        xmlns:models="using:DeadlockVmdlCompiler.Models"
+        x:Class="DeadlockVmdlCompiler.MainWindow"
+        Title="deadlock ag2 compiler"
+        Icon="avares://DeadlockVmdlCompiler/AppIcon.ico"
+        Width="960"
+        MinWidth="920"
+        MinHeight="460"
+        SizeToContent="Height"
+        Background="#13171F"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="12,10,12,10" RowDefinitions="Auto,Auto">
+        <!-- 0. Two-Column Workspace Grid -->
+        <Grid Grid.Row="0" Margin="0,0,0,8" ColumnDefinitions="6*,10,4*">
+            
+            <!-- LEFT PANEL: Model Selection & Presets -->
+            <StackPanel Grid.Column="0">
+                <StackPanel Orientation="Horizontal" Margin="2,0,0,4">
+                    <Viewbox Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M4 6H20V18H4V6ZM2 4C2 2.9 2.9 2 4 2H20C21.1 2 22 2.9 22 4V20C22 21.1 21.1 22 20 22H4C2.9 22 2 21.1 2 20V4Z" Fill="#619BF2"/>
+                            <Path Data="M7 10H17V12H7V10ZM7 14H14V16H7V14Z" Fill="#D9E7FF"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="model selection &amp; presets" FontSize="11" FontWeight="Bold" Foreground="#82868E"/>
+                </StackPanel>
+
+                <!-- Model Selection Card -->
+                <Border Background="#181C24" BorderBrush="#2B3240" BorderThickness="1" CornerRadius="6" Padding="8" Margin="0,0,0,6">
+                    <StackPanel Spacing="6">
+                        
+                        <!-- Row 1: Discovered Addon -->
+                        <Grid ColumnDefinitions="145,*,Auto">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="discovered addon:" FontSize="11.5" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                                <TextBlock x:Name="LblDiscoveredCount" Text="scanning..." FontSize="10" Foreground="#82868E"/>
+                            </StackPanel>
+                            
+                            <ComboBox x:Name="CmbDiscovered"
+                                      Grid.Column="1"
+                                      Margin="6,0"
+                                      Height="36"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="CmbDiscovered_SelectionChanged">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="models:DiscoveredAddon">
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <Viewbox Grid.Column="0" Width="18" Height="18" Margin="0,0,8,0" VerticalAlignment="Center">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M2 7C2 5.89 2.89 5 4 5H10.22C10.72 5 11.20 5.18 11.57 5.52L16.5 10H2V7Z" Fill="#458FFF"/>
+                                                    <Path Data="M2 9C2 7.89 2.89 7 4 7H20C21.10 7 22 7.89 22 9V11H2V9Z" Fill="#313F59"/>
+                                                    <Path Data="M4 8H20C21.10 8 22 8.89 22 10V17C22 18.10 21.10 19 20 19H4C2.89 19 2 18.10 2 17V10C2 8.89 2.89 8 4 8ZM4.97 12L6.21 15.36L7.49 12H9.10L7.01 17.5H5.40L3.37 12H4.97ZM10 12V17.5H11.5V16.25H12.12C13.29 16.25 14.24 15.29 14.25 14.12C14.24 12.95 13.29 12 12.12 12H10ZM11.5 13.5H12.12C12.47 13.5 12.74 13.77 12.75 14.12C12.74 14.47 12.47 14.75 12.12 14.75H11.5V13.5ZM16.75 12V13.82L17.85 12.49L20.09 12.15L17.96 14.71L20.10 17.5H18.20L16.97 15.89L16.75 16.17V17.5H15.25V12H16.75Z" Fill="#458FFF"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                                                <TextBlock Text="{Binding Details}" FontSize="10" Foreground="#82868E"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            
+                            <Button Grid.Column="2" Height="36" Padding="8,2" Click="Rescan_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Viewbox Width="12" Height="12">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M17.65 6.35C16.2 4.9 14.21 4 12 4C7.58 4 4.01 7.58 4.01 12C4.01 16.42 7.58 20 12 20C15.73 20 18.84 17.45 19.73 14H17.65C16.83 16.33 14.61 18 12 18C8.69 18 6 15.31 6 12C6 8.69 8.69 6 12 6C13.66 6 15.14 6.69 16.22 7.78L13 11H20V4L17.65 6.35Z" Fill="#87B4F9"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="rescan" FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Row 2: Target VMDL File -->
+                        <Grid ColumnDefinitions="145,*,Auto">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="target vmdl file:" FontSize="11.5" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                                <TextBlock Text="direct path in addon" FontSize="10" Foreground="#82868E"/>
+                            </StackPanel>
+                            
+                            <ComboBox x:Name="CmbTargetVmdl"
+                                      Grid.Column="1"
+                                      Margin="6,0"
+                                      Height="32"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="CmbTargetVmdl_SelectionChanged">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate DataType="models:DiscoveredModel">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12" Stroke="#87B4F9" StrokeThickness="2"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                            <TextBlock Text="{Binding RelativePath}" FontSize="11.5" VerticalAlignment="Center" Foreground="#DFE2E6"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <Button Grid.Column="2" Height="32" Padding="8,2" Click="BrowseFile_Click">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Viewbox Width="12" Height="12">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12" Stroke="#87B4F9" StrokeThickness="2"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="browse..." FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                        <!-- Row 3: Hero Preset -->
+                        <Grid ColumnDefinitions="145,*">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="hero preset:" FontSize="11.5" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                                <TextBlock Text="skeleton &amp; animgraph" FontSize="10" Foreground="#82868E"/>
+                            </StackPanel>
+                            <ComboBox x:Name="CmbHeroPreset"
+                                      Grid.Column="1"
+                                      Margin="6,0,0,0"
+                                      Height="30"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Stretch"
+                                      SelectionChanged="CmbHeroPreset_SelectionChanged"/>
+                        </Grid>
+
+                        <Border Height="1" Background="#242B38" Margin="0,2"/>
+
+                        <!-- Row 4: Action Tools Grid (Clean 5 buttons layout without cloth proxy) -->
+                        <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
+                            
+                            <!-- Row 0, Col 0: restore ag2 list -->
+                            <Button x:Name="BtnRestorePresets" Grid.Row="0" Grid.Column="0" Height="28" Margin="0,0,3,4" Click="BtnRestorePresets_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                                    <Viewbox Width="11" Height="11">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M12 5V1L7 6L12 11V7C15.31 7 18 9.69 18 13C18 14.01 17.75 14.97 17.3 15.8L18.8 17.3C19.55 16.05 20 14.58 20 13C20 8.58 16.42 5 12 5ZM6.7 8.2L5.2 6.7C4.45 7.95 4 9.42 4 11C4 15.42 7.58 19 12 19V23L17 18L12 13V17C8.69 17 6 14.31 6 11C6 9.99 6.25 9.03 6.7 8.2Z" Fill="#87B4F9"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtRestoreBtn" Text="restore ag2 list" FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 0, Col 1: get ag2 lists -->
+                            <Button x:Name="BtnUpdateVpkPresets" Grid.Row="0" Grid.Column="1" Height="28" Margin="3,0,3,4" Click="BtnUpdateVpkPresets_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                                    <Viewbox Width="11" Height="11">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M19 11C19 15.42 15.42 19 11 19C6.58 19 3 15.42 3 11C3 6.58 6.58 3 11 3C15.42 3 19 6.58 19 11Z" Fill="#87B4F9"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtGetListsBtn" Text="get ag2 lists" FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 0, Col 2: fix for modeldoc -->
+                            <Button x:Name="BtnSanitizeModelDoc" Grid.Row="0" Grid.Column="2" Height="28" Margin="3,0,0,4" Click="BtnSanitizeModelDoc_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                                    <Viewbox Width="11" Height="11">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M19.36 10.04L18 8.68L12.93 13.76C12.8 13.88 12.63 13.96 12.44 13.96C12.06 13.96 11.75 13.65 11.75 13.27C11.75 13.08 11.83 12.92 11.95 12.79L17.03 7.72L15.68 6.36C15.39 6.07 14.91 6.07 14.62 6.36L8.41 12.57L9.83 13.99L8.41 15.41L7 13.99L4.17 16.82C3.39 17.6 3.39 18.87 4.17 19.65C4.95 20.43 6.22 20.43 7 19.65L9.83 16.82L8.41 15.41L9.83 13.99L11.24 15.41L17.45 9.2C17.74 8.91 17.74 8.43 17.45 8.14" Fill="#87B4F9"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtSanitizeBtn" Text="fix for modeldoc" FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+
+                            <!-- Row 1: make vpk & export to cswin64 (evenly spanned) -->
+                            <Button x:Name="BtnMakeVpk" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="1" Height="28" Margin="0,0,3,0" Click="BtnMakeVpk_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                                    <Viewbox Width="12" Height="12">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M2 7C2 5.89 2.89 5 4 5H10.22L16.5 10H2V7Z" Fill="#458FFF"/>
+                                            <Path Data="M4 8H20C21.1 8 22 8.89 22 10V17C22 18.1 21.1 19 20 19H4C2.89 19 2 18.1 2 17V10C2 8.89 2.89 8 4 8Z" Fill="#313F59"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtMakeVpkBtn" Text="make vpk..." FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+
+                            <Button x:Name="BtnExportCsWin" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Height="28" Margin="3,0,0,0" Click="BtnExportCsWin_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="4">
+                                    <Viewbox Width="12" Height="12">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="M12 4V15.5M12 15.5L16 11.5M12 15.5L8 11.5M7 20H17" Stroke="#87B4F9" StrokeThickness="2"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64" FontSize="11"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+
+                    </StackPanel>
+                </Border>
+
+                <!-- Main Action Button: Compile -->
+                <Button x:Name="BtnCompile"
+                        Height="36"
+                        Background="#2563EB"
+                        Foreground="#FFFFFF"
+                        BorderBrush="#3B82F6"
+                        Click="BtnCompile_Click">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
+                        <Viewbox Width="14" Height="14">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M 7 4.5 C 7 3.6 8 3.1 8.8 3.6 L 19.8 10.6 C 20.5 11.1 20.5 12.1 19.8 12.6 L 8.8 19.6 C 8 20.1 7 19.6 7 18.7 Z" Fill="#FFFFFF"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock x:Name="TxtCompileBtn" Text="compile" FontWeight="Bold" FontSize="13"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <!-- RIGHT PANEL: 3D Preview Box -->
+            <StackPanel Grid.Column="2">
+                <StackPanel Orientation="Horizontal" Margin="2,0,0,4">
+                    <Viewbox Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12" Stroke="#87B4F9" StrokeThickness="2"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="3d preview" FontSize="11" FontWeight="Bold" Foreground="#82868E"/>
+                </StackPanel>
+
+                <Border Background="#181C24" BorderBrush="#2B3240" BorderThickness="1" CornerRadius="6" Padding="6">
+                    <StackPanel>
+                        <!-- 3D Viewport Control -->
+                        <Border Background="#0E1117" BorderBrush="#2B3240" BorderThickness="1" CornerRadius="4" Height="234" ClipToBounds="True">
+                            <controls:Model3DViewportControl x:Name="ModelViewport" Height="234" />
+                        </Border>
+
+                        <TextBlock x:Name="LblMeshName" Text="mesh: no model selected" FontSize="11" Foreground="#82868E" Margin="2,6,0,0" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+        </Grid>
+
+        <!-- 1. ADVANCED EXPANDER -->
+        <Expander x:Name="ExpanderAdvanced" Grid.Row="1" Header="advanced settings &amp; tools" IsExpanded="False" Margin="0,2,0,0">
+            <Border Background="#181C24" BorderBrush="#2B3240" BorderThickness="1" CornerRadius="6" Margin="0,4,0,0" Padding="10">
+                <StackPanel Spacing="8">
+                    
+                    <!-- Environment Paths -->
+                    <StackPanel Orientation="Horizontal" Margin="2,0,0,2">
+                        <Viewbox Width="12" Height="12" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M19.14 12.94C19.18 12.63 19.2 12.32 19.2 12C19.2 11.68 19.18 11.37 19.14 11.06L21.16 9.48C21.34 9.34 21.39 9.08 21.28 8.88L19.36 5.56C19.25 5.36 19 5.28 18.79 5.36L16.42 6.32C15.93 5.94 15.39 5.63 14.81 5.39L14.45 2.87C14.42 2.64 14.22 2.47 13.99 2.47H10.15C9.92 2.47 9.72 2.64 9.69 2.87L9.33 5.39C8.75 5.63 8.21 5.94 7.72 6.32L5.35 5.36C5.14 5.28 4.89 5.36 4.78 5.56L2.86 8.88C2.75 9.08 2.8 9.34 2.98 9.48L5 11.06C4.96 11.37 4.94 11.68 4.94 12C4.94 12.32 4.96 12.63 5 12.94L2.98 14.52C2.8 14.66 2.75 14.92 2.86 15.12L4.78 18.44C4.89 18.64 5.14 18.72 5.35 18.64L7.72 17.68C8.21 18.06 8.75 18.37 9.33 18.61L9.69 21.13C9.72 21.36 9.92 21.53 10.15 21.53H13.99C14.22 21.53 14.42 21.36 14.45 21.13L14.81 18.61C15.39 18.37 15.93 18.06 16.42 17.68L18.79 18.64C19 18.72 19.25 18.64 19.36 18.44L21.28 15.12C21.39 14.92 21.34 14.66 21.16 14.52L19.14 12.94ZM12 15.5C10.07 15.5 8.5 13.93 8.5 12C8.5 10.07 10.07 8.5 12 8.5C13.93 8.5 15.5 10.07 15.5 12C15.5 13.93 13.93 15.5 12 15.5Z" Fill="#619BF2"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="environment paths" FontSize="11" FontWeight="Bold" Foreground="#82868E"/>
+                    </StackPanel>
+
+                    <!-- CSWin64 Row -->
+                    <Grid ColumnDefinitions="145,*,Auto,Auto" Margin="18,0,0,0">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="cswin64 installation:" FontSize="11.5" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                            <TextBlock x:Name="LblCsWinStatus" Text="checking..." FontSize="10" Foreground="#82868E"/>
+                        </StackPanel>
+                        <TextBox x:Name="TxtCsWinPath" Grid.Column="1" Height="28" Margin="6,0" VerticalAlignment="Center" TextChanged="TxtCsWinPath_TextChanged"/>
+                        
+                        <Border x:Name="BorderCsWinCheck" Grid.Column="2" Width="22" Height="22" Margin="0,0,6,0" VerticalAlignment="Center" CornerRadius="4" Background="#1D3E2B" BorderBrush="#22C55E" BorderThickness="1.5">
+                            <Viewbox Width="14" Height="14" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="IconCsWinStatus" Data="M9 16.2L4.8 12L3.4 13.4L9 19L21 7L19.6 5.6L9 16.2Z" Fill="#22C55E"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Border>
+
+                        <Button Grid.Column="3" Height="28" Padding="8,2" Click="BrowseCsWin_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Viewbox Width="12" Height="12">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.89 20 3.99 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6H12L10 4Z" Fill="#87B4F9"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="browse..." FontSize="11"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <!-- CSDK Row -->
+                    <Grid ColumnDefinitions="145,*,Auto" Margin="18,0,0,0">
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="csdk addons folder:" FontSize="11.5" FontWeight="SemiBold" Foreground="#DFE2E6"/>
+                            <TextBlock x:Name="LblCitadelStatus" Text="checking..." FontSize="10" Foreground="#82868E"/>
+                        </StackPanel>
+                        <TextBox x:Name="TxtCitadelPath" Grid.Column="1" Height="28" Margin="6,0" VerticalAlignment="Center" TextChanged="TxtCitadelPath_TextChanged"/>
+                        <Button Grid.Column="2" Height="28" Padding="8,2" Click="BrowseCitadel_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Viewbox Width="12" Height="12">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="M10 4H4C2.9 4 2.01 4.9 2.01 6L2 18C2 19.1 2.89 20 3.99 20H20C21.1 20 22 19.1 22 18V8C22 6.9 21.1 6 20 6H12L10 4Z" Fill="#87B4F9"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock Text="browse..." FontSize="11"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <Border Height="1" Background="#242B38" Margin="0,4"/>
+
+                    <!-- Injections Section -->
+                    <StackPanel Spacing="4">
+                        <Grid ColumnDefinitions="200,*">
+                            <CheckBox x:Name="ChkSkel" Grid.Column="0" Content="inject nmskeleton" IsChecked="True"/>
+                            <TextBox x:Name="TxtSkel" Grid.Column="1" Height="26" IsReadOnly="True" Foreground="#94A3B8"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="200,*">
+                            <CheckBox x:Name="ChkGraph" Grid.Column="0" Content="inject defaultanimgraph2" IsChecked="True"/>
+                            <TextBox x:Name="TxtGraph" Grid.Column="1" Height="26" IsReadOnly="True" Foreground="#94A3B8"/>
+                        </Grid>
+                        <Grid ColumnDefinitions="200,*">
+                            <CheckBox x:Name="ChkUiGraph" Grid.Column="0" Content="inject ui animgraph2 (ui)" IsChecked="True"/>
+                            <TextBox x:Name="TxtUiGraph" Grid.Column="1" Height="26" IsReadOnly="True" Foreground="#94A3B8"/>
+                        </Grid>
+                        <CheckBox x:Name="ChkRevert" Content="revert vmdl back (clean workspace after compile)" IsChecked="True"/>
+                    </StackPanel>
+
+                    <Border Height="1" Background="#242B38" Margin="0,4"/>
+
+                    <!-- Log Console -->
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="log console" FontSize="11" FontWeight="Bold" Foreground="#82868E"/>
+                        <CheckBox x:Name="ChkAutoScroll" Grid.Column="1" Content="auto-scroll" IsChecked="True" FontSize="11"/>
+                    </Grid>
+
+                    <Border Background="#0E1117" BorderBrush="#2B3240" BorderThickness="1" CornerRadius="4" Height="140">
+                        <ScrollViewer x:Name="ScrollLog">
+                            <TextBox x:Name="TxtLog"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Foreground="#DFE2E6"
+                                     FontFamily="Consolas,Cascadia Code,Monospace"
+                                     FontSize="11.5"
+                                     IsReadOnly="True"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+                        </ScrollViewer>
+                    </Border>
+
+                </StackPanel>
+            </Border>
+        </Expander>
+    </Grid>
+</Window>

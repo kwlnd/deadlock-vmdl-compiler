@@ -249,104 +249,6 @@ public static class ClothPhysicsExtractor
         return list;
     }
 
-    public static (string? DmxPath, string? Kv3Node) ExtractClothProxyMesh(
-        string targetVmdlPath,
-        string? citadelAddonsDir)
-    {
-        try
-        {
-            var heroName = VmdlPipeline.DetectHeroFromPath(targetVmdlPath);
-            var targetDir = Path.GetDirectoryName(targetVmdlPath) ?? string.Empty;
-            var modelBaseName = Path.GetFileNameWithoutExtension(targetVmdlPath);
-
-            // 1. Look for existing cloth proxy .dmx in targetDir
-            var localDmx = Directory.GetFiles(targetDir, "*cloth*.dmx", SearchOption.TopDirectoryOnly)
-                .Concat(Directory.GetFiles(targetDir, "*proxy*.dmx", SearchOption.TopDirectoryOnly))
-                .Concat(Directory.GetFiles(targetDir, "*skirt*.dmx", SearchOption.TopDirectoryOnly))
-                .FirstOrDefault();
-
-            string? chosenDmxPath = localDmx;
-
-            // 2. Search other addons in citadel_addons for matching hero cloth proxy .dmx
-            if (string.IsNullOrEmpty(chosenDmxPath) && !string.IsNullOrWhiteSpace(citadelAddonsDir) && Directory.Exists(citadelAddonsDir))
-            {
-                var candidateDmx = Directory.EnumerateFiles(citadelAddonsDir, "*.dmx", SearchOption.AllDirectories)
-                    .Where(f => (f.Contains("cloth", StringComparison.OrdinalIgnoreCase) || f.Contains("skirt", StringComparison.OrdinalIgnoreCase) || f.Contains("proxy", StringComparison.OrdinalIgnoreCase)) &&
-                                (!string.IsNullOrEmpty(heroName) && f.Contains(heroName, StringComparison.OrdinalIgnoreCase)))
-                    .FirstOrDefault();
-
-                if (!string.IsNullOrEmpty(candidateDmx) && File.Exists(candidateDmx))
-                {
-                    // Copy to target directory!
-                    var destFileName = Path.GetFileName(candidateDmx);
-                    var destPath = Path.Combine(targetDir, destFileName);
-                    File.Copy(candidateDmx, destPath, overwrite: true);
-                    chosenDmxPath = destPath;
-                }
-            }
-
-            // 3. If no genuine .dmx found, do NOT generate invalid dummy text files!
-            if (string.IsNullOrEmpty(chosenDmxPath) || !File.Exists(chosenDmxPath) || new FileInfo(chosenDmxPath).Length < 2048)
-            {
-                return (null, null);
-            }
-
-            var (_, _, subpath) = VmdlPipeline.ParseCsdkPath(chosenDmxPath, citadelAddonsDir);
-            var dmxRelativePath = (!string.IsNullOrEmpty(subpath) && subpath != "addon") ? subpath.Replace('\\', '/') : Path.GetFileName(chosenDmxPath);
-            var proxyNodeName = "cloth_" + (!string.IsNullOrEmpty(heroName) ? heroName : modelBaseName) + "_proxy";
-
-            var sb = new StringBuilder();
-            sb.AppendLine("{\n\t\t\t\t_class = \"ClothProxyMeshList\"\n\t\t\t\tchildren = \n\t\t\t\t[");
-            sb.AppendLine("\t\t\t\t\t{");
-            sb.AppendLine("\t\t\t\t\t\t_class = \"ClothProxyMeshFile\"");
-            sb.AppendLine("\t\t\t\t\t\tname = \"" + proxyNodeName + "\"");
-            sb.AppendLine("\t\t\t\t\t\tfilename = \"" + dmxRelativePath + "\"");
-            sb.AppendLine("\t\t\t\t\t\timport_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tback_solve_joints = false");
-            sb.AppendLine("\t\t\t\t\t\tback_solve_joints_drive_meshes = false");
-            sb.AppendLine("\t\t\t\t\t\tflex_cloth_borders = false");
-            sb.AppendLine("\t\t\t\t\t\tadd_bones_to_render_mesh = true");
-            sb.AppendLine("\t\t\t\t\t\tback_solve_influence_threshold = 0.05");
-            sb.AppendLine("\t\t\t\t\t\tcloth_friction_bias = 0.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_friction_scale = 5.0");
-            sb.AppendLine("\t\t\t\t\t\tlock_friction_0 = false");
-            sb.AppendLine("\t\t\t\t\t\tlock_friction_1 = false");
-            sb.AppendLine("\t\t\t\t\t\tenvelope_inches = 1000.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_goal_strength_bias = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_goal_strength_scale = 30.0");
-            sb.AppendLine("\t\t\t\t\t\tlock_goal_strength_0 = false");
-            sb.AppendLine("\t\t\t\t\t\tlock_goal_strength_1 = false");
-            sb.AppendLine("\t\t\t\t\t\tcloth_drag_scale = 6.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_mass_scale = 0.5");
-            sb.AppendLine("\t\t\t\t\t\tcloth_gravity_scale = 3.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_collision_radius_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_ground_collision_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_ground_friction_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_use_rods_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_make_rods_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_anchor_free_rotate_scale = 0.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_volumetric_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_suspenders_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_bend_stiffness_scale = 35.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_stray_radius_inv_scale = 5.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_stray_radius_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\tcloth_stray_radius_stretchiness_scale = 1.0");
-            sb.AppendLine("\t\t\t\t\t\timport_filter = ");
-            sb.AppendLine("\t\t\t\t\t\t{");
-            sb.AppendLine("\t\t\t\t\t\t\texclude_by_default = false");
-            sb.AppendLine("\t\t\t\t\t\t\texception_list = [  ]");
-            sb.AppendLine("\t\t\t\t\t\t}");
-            sb.AppendLine("\t\t\t\t\t}");
-            sb.AppendLine("\t\t\t\t]\n\t\t\t}");
-
-            return (chosenDmxPath, sb.ToString().Trim());
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
-
     public static string StripExistingClothNodes(string content)
     {
         var targets = new HashSet<string>(StringComparer.OrdinalIgnoreCase) {
@@ -491,13 +393,6 @@ public static class ClothPhysicsExtractor
                 topLevelNodes.Add(softbodySb.ToString().Trim());
             }
 
-            // 2. Extract & Link Cloth Proxy Mesh (.dmx)
-            var (dmxPath, proxyKv3) = ExtractClothProxyMesh(targetVmdlPath, citadelAddonsDir);
-            if (!string.IsNullOrEmpty(proxyKv3))
-            {
-                topLevelNodes.Add(proxyKv3);
-            }
-
             if (topLevelNodes.Count == 0)
             {
                 return (false, $"No hair, braid, tail, skirt, bola, cuff, or cloth bones found in model skeleton ({Path.GetFileName(targetVmdlPath)}).", 0);
@@ -536,14 +431,10 @@ public static class ClothPhysicsExtractor
 
             var chainNames = detectedChains.Select(c => c.ChainName + " (" + c.Bones.Count + " joints)").ToList();
 
-            var dmxStatus = !string.IsNullOrEmpty(dmxPath) ? Path.GetFileName(dmxPath) : "Generated";
-
-            var summary = $"Successfully configured Cloth Physics & Proxy Mesh:\n\n" +
+            var summary = $"Successfully configured Softbody Physics:\n\n" +
                           $"• Softbody Chains: {detectedChains.Count} chain(s)\n" +
                           string.Join("\n", chainNames.Select(n => "    • " + n)) + "\n" +
-                          $"• Collision Spheres: {shapes.Count}\n" +
-                          $"• Cloth Proxy Mesh (.dmx): [{dmxStatus}] extracted & linked\n" +
-                          $"• ClothProxyMeshList: Configured with authentic stretch, bend, drag & goal scales.";
+                          $"• Collision Spheres: {shapes.Count}";
 
             return (true, summary, topLevelNodes.Count);
         }
