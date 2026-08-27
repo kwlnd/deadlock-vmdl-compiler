@@ -23,15 +23,14 @@ public class Model3DViewportControl : Control
 
     private float _yaw = 225.0f;
     private float _pitch = 15.0f;
-    private float _distance = 3.5f;
+    private float _distance = 3.2f;
     private Point _lastPointerPos;
     private bool _isDragging;
 
-    // Neutral Studio Floor Grid Pens (No garish red/blue colors)
-    private static readonly IPen GridPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(100, 38, 46, 60)), 1.0);
-    private static readonly IPen CenterAxisPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(180, 58, 72, 95)), 1.2);
-    private static readonly IPen WirePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(140, 75, 110, 165)), 0.7);
-    private static readonly IBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(15, 18, 24));
+    private static readonly IPen GridPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(90, 42, 52, 70)), 1.0);
+    private static readonly IPen CenterAxisPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(180, 70, 90, 125)), 1.2);
+    private static readonly IPen WirePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(120, 80, 115, 170)), 0.6);
+    private static readonly IBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(14, 18, 25));
 
     public Model3DViewportControl()
     {
@@ -91,8 +90,8 @@ public class Model3DViewportControl : Control
     {
         base.OnPointerWheelChanged(e);
         float zoomDelta = (float)e.Delta.Y;
-        _distance -= zoomDelta * 0.4f;
-        if (_distance < 0.5f) _distance = 0.5f;
+        _distance -= zoomDelta * 0.35f;
+        if (_distance < 0.3f) _distance = 0.3f;
         if (_distance > 25.0f) _distance = 25.0f;
 
         InvalidateVisual();
@@ -122,7 +121,7 @@ public class Model3DViewportControl : Control
         var up = Vector3.UnitY;
 
         var viewMatrix = Matrix4x4.CreateLookAt(camPos, targetPos, up);
-        var projMatrix = Matrix4x4.CreatePerspectiveFieldOfView(45.0f * MathF.PI / 180.0f, aspect, 0.1f, 100.0f);
+        var projMatrix = Matrix4x4.CreatePerspectiveFieldOfView(45.0f * MathF.PI / 180.0f, aspect, 0.05f, 100.0f);
         var viewProj = viewMatrix * projMatrix;
 
         float halfW = (float)bounds.Width * 0.5f;
@@ -131,7 +130,7 @@ public class Model3DViewportControl : Control
         Point? Project(Vector3 v)
         {
             var p4 = Vector4.Transform(new Vector4(v, 1.0f), viewProj);
-            if (p4.W <= 0.01f) return null;
+            if (p4.W <= 0.001f) return null;
             float ndcX = p4.X / p4.W;
             float ndcY = p4.Y / p4.W;
             float ndcZ = p4.Z / p4.W;
@@ -144,8 +143,8 @@ public class Model3DViewportControl : Control
             return new Point(screenX, screenY);
         }
 
-        // Draw Ground Grid (Clean studio floor)
-        float gridSize = 3.5f;
+        // Draw Ground Grid
+        float gridSize = 3.0f;
         float gridStep = 0.5f;
 
         for (float x = -gridSize; x <= gridSize + 0.001f; x += gridStep)
@@ -193,9 +192,9 @@ public class Model3DViewportControl : Control
 
             var lightDir = Vector3.Normalize(new Vector3(0.5f, 1.0f, 0.8f));
 
-            if (mesh.Indices.Count >= 3)
+            int triCount = mesh.Indices.Count / 3;
+            if (triCount > 0)
             {
-                int triCount = mesh.Indices.Count / 3;
                 var triOrder = new List<(int Index, float Depth)>(triCount);
 
                 for (int t = 0; t < triCount; t++)
@@ -214,7 +213,7 @@ public class Model3DViewportControl : Control
                 // Back to front depth sorting
                 triOrder.Sort((a, b) => b.Depth.CompareTo(a.Depth));
 
-                int step = triCount > 6000 ? 2 : 1;
+                int step = triCount > 8000 ? 2 : 1;
 
                 for (int idx = 0; idx < triOrder.Count; idx += step)
                 {
@@ -229,39 +228,34 @@ public class Model3DViewportControl : Control
 
                     if (p0.HasValue && p1.HasValue && p2.HasValue)
                     {
-                        float cross = (float)((p1.Value.X - p0.Value.X) * (p2.Value.Y - p0.Value.Y) -
-                                              (p1.Value.Y - p0.Value.Y) * (p2.Value.X - p0.Value.X));
-                        if (cross > 0)
+                        var v0 = mesh.Vertices[i0];
+                        var v1 = mesh.Vertices[i1];
+                        var v2 = mesh.Vertices[i2];
+                        var normal = Vector3.Normalize(Vector3.Cross(v1 - v0, v2 - v0));
+                        float ndotl = MathF.Abs(Vector3.Dot(normal, lightDir));
+                        ndotl = MathF.Max(0.25f, ndotl);
+
+                        byte r = (byte)(35 + ndotl * 125);
+                        byte g = (byte)(45 + ndotl * 140);
+                        byte b = (byte)(65 + ndotl * 170);
+                        var fillBrush = new ImmutableSolidColorBrush(Color.FromRgb(r, g, b));
+
+                        var geometry = new StreamGeometry();
+                        using (var gc = geometry.Open())
                         {
-                            var v0 = mesh.Vertices[i0];
-                            var v1 = mesh.Vertices[i1];
-                            var v2 = mesh.Vertices[i2];
-                            var normal = Vector3.Normalize(Vector3.Cross(v1 - v0, v2 - v0));
-                            float ndotl = MathF.Max(0.25f, Vector3.Dot(normal, lightDir));
-
-                            byte r = (byte)(35 + ndotl * 120);
-                            byte g = (byte)(45 + ndotl * 135);
-                            byte b = (byte)(60 + ndotl * 165);
-                            var fillBrush = new ImmutableSolidColorBrush(Color.FromRgb(r, g, b));
-
-                            var geometry = new StreamGeometry();
-                            using (var gc = geometry.Open())
-                            {
-                                gc.BeginFigure(p0.Value, isFilled: true);
-                                gc.LineTo(p1.Value);
-                                gc.LineTo(p2.Value);
-                                gc.EndFigure(isClosed: true);
-                            }
-
-                            context.DrawGeometry(fillBrush, WirePen, geometry);
+                            gc.BeginFigure(p0.Value, isFilled: true);
+                            gc.LineTo(p1.Value);
+                            gc.LineTo(p2.Value);
+                            gc.EndFigure(isClosed: true);
                         }
+
+                        context.DrawGeometry(fillBrush, WirePen, geometry);
                     }
                 }
             }
         }
 
-        // Clean border
-        var borderPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(100, 36, 44, 58)), 1.0);
+        var borderPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(90, 42, 52, 70)), 1.0);
         context.DrawRectangle(null, borderPen, new Rect(0.5, 0.5, bounds.Width - 1, bounds.Height - 1));
     }
 }
