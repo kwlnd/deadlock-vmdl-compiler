@@ -464,8 +464,11 @@ public partial class MainWindow : Window
         RescanModels();
     }
 
-    private void BtnRestorePresets_Click(object? sender, RoutedEventArgs e)
+    private async void BtnRestorePresets_Click(object? sender, RoutedEventArgs e)
     {
+        var confirm = await DialogService.ShowConfirmAsync(this, "Restore Default Presets", "Are you sure you want to reset and restore the default hero preset database from built-in resources?");
+        if (!confirm) return;
+
         var (success, msg, count) = HeroDatabase.RestoreOriginalDatabase();
         if (success)
         {
@@ -474,10 +477,12 @@ public partial class MainWindow : Window
             presets.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
             CmbHeroPreset.ItemsSource = presets;
             CmbHeroPreset.SelectedIndex = 0;
+            await DialogService.ShowInfoAsync(this, "Presets Restored", $"Successfully restored default hero preset database ({count} heroes).");
         }
         else
         {
             Log($"[Restore Error] {msg}");
+            await DialogService.ShowErrorAsync(this, "Restore Failed", msg);
         }
     }
 
@@ -500,15 +505,18 @@ public partial class MainWindow : Window
                 list.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
                 CmbHeroPreset.ItemsSource = list;
                 CmbHeroPreset.SelectedIndex = 0;
+                await DialogService.ShowInfoAsync(this, "VPK Presets Updated", $"VPK Scan Complete!\nSuccessfully extracted and updated {presets.Count} hero presets from Deadlock VPK.");
             }
             else
             {
                 Log($"[VPK Scan Notice] {msg}");
+                await DialogService.ShowErrorAsync(this, "VPK Scan Notice", msg);
             }
         }
         catch (Exception ex)
         {
             Log($"[VPK Scan Error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "VPK Scan Error", ex.Message);
         }
         finally
         {
@@ -522,6 +530,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
         {
             Log("[Fix ModelDoc] Please select a target .vmdl file first.");
+            await DialogService.ShowErrorAsync(this, "Selection Required", "Please select a target .vmdl model file first.");
             return;
         }
 
@@ -529,10 +538,19 @@ public partial class MainWindow : Window
         {
             var (success, msg) = await VmdlPipeline.SanitizeVmdlForModelDocAsync(targetPath);
             Log(msg);
+            if (success)
+            {
+                await DialogService.ShowInfoAsync(this, "ModelDoc Fixed", msg);
+            }
+            else
+            {
+                await DialogService.ShowErrorAsync(this, "ModelDoc Fix Failed", msg);
+            }
         }
         catch (Exception ex)
         {
             Log($"[Fix ModelDoc Error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "Fix ModelDoc Error", ex.Message);
         }
     }
 
@@ -544,6 +562,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(targetPath) || string.IsNullOrEmpty(citadelDir))
         {
             Log("[Make VPK] Please select an addon and target model first.");
+            await DialogService.ShowErrorAsync(this, "Selection Required", "Please select an addon and target model first.");
             return;
         }
 
@@ -557,15 +576,18 @@ public partial class MainWindow : Window
             if (res.Success)
             {
                 Log($"[Make VPK] Addon packaged successfully: {res.OutputVpkPath} ({res.FileCount} files, {res.TotalBytes / 1024 / 1024:N1} MB)");
+                await DialogService.ShowInfoAsync(this, "VPK Packaged Successfully", $"Addon packaged successfully:\n\n{res.OutputVpkPath}\n\nFiles: {res.FileCount}\nSize: {res.TotalBytes / 1024 / 1024:N1} MB");
             }
             else
             {
                 Log($"[Make VPK Error] {res.Message}");
+                await DialogService.ShowErrorAsync(this, "VPK Packaging Failed", res.Message);
             }
         }
         catch (Exception ex)
         {
             Log($"[Make VPK Error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "VPK Packaging Error", ex.Message);
         }
     }
 
@@ -578,6 +600,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(targetPath) || string.IsNullOrEmpty(csWinDir))
         {
             Log("[Export] CSWin64 directory or target model not configured.");
+            await DialogService.ShowErrorAsync(this, "Configuration Required", "CSWin64 directory or target model is not configured.");
             return;
         }
 
@@ -596,10 +619,19 @@ public partial class MainWindow : Window
             );
 
             Log(msg);
+            if (success)
+            {
+                await DialogService.ShowInfoAsync(this, "Export Complete", msg);
+            }
+            else
+            {
+                await DialogService.ShowErrorAsync(this, "Export Failed", msg);
+            }
         }
         catch (Exception ex)
         {
             Log($"[Export Error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "Export Error", ex.Message);
         }
     }
 
@@ -614,12 +646,14 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
         {
             Log("[Compile Error] Target .vmdl file does not exist.");
+            await DialogService.ShowErrorAsync(this, "Target Missing", "Target .vmdl file does not exist. Please select a valid model.");
             return;
         }
 
         if (!VmdlPipeline.IsValidCsWinDir(csWinDir))
         {
             Log("[Compile Error] CSWin64 compiler path is invalid or missing resourcecompiler.exe.");
+            await DialogService.ShowErrorAsync(this, "Compiler Missing", "CSWin64 compiler path is invalid or missing resourcecompiler.exe.");
             return;
         }
 
@@ -650,15 +684,18 @@ public partial class MainWindow : Window
             if (success)
             {
                 Log($"COMPILATION SUCCESSFUL! {msg}");
+                await DialogService.ShowInfoAsync(this, "Compilation Successful", $"Model compiled and deployed successfully!\n\n{msg}");
             }
             else
             {
                 Log($"COMPILATION FAILED: {msg}");
+                await DialogService.ShowErrorAsync(this, "Compilation Failed", $"Compilation failed:\n\n{msg}");
             }
         }
         catch (Exception ex)
         {
             Log($"[Compile Exception] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "Compile Exception", ex.Message);
         }
         finally
         {

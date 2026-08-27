@@ -5,58 +5,57 @@
     <Application.Styles>
         <FluentTheme />
         
-        <!-- Global Studio Palette & Controls Styling -->
+        <!-- Global Studio Styling -->
         
-        <!-- Standard Studio Button -->
+        <!-- Standard Action Button -->
         <Style Selector="Button">
-            <Setter Property="Background" Value="#1C2330" />
-            <Setter Property="Foreground" Value="#DFE2E6" />
-            <Setter Property="BorderBrush" Value="#2B364A" />
+            <Setter Property="Background" Value="#212A3B" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#324058" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Padding" Value="10,5" />
             <Setter Property="FontSize" Value="11.5" />
-            <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="Button:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#273144" />
-            <Setter Property="BorderBrush" Value="#3D4D68" />
+            <Setter Property="Background" Value="#2B384F" />
+            <Setter Property="BorderBrush" Value="#465775" />
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
         <Style Selector="Button:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#151A24" />
-            <Setter Property="BorderBrush" Value="#222B3B" />
+            <Setter Property="Background" Value="#171D29" />
+            <Setter Property="BorderBrush" Value="#273347" />
         </Style>
         <Style Selector="Button:disabled /template/ ContentPresenter">
-            <Setter Property="Background" Value="#141822" />
-            <Setter Property="BorderBrush" Value="#1E2533" />
-            <Setter Property="Foreground" Value="#555C68" />
+            <Setter Property="Background" Value="#151A24" />
+            <Setter Property="BorderBrush" Value="#202736" />
+            <Setter Property="Foreground" Value="#555E6D" />
         </Style>
 
         <!-- Primary Accent Button (Compile) -->
         <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#25528C" />
+            <Setter Property="Background" Value="#255899" />
             <Setter Property="Foreground" Value="#FFFFFF" />
-            <Setter Property="BorderBrush" Value="#3B75C4" />
+            <Setter Property="BorderBrush" Value="#3D7BC9" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="6" />
             <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
         <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#2E64AA" />
-            <Setter Property="BorderBrush" Value="#4F8DE0" />
+            <Setter Property="Background" Value="#306CB5" />
+            <Setter Property="BorderBrush" Value="#5795E6" />
             <Setter Property="Foreground" Value="#FFFFFF" />
         </Style>
         <Style Selector="Button.primary:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#1D4170" />
+            <Setter Property="Background" Value="#1C4578" />
         </Style>
 
         <!-- TextBox -->
         <Style Selector="TextBox">
-            <Setter Property="Background" Value="#141822" />
-            <Setter Property="Foreground" Value="#DFE2E6" />
-            <Setter Property="BorderBrush" Value="#263040" />
+            <Setter Property="Background" Value="#131822" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#2D384D" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Padding" Value="8,4" />
@@ -64,15 +63,15 @@
             <Setter Property="MinHeight" Value="28" />
         </Style>
         <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
-            <Setter Property="BorderBrush" Value="#458FFF" />
-            <Setter Property="Background" Value="#161B26" />
+            <Setter Property="BorderBrush" Value="#60A5FA" />
+            <Setter Property="Background" Value="#171D2A" />
         </Style>
 
         <!-- ComboBox -->
         <Style Selector="ComboBox">
-            <Setter Property="Background" Value="#141822" />
-            <Setter Property="Foreground" Value="#DFE2E6" />
-            <Setter Property="BorderBrush" Value="#263040" />
+            <Setter Property="Background" Value="#131822" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#2D384D" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="5" />
             <Setter Property="Padding" Value="8,4" />
@@ -80,36 +79,36 @@
             <Setter Property="MinHeight" Value="28" />
         </Style>
         <Style Selector="ComboBox:pointerover /template/ Border#Background">
-            <Setter Property="Background" Value="#1A202D" />
-            <Setter Property="BorderBrush" Value="#38475E" />
+            <Setter Property="Background" Value="#19202E" />
+            <Setter Property="BorderBrush" Value="#41506B" />
         </Style>
 
-        <!-- CheckBox (Clean Neutral Blue checkmark, NO red/orange) -->
+        <!-- CheckBox -->
         <Style Selector="CheckBox">
-            <Setter Property="Foreground" Value="#DFE2E6" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
             <Setter Property="FontSize" Value="11.5" />
             <Setter Property="Cursor" Value="Hand" />
         </Style>
         <Style Selector="CheckBox /template/ Border#NormalRectangle">
-            <Setter Property="Background" Value="#141822" />
-            <Setter Property="BorderBrush" Value="#2B3648" />
+            <Setter Property="Background" Value="#131822" />
+            <Setter Property="BorderBrush" Value="#2D384D" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="3" />
         </Style>
         <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
-            <Setter Property="BorderBrush" Value="#458FFF" />
-            <Setter Property="Background" Value="#1A202D" />
+            <Setter Property="BorderBrush" Value="#60A5FA" />
+            <Setter Property="Background" Value="#1A2230" />
         </Style>
         <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
-            <Setter Property="Background" Value="#204A7E" />
-            <Setter Property="BorderBrush" Value="#458FFF" />
+            <Setter Property="Background" Value="#255899" />
+            <Setter Property="BorderBrush" Value="#60A5FA" />
         </Style>
         <Style Selector="CheckBox:checked /template/ Path#CheckGlyph">
             <Setter Property="Fill" Value="#FFFFFF" />
             <Setter Property="Stroke" Value="#FFFFFF" />
         </Style>
 
-        <!-- Expander -->
+        <!-- Expander (Clean Header with NO black background highlight on hover) -->
         <Style Selector="Expander">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Background" Value="Transparent" />
@@ -119,13 +118,22 @@
         <Style Selector="Expander /template/ ToggleButton#ExpanderHeader">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="Foreground" Value="#82868E" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="FontSize" Value="11" />
             <Setter Property="Padding" Value="2,4" />
         </Style>
-        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pointerover">
-            <Setter Property="Foreground" Value="#DFE2E6" />
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pointerover /template/ Border#Root">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pressed /template/ Border#Root">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:checked /template/ Border#Root">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
         </Style>
     </Application.Styles>
 </Application>
