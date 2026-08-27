@@ -88,6 +88,7 @@ public class Model3DViewportControl : Control
         {
             _isDragging = false;
             e.Pointer.Capture(null);
+            InvalidateVisual();
             e.Handled = true;
         }
     }
@@ -234,7 +235,7 @@ public class Model3DViewportControl : Control
             DrawLine(new Vector3(-gridSize, 0, z), new Vector3(gridSize, 0, z), col);
         }
 
-        // Render Mesh with Smooth Normals & Textures
+        // Render Mesh with Gouraud Lighting & Incremental DDA
         var mesh = CurrentMesh;
         if (mesh != null && mesh.Vertices.Count > 0)
         {
@@ -242,16 +243,27 @@ public class Model3DViewportControl : Control
             var center = mesh.Center;
 
             var screenVerts = new Vector3?[mesh.Vertices.Count];
+            var vertLights = new float[mesh.Vertices.Count];
+
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
                 var v = mesh.Vertices[i];
                 var localV = (v - center) * scale;
                 localV.Y += 0.9f;
                 screenVerts[i] = Project(localV);
+
+                // Precompute lighting at vertex
+                var norm = (i < mesh.Normals.Count) ? mesh.Normals[i] : Vector3.UnitY;
+                float ndotk = MathF.Max(0, norm.X * KeyLight.X + norm.Y * KeyLight.Y + norm.Z * KeyLight.Z);
+                float ndotf = MathF.Max(0, norm.X * FillLight.X + norm.Y * FillLight.Y + norm.Z * FillLight.Z);
+                float backLight = MathF.Max(0, -norm.X * KeyLight.X - norm.Y * KeyLight.Y - norm.Z * KeyLight.Z) * 0.15f;
+                vertLights[i] = Math.Clamp(0.28f + ndotk * 0.58f + ndotf * 0.18f + backLight, 0.2f, 1.0f);
             }
 
             int triCount = mesh.Indices.Count / 3;
-            for (int t = 0; t < triCount; t++)
+            int step = (_isDragging && triCount > 20000) ? 2 : 1;
+
+            for (int t = 0; t < triCount; t += step)
             {
                 int i0 = mesh.Indices[t * 3];
                 int i1 = mesh.Indices[t * 3 + 1];
@@ -269,9 +281,9 @@ public class Model3DViewportControl : Control
                 var v1 = sv1.Value;
                 var v2 = sv2.Value;
 
-                var n0 = (i0 < mesh.Normals.Count) ? mesh.Normals[i0] : Vector3.UnitY;
-                var n1 = (i1 < mesh.Normals.Count) ? mesh.Normals[i1] : Vector3.UnitY;
-                var n2 = (i2 < mesh.Normals.Count) ? mesh.Normals[i2] : Vector3.UnitY;
+                float l0 = vertLights[i0];
+                float l1 = vertLights[i1];
+                float l2 = vertLights[i2];
 
                 var uv0 = (i0 < mesh.TexCoords.Count) ? mesh.TexCoords[i0] : Vector2.Zero;
                 var uv1 = (i1 < mesh.TexCoords.Count) ? mesh.TexCoords[i1] : Vector2.Zero;
@@ -280,8 +292,7 @@ public class Model3DViewportControl : Control
                 int matId = (t < mesh.TriangleMaterialIds.Count) ? mesh.TriangleMaterialIds[t] : 0;
                 var mat = (matId >= 0 && matId < mesh.Materials.Count) ? mesh.Materials[matId] : null;
 
-                // Smooth Shaded & Textured Rasterization
-                RasterizeSmoothTriangle(v0, v1, v2, n0, n1, n2, uv0, uv1, uv2, mat, width, height, _depthBuffer, _pixelBuffer);
+                RasterizeFastTriangle(v0, v1, v2, l0, l1, l2, uv0, uv1, uv2, mat, width, height, _depthBuffer, _pixelBuffer);
             }
         }
 
@@ -295,69 +306,67 @@ public class Model3DViewportControl : Control
         context.DrawRectangle(null, BorderPen, new Rect(0.5, 0.5, width - 1, height - 1));
     }
 
-    private static void RasterizeSmoothTriangle(
+    private static void RasterizeFastTriangle(
         Vector3 v0, Vector3 v1, Vector3 v2,
-        Vector3 n0, Vector3 n1, Vector3 n2,
+        float l0, float l1, float l2,
         Vector2 uv0, Vector2 uv1, Vector2 uv2,
         MeshTexture? mat,
         int width, int height,
         float[] depthBuffer, int[] pixelBuffer)
     {
-        int minX = Math.Max(0, (int)MathF.Floor(MathF.Min(v0.X, MathF.Min(v1.X, v2.X))));
-        int maxX = Math.Min(width - 1, (int)MathF.Ceiling(MathF.Max(v0.X, MathF.Max(v1.X, v2.X))));
-        int minY = Math.Max(0, (int)MathF.Floor(MathF.Min(v0.Y, MathF.Min(v1.Y, v2.Y))));
-        int maxY = Math.Min(height - 1, (int)MathF.Ceiling(MathF.Max(v0.Y, MathF.Max(v1.Y, v2.Y))));
-
-        if (minX > maxX || minY > maxY) return;
-
         float area = (v1.Y - v2.Y) * (v0.X - v2.X) + (v2.X - v1.X) * (v0.Y - v2.Y);
         if (MathF.Abs(area) < 0.0001f) return;
         float invArea = 1.0f / area;
+
+        int minX = Math.Max(0, (int)MathF.Min(v0.X, MathF.Min(v1.X, v2.X)));
+        int maxX = Math.Min(width - 1, (int)MathF.Max(v0.X, MathF.Max(v1.X, v2.X)));
+        int minY = Math.Max(0, (int)MathF.Min(v0.Y, MathF.Min(v1.Y, v2.Y)));
+        int maxY = Math.Min(height - 1, (int)MathF.Max(v0.Y, MathF.Max(v1.Y, v2.Y)));
+
+        if (minX > maxX || minY > maxY) return;
+
+        float A0 = (v1.Y - v2.Y) * invArea;
+        float B0 = (v2.X - v1.X) * invArea;
+        float C0 = ((v1.Y - v2.Y) * (-v2.X) + (v2.X - v1.X) * (-v2.Y)) * invArea;
+
+        float A1 = (v2.Y - v0.Y) * invArea;
+        float B1 = (v0.X - v2.X) * invArea;
+        float C1 = ((v2.Y - v0.Y) * (-v2.X) + (v0.X - v2.X) * (-v2.Y)) * invArea;
+
+        float z0 = v0.Z, z1 = v1.Z, z2 = v2.Z;
+        float u0 = uv0.X, u1 = uv1.X, u2 = uv2.X;
+        float v_0 = uv0.Y, v_1 = uv1.Y, v_2 = uv2.Y;
+
+        bool hasMat = mat != null;
 
         for (int y = minY; y <= maxY; y++)
         {
             float py = y + 0.5f;
             int rowStart = y * width;
 
+            float w0_row = A0 * (minX + 0.5f) + B0 * py + C0;
+            float w1_row = A1 * (minX + 0.5f) + B1 * py + C1;
+
             for (int x = minX; x <= maxX; x++)
             {
-                float px = x + 0.5f;
-
-                float w0 = ((v1.Y - v2.Y) * (px - v2.X) + (v2.X - v1.X) * (py - v2.Y)) * invArea;
-                float w1 = ((v2.Y - v0.Y) * (px - v2.X) + (v0.X - v2.X) * (py - v2.Y)) * invArea;
+                float w0 = w0_row;
+                float w1 = w1_row;
                 float w2 = 1.0f - w0 - w1;
 
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0)
                 {
-                    float z = w0 * v0.Z + w1 * v1.Z + w2 * v2.Z;
+                    float z = w0 * z0 + w1 * z1 + w2 * z2;
                     int idx = rowStart + x;
 
                     if (z < depthBuffer[idx])
                     {
                         depthBuffer[idx] = z;
 
-                        // Smooth Normal Interpolation
-                        float nx = w0 * n0.X + w1 * n1.X + w2 * n2.X;
-                        float ny = w0 * n0.Y + w1 * n1.Y + w2 * n2.Y;
-                        float nz = w0 * n0.Z + w1 * n1.Z + w2 * n2.Z;
-                        float lenSq = nx * nx + ny * ny + nz * nz;
-                        if (lenSq > 0.0001f)
-                        {
-                            float invLen = 1.0f / MathF.Sqrt(lenSq);
-                            nx *= invLen; ny *= invLen; nz *= invLen;
-                        }
+                        float lighting = w0 * l0 + w1 * l1 + w2 * l2;
+                        float u = w0 * u0 + w1 * u1 + w2 * u2;
+                        float v = w0 * v_0 + w1 * v_1 + w2 * v_2;
 
-                        // Studio Lighting
-                        float ndotk = MathF.Max(0, nx * KeyLight.X + ny * KeyLight.Y + nz * KeyLight.Z);
-                        float ndotf = MathF.Max(0, nx * FillLight.X + ny * FillLight.Y + nz * FillLight.Z);
-                        float backLight = MathF.Max(0, -nx * KeyLight.X - ny * KeyLight.Y - nz * KeyLight.Z) * 0.15f;
-                        float lighting = Math.Clamp(0.28f + ndotk * 0.58f + ndotf * 0.18f + backLight, 0.2f, 1.0f);
-
-                        // UV & Texture Sample
-                        float u = w0 * uv0.X + w1 * uv1.X + w2 * uv2.X;
-                        float v = w0 * uv0.Y + w1 * uv1.Y + w2 * uv2.Y;
-
-                        int baseCol = mat != null ? mat.Sample(u, v) : unchecked((int)0xFF94A3B8);
+                        int baseCol = hasMat ? mat!.Sample(u, v) : unchecked((int)0xFF94A3B8);
                         byte br = (byte)((baseCol >> 16) & 0xFF);
                         byte bg = (byte)((baseCol >> 8) & 0xFF);
                         byte bb = (byte)(baseCol & 0xFF);
@@ -369,6 +378,9 @@ public class Model3DViewportControl : Control
                         pixelBuffer[idx] = unchecked((int)(0xFF000000 | ((uint)r << 16) | ((uint)g << 8) | b));
                     }
                 }
+
+                w0_row += A0;
+                w1_row += A1;
             }
         }
     }
