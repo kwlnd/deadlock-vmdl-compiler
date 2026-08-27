@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -261,9 +261,8 @@ public class Model3DViewportControl : Control
             }
 
             int triCount = mesh.Indices.Count / 3;
-            int step = (_isDragging && triCount > 20000) ? 2 : 1;
 
-            for (int t = 0; t < triCount; t += step)
+            for (int t = 0; t < triCount; t++)
             {
                 int i0 = mesh.Indices[t * 3];
                 int i1 = mesh.Indices[t * 3 + 1];
