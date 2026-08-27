@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         {
             _isInitializing = true;
             _isUpdatingSelection = true;
+            DmxModelLoader.DebugLogger = Log;
 
             _config = ConfigManager.LoadConfig();
 

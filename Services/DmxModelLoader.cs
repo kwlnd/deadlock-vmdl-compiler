@@ -16,14 +16,27 @@ public static class DmxModelLoader
 {
     private static readonly ConcurrentDictionary<string, SimpleMesh3D> _modelCache = new(StringComparer.OrdinalIgnoreCase);
 
+    public static Action<string>? DebugLogger { get; set; }
+
+    private static void LogDebug(string msg)
+    {
+        try { DebugLogger?.Invoke(msg); } catch { }
+    }
+
     public static async Task<SimpleMesh3D?> LoadModelFromVmdlAsync(string vmdlPath, string? citadelDir = null)
     {
         if (string.IsNullOrWhiteSpace(vmdlPath) || !File.Exists(vmdlPath))
+        {
+            LogDebug($"[3D Loader] VMDL path is invalid or file does not exist: {vmdlPath}");
             return null;
+        }
 
         var fullPath = Path.GetFullPath(vmdlPath);
-        if (_modelCache.TryGetValue(fullPath, out var cached))
+        if (_modelCache.TryGetValue(fullPath, out var cached) && cached != null && cached.Vertices.Count > 0)
+        {
+            LogDebug($"[3D Loader] Model loaded from memory cache: {cached.MeshName} ({cached.Vertices.Count} verts)");
             return cached;
+        }
 
         return await Task.Run(() =>
         {
@@ -40,10 +53,12 @@ public static class DmxModelLoader
     {
         try
         {
+            LogDebug($"[3D Loader] Parsing VMDL: {vmdlPath}");
             var vmdlDir = Path.GetDirectoryName(vmdlPath) ?? string.Empty;
             var vmdlContent = File.ReadAllText(vmdlPath);
 
             var dmxFiles = ExtractLod0RenderMeshes(vmdlContent, vmdlDir, citadelDir);
+            LogDebug($"[3D Loader] Resolved {dmxFiles.Count} mesh file(s): {string.Join(", ", dmxFiles.Select(Path.GetFileName))}");
 
             var compositeMesh = new SimpleMesh3D
             {
@@ -52,9 +67,11 @@ public static class DmxModelLoader
 
             foreach (var dmx in dmxFiles)
             {
+                LogDebug($"[3D Loader] Loading mesh file: {dmx} (Size: {new FileInfo(dmx).Length} bytes)");
                 var partial = LoadMeshFile(dmx);
                 if (partial != null && partial.Vertices.Count > 0)
                 {
+                    LogDebug($"[3D Loader] Successfully parsed {dmx}: {partial.Vertices.Count} verts, {partial.Indices.Count / 3} tris");
                     int baseIndex = compositeMesh.Vertices.Count;
                     compositeMesh.Vertices.AddRange(partial.Vertices);
                     compositeMesh.Normals.AddRange(partial.Normals);
@@ -65,18 +82,25 @@ public static class DmxModelLoader
                     }
                     compositeMesh.BoneCount = Math.Max(compositeMesh.BoneCount, partial.BoneCount);
                 }
+                else
+                {
+                    LogDebug($"[3D Loader] Failed to parse vertices from mesh: {dmx}");
+                }
             }
 
             if (compositeMesh.Vertices.Count > 0)
             {
                 compositeMesh.RecalculateBounds();
+                LogDebug($"[3D Loader] Composite mesh ready: {compositeMesh.Vertices.Count} verts, {compositeMesh.Indices.Count / 3} tris, radius: {compositeMesh.Radius:F2}");
                 return compositeMesh;
             }
 
+            LogDebug("[3D Loader] No vertices found across all mesh files.");
             return null;
         }
-        catch
+        catch (Exception ex)
         {
+            LogDebug($"[3D Loader Exception] {ex.Message}");
             return null;
         }
     }
@@ -86,7 +110,6 @@ public static class DmxModelLoader
         var result = new List<string>();
         try
         {
-            // Find addon root (parent of /models/)
             string? addonRoot = null;
             var cleanDir = vmdlDir.Replace('\\', '/');
             var mIdx = cleanDir.IndexOf("/models/", StringComparison.OrdinalIgnoreCase);
@@ -95,7 +118,15 @@ public static class DmxModelLoader
                 addonRoot = cleanDir[..mIdx].Replace('/', Path.DirectorySeparatorChar);
             }
 
-            var dmxMatches = Regex.Matches(vmdlContent, "\"([^\\r\\n\"]+\\.(dmx|smd|fbx|obj))\"", RegexOptions.IgnoreCase);
+            // Find all filename = "..." references
+            var dmxMatches = Regex.Matches(vmdlContent, @"filename\s*=\s*""([^""\r\n]+\.(dmx|smd|fbx|obj))""", RegexOptions.IgnoreCase);
+            if (dmxMatches.Count == 0)
+            {
+                dmxMatches = Regex.Matches(vmdlContent, @"""([^""\r\n]+\.(dmx|smd|fbx|obj))""", RegexOptions.IgnoreCase);
+            }
+
+            LogDebug($"[3D Loader] Regex found {dmxMatches.Count} potential mesh references in VMDL text.");
+
             foreach (Match m in dmxMatches)
             {
                 var rawFile = m.Groups[1].Value.Trim();
@@ -111,7 +142,8 @@ public static class DmxModelLoader
                 {
                     Path.Combine(vmdlDir, fnOnly),
                     Path.Combine(vmdlDir, "mesh", fnOnly),
-                    Path.Combine(vmdlDir, rel)
+                    Path.Combine(vmdlDir, rel),
+                    Path.Combine(vmdlDir, "mesh", rel)
                 };
 
                 if (!string.IsNullOrEmpty(addonRoot))
@@ -119,6 +151,7 @@ public static class DmxModelLoader
                     candidates.Add(Path.Combine(addonRoot, rel));
                     candidates.Add(Path.Combine(addonRoot, "models", rel));
                     candidates.Add(Path.Combine(addonRoot, fnOnly));
+                    candidates.Add(Path.Combine(addonRoot, "mesh", fnOnly));
                 }
 
                 if (!string.IsNullOrEmpty(citadelDir))
@@ -140,9 +173,9 @@ public static class DmxModelLoader
 
                 foreach (var cand in candidates)
                 {
-                    if (File.Exists(cand) && !result.Contains(cand))
+                    if (File.Exists(cand))
                     {
-                        result.Add(cand);
+                        if (!result.Contains(cand)) result.Add(cand);
                         break;
                     }
                 }
@@ -151,6 +184,7 @@ public static class DmxModelLoader
             // If still no mesh found from regex, search entire directory tree of vmdlDir and addonRoot
             if (result.Count == 0)
             {
+                LogDebug("[3D Loader] No mesh found via direct VMDL references. Searching directory tree...");
                 var searchDirs = new List<string>();
                 if (Directory.Exists(vmdlDir)) searchDirs.Add(vmdlDir);
                 if (!string.IsNullOrEmpty(addonRoot) && Directory.Exists(addonRoot)) searchDirs.Add(addonRoot);
@@ -175,7 +209,10 @@ public static class DmxModelLoader
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            LogDebug($"[3D Loader] Error scanning meshes: {ex.Message}");
+        }
 
         return result;
     }
