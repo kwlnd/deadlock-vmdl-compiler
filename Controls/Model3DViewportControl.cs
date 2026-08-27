@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Numerics;
 using Avalonia;
 using Avalonia.Controls;
@@ -28,11 +27,11 @@ public class Model3DViewportControl : Control
     private Point _lastPointerPos;
     private bool _isDragging;
 
-    private static readonly IPen GridPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(120, 50, 55, 65)), 1.0);
-    private static readonly IPen AxisPenX = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(180, 180, 70, 70)), 1.5);
-    private static readonly IPen AxisPenZ = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(180, 70, 100, 180)), 1.5);
-    private static readonly IPen WirePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(160, 110, 150, 210)), 0.8);
-    private static readonly IBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(14, 17, 23));
+    // Neutral Studio Floor Grid Pens (No garish red/blue colors)
+    private static readonly IPen GridPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(100, 38, 46, 60)), 1.0);
+    private static readonly IPen CenterAxisPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(180, 58, 72, 95)), 1.2);
+    private static readonly IPen WirePen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(140, 75, 110, 165)), 0.7);
+    private static readonly IBrush BackgroundBrush = new ImmutableSolidColorBrush(Color.FromRgb(15, 18, 24));
 
     public Model3DViewportControl()
     {
@@ -145,8 +144,8 @@ public class Model3DViewportControl : Control
             return new Point(screenX, screenY);
         }
 
-        // Draw Ground Grid
-        float gridSize = 3.0f;
+        // Draw Ground Grid (Clean studio floor)
+        float gridSize = 3.5f;
         float gridStep = 0.5f;
 
         for (float x = -gridSize; x <= gridSize + 0.001f; x += gridStep)
@@ -155,7 +154,7 @@ public class Model3DViewportControl : Control
             var p2 = Project(new Vector3(x, 0, gridSize));
             if (p1.HasValue && p2.HasValue)
             {
-                var pen = MathF.Abs(x) < 0.001f ? AxisPenZ : GridPen;
+                var pen = MathF.Abs(x) < 0.001f ? CenterAxisPen : GridPen;
                 context.DrawLine(pen, p1.Value, p2.Value);
             }
         }
@@ -166,7 +165,7 @@ public class Model3DViewportControl : Control
             var p2 = Project(new Vector3(gridSize, 0, z));
             if (p1.HasValue && p2.HasValue)
             {
-                var pen = MathF.Abs(z) < 0.001f ? AxisPenX : GridPen;
+                var pen = MathF.Abs(z) < 0.001f ? CenterAxisPen : GridPen;
                 context.DrawLine(pen, p1.Value, p2.Value);
             }
         }
@@ -178,7 +177,6 @@ public class Model3DViewportControl : Control
             float scale = mesh.Radius > 0.01f ? (1.5f / mesh.Radius) : 1.0f;
             var center = mesh.Center;
 
-            // Project vertices
             var projectedVerts = new Point?[mesh.Vertices.Count];
             var depths = new float[mesh.Vertices.Count];
 
@@ -193,7 +191,6 @@ public class Model3DViewportControl : Control
                 depths[i] = p4.W;
             }
 
-            // Draw Triangles
             var lightDir = Vector3.Normalize(new Vector3(0.5f, 1.0f, 0.8f));
 
             if (mesh.Indices.Count >= 3)
@@ -214,10 +211,10 @@ public class Model3DViewportControl : Control
                     }
                 }
 
-                // Sort back to front
+                // Back to front depth sorting
                 triOrder.Sort((a, b) => b.Depth.CompareTo(a.Depth));
 
-                int step = triCount > 6000 ? 2 : 1; // Level of detail optimization
+                int step = triCount > 6000 ? 2 : 1;
 
                 for (int idx = 0; idx < triOrder.Count; idx += step)
                 {
@@ -232,7 +229,6 @@ public class Model3DViewportControl : Control
 
                     if (p0.HasValue && p1.HasValue && p2.HasValue)
                     {
-                        // Backface test in screen space
                         float cross = (float)((p1.Value.X - p0.Value.X) * (p2.Value.Y - p0.Value.Y) -
                                               (p1.Value.Y - p0.Value.Y) * (p2.Value.X - p0.Value.X));
                         if (cross > 0)
@@ -241,10 +237,12 @@ public class Model3DViewportControl : Control
                             var v1 = mesh.Vertices[i1];
                             var v2 = mesh.Vertices[i2];
                             var normal = Vector3.Normalize(Vector3.Cross(v1 - v0, v2 - v0));
-                            float ndotl = MathF.Max(0.2f, Vector3.Dot(normal, lightDir));
+                            float ndotl = MathF.Max(0.25f, Vector3.Dot(normal, lightDir));
 
-                            byte shade = (byte)(60 + ndotl * 140);
-                            var fillBrush = new ImmutableSolidColorBrush(Color.FromRgb(shade, (byte)(shade * 0.95f), (byte)(shade * 0.9f)));
+                            byte r = (byte)(35 + ndotl * 120);
+                            byte g = (byte)(45 + ndotl * 135);
+                            byte b = (byte)(60 + ndotl * 165);
+                            var fillBrush = new ImmutableSolidColorBrush(Color.FromRgb(r, g, b));
 
                             var geometry = new StreamGeometry();
                             using (var gc = geometry.Open())
@@ -262,8 +260,8 @@ public class Model3DViewportControl : Control
             }
         }
 
-        // Draw border
-        var borderPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(100, 45, 50, 60)), 1.0);
+        // Clean border
+        var borderPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.FromArgb(100, 36, 44, 58)), 1.0);
         context.DrawRectangle(null, borderPen, new Rect(0.5, 0.5, bounds.Width - 1, bounds.Height - 1));
     }
 }
