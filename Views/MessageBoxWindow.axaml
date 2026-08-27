@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="DeadlockVmdlCompiler.Views.MessageBoxWindow"
-        Title="Notification"
+        Title="notification"
         Icon="avares://DeadlockVmdlCompiler/AppIcon.ico"
         Width="440"
         MinWidth="380"
@@ -24,13 +24,13 @@
                     </Viewbox>
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtTitle" Text="Notification" FontSize="13.5" FontWeight="Bold" Foreground="#FFFFFF"/>
+                    <TextBlock x:Name="TxtTitle" Text="notification" FontSize="13.5" FontWeight="Bold" Foreground="#FFFFFF"/>
                 </StackPanel>
             </Grid>
 
             <!-- Message Body -->
             <TextBlock x:Name="TxtMessage"
-                       Text="Message text goes here."
+                       Text="message text goes here."
                        FontSize="12"
                        Foreground="#CBD5E1"
                        TextWrapping="Wrap"
@@ -39,8 +39,8 @@
 
             <!-- Buttons Row -->
             <StackPanel x:Name="PanelButtons" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,6,0,0">
-                <Button x:Name="BtnCancel" Content="Cancel" Width="85" HorizontalContentAlignment="Center" Click="BtnCancel_Click" IsVisible="False"/>
-                <Button x:Name="BtnOk" Content="OK" Classes="primary" Width="85" HorizontalContentAlignment="Center" Click="BtnOk_Click"/>
+                <Button x:Name="BtnCancel" Content="cancel" Width="85" HorizontalContentAlignment="Center" Click="BtnCancel_Click" IsVisible="False"/>
+                <Button x:Name="BtnOk" Content="ok" Classes="primary" Width="85" HorizontalContentAlignment="Center" Click="BtnOk_Click"/>
             </StackPanel>
 
         </StackPanel>

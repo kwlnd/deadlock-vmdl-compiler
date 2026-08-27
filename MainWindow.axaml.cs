@@ -43,7 +43,7 @@ public partial class MainWindow : Window
             _config = ConfigManager.LoadConfig();
 
             // Populate presets
-            var presets = new List<string> { "(Auto-Detect Hero Paths)" };
+            var presets = new List<string> { "(auto-detect hero paths)" };
             presets.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
             CmbHeroPreset.ItemsSource = presets;
             CmbHeroPreset.SelectedIndex = 0;
@@ -69,7 +69,7 @@ public partial class MainWindow : Window
                 _ = Init3DSceneAsync(resolved);
             }
 
-            Log("Environment verified. Ready.");
+            Log("environment verified. ready.");
 
             // First-time setup wizard
             var csValid = VmdlPipeline.IsValidCsWinDir(TxtCsWinPath.Text?.Trim());
@@ -82,7 +82,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"[Init Error] {ex.Message}");
+            Log($"[init error] {ex.Message}");
         }
         finally
         {
@@ -103,21 +103,21 @@ public partial class MainWindow : Window
     {
         await DialogService.ShowInfoAsync(
             this,
-            "Initial Setup",
-            "Welcome! Please configure your CSWin64 compiler and Citadel Addons directory to get started."
+            "initial setup",
+            "welcome! please configure your cswin64 compiler and citadel addons directory to get started."
         );
 
         if (needCsWin)
         {
             var csFolders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Select CSWin64 Directory (containing resourcecompiler.exe)"
+                Title = "select cswin64 directory (containing resourcecompiler.exe)"
             });
 
             if (csFolders.Count > 0)
             {
                 TxtCsWinPath.Text = csFolders[0].Path.LocalPath;
-                Log($"[SETUP] CSWin64 path configured: {csFolders[0].Path.LocalPath}");
+                Log($"[setup] cswin64 path configured: {csFolders[0].Path.LocalPath}");
                 SaveConfig();
             }
         }
@@ -126,13 +126,13 @@ public partial class MainWindow : Window
         {
             var citFolders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
             {
-                Title = "Select Citadel Addons Directory (content/citadel_addons)"
+                Title = "select citadel addons directory (content/citadel_addons)"
             });
 
             if (citFolders.Count > 0)
             {
                 TxtCitadelPath.Text = citFolders[0].Path.LocalPath;
-                Log($"[SETUP] Citadel addons path configured: {citFolders[0].Path.LocalPath}");
+                Log($"[setup] citadel addons path configured: {citFolders[0].Path.LocalPath}");
                 SaveConfig();
                 RescanModels();
             }
@@ -200,7 +200,7 @@ public partial class MainWindow : Window
 
             if (isValidCsWin)
             {
-                LblCsWinStatus.Text = "Ready (compiler found)";
+                LblCsWinStatus.Text = "ready (compiler found)";
                 LblCsWinStatus.Foreground = BrushOk;
                 if (BorderCsWinCheck != null)
                 {
@@ -213,7 +213,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                LblCsWinStatus.Text = "Compiler missing";
+                LblCsWinStatus.Text = "compiler missing";
                 LblCsWinStatus.Foreground = BrushErr;
                 if (BorderCsWinCheck != null)
                 {
@@ -230,12 +230,12 @@ public partial class MainWindow : Window
 
             if (isValidCitadel)
             {
-                LblCitadelStatus.Text = "Connected to addons folder";
+                LblCitadelStatus.Text = "connected to addons folder";
                 LblCitadelStatus.Foreground = BrushOk;
             }
             else
             {
-                LblCitadelStatus.Text = "Addons folder not found";
+                LblCitadelStatus.Text = "addons folder not found";
                 LblCitadelStatus.Foreground = BrushErr;
             }
         }
@@ -259,7 +259,7 @@ public partial class MainWindow : Window
                 if (Directory.Exists(candAddons))
                 {
                     TxtCitadelPath.Text = candAddons;
-                    Log($"[AUTO-DETECT] Citadel addons directory: {candAddons}");
+                    Log($"[auto-detect] citadel addons directory: {candAddons}");
                 }
             }
         }
@@ -288,11 +288,11 @@ public partial class MainWindow : Window
             var displayList = new List<DiscoveredAddon>();
             var placeholder = new DiscoveredAddon
             {
-                Name = $"(Select addon: {_discoveredAddons.Count} available)",
+                Name = $"(select addon: {_discoveredAddons.Count} available)",
                 FullPath = string.Empty,
                 HeroModels = new List<DiscoveredModel>(),
                 IsPlaceholder = true,
-                Display = $"(Select addon: {_discoveredAddons.Count} available)"
+                Display = $"(select addon: {_discoveredAddons.Count} available)"
             };
             displayList.Add(placeholder);
             displayList.AddRange(_discoveredAddons);
@@ -305,7 +305,7 @@ public partial class MainWindow : Window
 
             if (logOutput)
             {
-                Log($"Discovered {_discoveredAddons.Count} addon(s) in: {citadelDir}");
+                Log($"discovered {_discoveredAddons.Count} addon(s) in: {citadelDir}");
             }
 
             // Restore selection
@@ -323,7 +323,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            Log($"[Scan Error] {ex.Message}");
+            Log($"[scan error] {ex.Message}");
         }
     }
 
@@ -434,7 +434,7 @@ public partial class MainWindow : Window
         {
             UpdateHeroDetailsFromPath(path);
             _ = Init3DSceneAsync(path);
-            Log($"Selected model: {Path.GetFileName(path)}");
+            Log($"selected model: {Path.GetFileName(path)}");
         }
         SaveConfig();
     }
@@ -443,7 +443,7 @@ public partial class MainWindow : Window
     {
         if (CmbHeroPreset.SelectedItem is string presetName)
         {
-            if (presetName == "(Auto-Detect Hero Paths)")
+            if (presetName == "(auto-detect hero paths)")
             {
                 var path = GetResolvedTargetPath();
                 if (!string.IsNullOrEmpty(path)) UpdateHeroDetailsFromPath(path);
@@ -465,13 +465,13 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Select CSWin64 Directory (containing resourcecompiler.exe)"
+            Title = "select cswin64 directory (containing resourcecompiler.exe)"
         });
 
         if (folders.Count > 0)
         {
             TxtCsWinPath.Text = folders[0].Path.LocalPath;
-            Log($"[SETUP] CSWin64 path configured: {folders[0].Path.LocalPath}");
+            Log($"[setup] cswin64 path configured: {folders[0].Path.LocalPath}");
         }
     }
 
@@ -479,13 +479,13 @@ public partial class MainWindow : Window
     {
         var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
-            Title = "Select Citadel Addons Directory (content/citadel_addons)"
+            Title = "select citadel addons directory (content/citadel_addons)"
         });
 
         if (folders.Count > 0)
         {
             TxtCitadelPath.Text = folders[0].Path.LocalPath;
-            Log($"[SETUP] Citadel addons path configured: {folders[0].Path.LocalPath}");
+            Log($"[setup] citadel addons path configured: {folders[0].Path.LocalPath}");
             RescanModels();
         }
     }
@@ -494,11 +494,11 @@ public partial class MainWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select Target .vmdl File",
+            Title = "select target .vmdl file",
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Valve ModelDoc (*.vmdl)") { Patterns = new[] { "*.vmdl" } },
-                new FilePickerFileType("All Files (*.*)") { Patterns = new[] { "*.*" } }
+                new FilePickerFileType("valve modeldoc (*.vmdl)") { Patterns = new[] { "*.vmdl" } },
+                new FilePickerFileType("all files (*.*)") { Patterns = new[] { "*.*" } }
             }
         });
 
@@ -510,13 +510,13 @@ public partial class MainWindow : Window
                 FullPath = fullPath,
                 Filename = Path.GetFileName(fullPath),
                 Display = Path.GetFileName(fullPath),
-                Addon = "Manual"
+                Addon = "manual"
             };
             CmbTargetVmdl.ItemsSource = new List<DiscoveredModel> { model };
             CmbTargetVmdl.SelectedIndex = 0;
             UpdateHeroDetailsFromPath(fullPath);
             _ = Init3DSceneAsync(fullPath);
-            Log($"Manually loaded model: {Path.GetFileName(fullPath)}");
+            Log($"manually loaded model: {Path.GetFileName(fullPath)}");
         }
     }
 
@@ -530,8 +530,8 @@ public partial class MainWindow : Window
         var (success, msg, count) = HeroDatabase.RestoreOriginalDatabase();
         if (success)
         {
-            Log($"[AG2 Presets] Restored default hero preset database ({count} heroes).");
-            var presets = new List<string> { "(Auto-Detect Hero Paths)" };
+            Log($"[ag2 presets] restored default hero preset database ({count} heroes).");
+            var presets = new List<string> { "(auto-detect hero paths)" };
             presets.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
             CmbHeroPreset.ItemsSource = presets;
 
@@ -547,7 +547,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            Log($"[Restore Error] {msg}");
+            Log($"[restore error] {msg}");
         }
     }
 
@@ -558,7 +558,7 @@ public partial class MainWindow : Window
         try
         {
             _isProcessing = true;
-            Log("Locating Deadlock VPK files for updated hero paths...");
+            Log("locating deadlock vpk files for updated hero paths...");
 
             string? vpkPath = null;
 
@@ -595,10 +595,10 @@ public partial class MainWindow : Window
             {
                 var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
-                    Title = "Select Deadlock pak01_dir.vpk to scan hero presets",
+                    Title = "select deadlock pak01_dir.vpk to scan hero presets",
                     FileTypeFilter = new[]
                     {
-                        new FilePickerFileType("Deadlock VPK (*.vpk)") { Patterns = new[] { "pak01_dir.vpk", "*.vpk" } }
+                        new FilePickerFileType("deadlock vpk (*.vpk)") { Patterns = new[] { "pak01_dir.vpk", "*.vpk" } }
                     }
                 });
 
@@ -608,11 +608,11 @@ public partial class MainWindow : Window
                 }
             }
 
-            Log($"Scanning VPK: {vpkPath}...");
+            Log($"scanning vpk: {vpkPath}...");
             
             PanelScanProgress.IsVisible = true;
             PrgScanVpk.Value = 0;
-            LblScanStatus.Text = "Starting VPK scan...";
+            LblScanStatus.Text = "starting vpk scan...";
             TxtGetListsBtn.Text = "scanning...";
 
             var progress = new Progress<(int Current, int Total, string CurrentModel)>(p =>
@@ -636,25 +636,25 @@ public partial class MainWindow : Window
 
             if (success && presets.Count > 0)
             {
-                Log($"VPK Scan Complete: Updated {presets.Count} hero presets.");
-                var list = new List<string> { "(Auto-Detect Hero Paths)" };
+                Log($"vpk scan complete: updated {presets.Count} hero presets.");
+                var list = new List<string> { "(auto-detect hero paths)" };
                 list.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
                 CmbHeroPreset.ItemsSource = list;
                 CmbHeroPreset.SelectedIndex = 0;
-                await DialogService.ShowInfoAsync(this, "VPK Presets Updated", $"Hero presets updated successfully ({presets.Count} heroes).");
+                await DialogService.ShowInfoAsync(this, "vpk presets updated", $"hero presets updated successfully ({presets.Count} heroes).");
             }
             else
             {
-                Log($"[VPK Scan Notice] {msg}");
-                await DialogService.ShowErrorAsync(this, "VPK Scan Notice", msg);
+                Log($"[vpk scan notice] {msg}");
+                await DialogService.ShowErrorAsync(this, "vpk scan notice", msg);
             }
         }
         catch (Exception ex)
         {
             PanelScanProgress.IsVisible = false;
             TxtGetListsBtn.Text = "get ag2 lists";
-            Log($"[VPK Scan Error] {ex.Message}");
-            await DialogService.ShowErrorAsync(this, "VPK Scan Error", ex.Message);
+            Log($"[vpk scan error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "vpk scan error", ex.Message);
         }
         finally
         {
@@ -669,8 +669,8 @@ public partial class MainWindow : Window
         var targetPath = GetResolvedTargetPath();
         if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
         {
-            Log("[Fix ModelDoc] Please select a target .vmdl file first.");
-            await DialogService.ShowErrorAsync(this, "Selection Required", "Please select a target .vmdl model file first.");
+            Log("[fix modeldoc] please select a target .vmdl file first.");
+            await DialogService.ShowErrorAsync(this, "selection required", "please select a target .vmdl model file first.");
             return;
         }
 
@@ -680,17 +680,17 @@ public partial class MainWindow : Window
             Log(msg);
             if (success)
             {
-                await DialogService.ShowInfoAsync(this, "ModelDoc Fixed", "ModelDoc syntax cleaned successfully.");
+                await DialogService.ShowInfoAsync(this, "modeldoc fixed", "modeldoc syntax cleaned successfully.");
             }
             else
             {
-                await DialogService.ShowErrorAsync(this, "ModelDoc Fix Failed", msg);
+                await DialogService.ShowErrorAsync(this, "modeldoc fix failed", msg);
             }
         }
         catch (Exception ex)
         {
-            Log($"[Fix ModelDoc Error] {ex.Message}");
-            await DialogService.ShowErrorAsync(this, "Fix ModelDoc Error", ex.Message);
+            Log($"[fix modeldoc error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "fix modeldoc error", ex.Message);
         }
     }
 
@@ -701,8 +701,8 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrEmpty(targetPath) || string.IsNullOrEmpty(citadelDir))
         {
-            Log("[Make VPK] Please select an addon and target model first.");
-            await DialogService.ShowErrorAsync(this, "Selection Required", "Please select an addon and target model first.");
+            Log("[make vpk] please select an addon and target model first.");
+            await DialogService.ShowErrorAsync(this, "selection required", "please select an addon and target model first.");
             return false;
         }
 
@@ -721,7 +721,7 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    await DialogService.ShowErrorAsync(this, "VPK Packaging Failed", $"Source directory does not exist:\n{gameAddonDir}");
+                    await DialogService.ShowErrorAsync(this, "vpk packaging failed", $"source directory does not exist:\n{gameAddonDir}");
                     return false;
                 }
             }
@@ -729,18 +729,18 @@ public partial class MainWindow : Window
             // Let user choose destination path & filename
             var saveFile = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "Save Addon VPK File",
+                Title = "save addon vpk file",
                 DefaultExtension = "vpk",
                 SuggestedFileName = $"{addonName}.vpk",
                 FileTypeChoices = new[]
                 {
-                    new FilePickerFileType("Valve Pack File (*.vpk)") { Patterns = new[] { "*.vpk" } }
+                    new FilePickerFileType("valve pack file (*.vpk)") { Patterns = new[] { "*.vpk" } }
                 }
             });
 
             if (saveFile == null)
             {
-                Log("[Make VPK] Packaging cancelled by user.");
+                Log("[make vpk] packaging cancelled by user.");
                 return false;
             }
 
@@ -749,24 +749,24 @@ public partial class MainWindow : Window
             var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
             if (res.Success)
             {
-                Log($"[Make VPK] Addon packaged successfully: {res.OutputVpkPath} ({res.FileCount} files, {res.TotalBytes / 1024 / 1024:N1} MB)");
+                Log($"[make vpk] addon packaged successfully: {res.OutputVpkPath} ({res.FileCount} files, {res.TotalBytes / 1024 / 1024:N1} mb)");
                 if (!suppressSuccessDialog)
                 {
-                    await DialogService.ShowInfoAsync(this, "VPK Created", "Addon packaged into VPK successfully.");
+                    await DialogService.ShowInfoAsync(this, "vpk created", "addon packaged into vpk successfully.");
                 }
                 return true;
             }
             else
             {
-                Log($"[Make VPK Error] {res.Message}");
-                await DialogService.ShowErrorAsync(this, "VPK Packaging Failed", res.Message);
+                Log($"[make vpk error] {res.Message}");
+                await DialogService.ShowErrorAsync(this, "vpk packaging failed", res.Message);
                 return false;
             }
         }
         catch (Exception ex)
         {
-            Log($"[Make VPK Error] {ex.Message}");
-            await DialogService.ShowErrorAsync(this, "VPK Packaging Error", ex.Message);
+            Log($"[make vpk error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "vpk packaging error", ex.Message);
             return false;
         }
     }
@@ -784,8 +784,8 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrEmpty(targetPath) || string.IsNullOrEmpty(csWinDir))
         {
-            Log("[Export] CSWin64 directory or target model not configured.");
-            await DialogService.ShowErrorAsync(this, "Configuration Required", "CSWin64 directory or target model is not configured.");
+            Log("[export] cswin64 directory or target model not configured.");
+            await DialogService.ShowErrorAsync(this, "configuration required", "cswin64 directory or target model is not configured.");
             return;
         }
 
@@ -806,17 +806,17 @@ public partial class MainWindow : Window
             Log(msg);
             if (success)
             {
-                await DialogService.ShowInfoAsync(this, "Export Complete", "Exported to CSWin64 successfully.");
+                await DialogService.ShowInfoAsync(this, "export complete", "exported to cswin64 successfully.");
             }
             else
             {
-                await DialogService.ShowErrorAsync(this, "Export Failed", msg);
+                await DialogService.ShowErrorAsync(this, "export failed", msg);
             }
         }
         catch (Exception ex)
         {
-            Log($"[Export Error] {ex.Message}");
-            await DialogService.ShowErrorAsync(this, "Export Error", ex.Message);
+            Log($"[export error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "export error", ex.Message);
         }
     }
 
@@ -830,15 +830,15 @@ public partial class MainWindow : Window
 
         if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
         {
-            Log("[Compile Error] Target .vmdl file does not exist.");
-            await DialogService.ShowErrorAsync(this, "Target Missing", "Target .vmdl file does not exist. Please select a valid model.");
+            Log("[compile error] target .vmdl file does not exist.");
+            await DialogService.ShowErrorAsync(this, "target missing", "target .vmdl file does not exist. please select a valid model.");
             return;
         }
 
         if (!VmdlPipeline.IsValidCsWinDir(csWinDir))
         {
-            Log("[Compile Error] CSWin64 compiler path is invalid or missing resourcecompiler.exe.");
-            await DialogService.ShowErrorAsync(this, "Compiler Missing", "CSWin64 compiler path is invalid or missing resourcecompiler.exe.");
+            Log("[compile error] cswin64 compiler path is invalid or missing resourcecompiler.exe.");
+            await DialogService.ShowErrorAsync(this, "compiler missing", "cswin64 compiler path is invalid or missing resourcecompiler.exe.");
             return;
         }
 
@@ -848,7 +848,7 @@ public partial class MainWindow : Window
             BtnCompile.IsEnabled = false;
             TxtCompileBtn.Text = "compiling...";
 
-            Log($"Starting compilation for: {Path.GetFileName(targetPath)}");
+            Log($"starting compilation for: {Path.GetFileName(targetPath)}");
 
             var (success, msg) = await VmdlPipeline.ProcessVmdlFileAsync(
                 targetPath,
@@ -868,12 +868,12 @@ public partial class MainWindow : Window
 
             if (success)
             {
-                Log($"COMPILATION SUCCESSFUL! {msg}");
+                Log($"compilation successful! {msg}");
 
                 var packVpk = await DialogService.ShowConfirmAsync(
                     this,
-                    "Compilation Successful",
-                    "Model compiled and deployed successfully!\n\nWould you like to package the addon into a .vpk archive now?"
+                    "compilation successful",
+                    "model compiled and deployed successfully!\n\nwould you like to package the addon into a .vpk archive now?"
                 );
 
                 if (packVpk)
@@ -883,14 +883,14 @@ public partial class MainWindow : Window
             }
             else
             {
-                Log($"COMPILATION FAILED: {msg}");
-                await DialogService.ShowErrorAsync(this, "Compilation Failed", $"Compilation failed:\n\n{msg}");
+                Log($"compilation failed: {msg}");
+                await DialogService.ShowErrorAsync(this, "compilation failed", $"compilation failed:\n\n{msg}");
             }
         }
         catch (Exception ex)
         {
-            Log($"[Compile Exception] {ex.Message}");
-            await DialogService.ShowErrorAsync(this, "Compile Exception", ex.Message);
+            Log($"[compile exception] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "compile exception", ex.Message);
         }
         finally
         {
