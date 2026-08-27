@@ -108,7 +108,7 @@
             <Setter Property="Stroke" Value="#FFFFFF" />
         </Style>
 
-        <!-- Expander (Clean Header with NO black background highlight on hover) -->
+        <!-- Expander: Totally transparent header without ANY black hover box -->
         <Style Selector="Expander">
             <Setter Property="HorizontalAlignment" Value="Stretch" />
             <Setter Property="Background" Value="Transparent" />
@@ -119,6 +119,10 @@
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="Padding" Value="2,4" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader /template/ Border#Root">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
         <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pointerover /template/ Border#Root">
             <Setter Property="Background" Value="Transparent" />
@@ -133,6 +137,12 @@
             <Setter Property="BorderBrush" Value="Transparent" />
         </Style>
         <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Expander /template/ ToggleButton#ExpanderHeader:checked /template/ ContentPresenter">
             <Setter Property="Background" Value="Transparent" />
         </Style>
     </Application.Styles>

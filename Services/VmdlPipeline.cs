@@ -94,6 +94,53 @@ public static class VmdlPipeline
         return ("citadel_addons", "addon", Path.GetFileName(clean));
     }
 
+    public static string ResolveGameAddonDir(string targetVmdlPath, string? citadelAddonsDir, string addonName)
+    {
+        // 1. Try resolving relative to targetVmdlPath containing /content/
+        var normTarget = targetVmdlPath.Replace('\\', '/');
+        int contentIdx = normTarget.IndexOf("/content/", StringComparison.OrdinalIgnoreCase);
+        if (contentIdx >= 0)
+        {
+            var root = normTarget[..contentIdx];
+            var afterContent = normTarget[(contentIdx + "/content/".Length)..];
+            var parts = afterContent.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                var cand1 = Path.Combine(root.Replace('/', Path.DirectorySeparatorChar), "game", parts[0], parts[1]);
+                if (Directory.Exists(cand1)) return cand1;
+                var cand2 = Path.Combine(root.Replace('/', Path.DirectorySeparatorChar), "game", parts[1]);
+                if (Directory.Exists(cand2)) return cand2;
+                return cand1;
+            }
+        }
+
+        // 2. Try resolving relative to citadelAddonsDir
+        if (!string.IsNullOrWhiteSpace(citadelAddonsDir))
+        {
+            var normCitadel = citadelAddonsDir.Replace('\\', '/');
+            int citContentIdx = normCitadel.IndexOf("/content/", StringComparison.OrdinalIgnoreCase);
+            if (citContentIdx >= 0)
+            {
+                var root = normCitadel[..citContentIdx];
+                var afterContent = normCitadel[(citContentIdx + "/content/".Length)..].Trim('/');
+                var cand = Path.Combine(root.Replace('/', Path.DirectorySeparatorChar), "game", afterContent.Replace('/', Path.DirectorySeparatorChar), addonName);
+                if (Directory.Exists(cand)) return cand;
+                var cand2 = Path.Combine(root.Replace('/', Path.DirectorySeparatorChar), "game", "citadel_addons", addonName);
+                if (Directory.Exists(cand2)) return cand2;
+                return cand;
+            }
+
+            var parent = Directory.GetParent(citadelAddonsDir)?.FullName;
+            if (!string.IsNullOrEmpty(parent))
+            {
+                var cand = Path.Combine(parent, "game", "citadel_addons", addonName);
+                return cand;
+            }
+        }
+
+        return Path.Combine(Path.GetDirectoryName(targetVmdlPath) ?? string.Empty, "game", addonName);
+    }
+
     public static (string Skel, string Graph, string UiGraph) DeriveDefaultPaths(string vmdlPath)
     {
         var db = HeroDatabase.GetDatabase();

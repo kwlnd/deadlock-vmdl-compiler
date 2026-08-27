@@ -32,7 +32,7 @@ public partial class MainWindow : Window
         Loaded += MainWindow_Loaded;
     }
 
-    private void MainWindow_Loaded(object? sender, RoutedEventArgs e)
+    private async void MainWindow_Loaded(object? sender, RoutedEventArgs e)
     {
         try
         {
@@ -69,6 +69,15 @@ public partial class MainWindow : Window
             }
 
             Log("Environment verified. Ready.");
+
+            // First-time or missing path setup prompt
+            var csValid = VmdlPipeline.IsValidCsWinDir(TxtCsWinPath.Text?.Trim());
+            var citValid = !string.IsNullOrWhiteSpace(TxtCitadelPath.Text?.Trim()) && Directory.Exists(TxtCitadelPath.Text?.Trim());
+
+            if (!csValid || !citValid)
+            {
+                await PromptFirstTimeSetupAsync(!csValid, !citValid);
+            }
         }
         catch (Exception ex)
         {
@@ -79,6 +88,48 @@ public partial class MainWindow : Window
             _isUpdatingSelection = false;
             _isInitializing = false;
         }
+    }
+
+    private async Task PromptFirstTimeSetupAsync(bool needCsWin, bool needCitadel)
+    {
+        await DialogService.ShowInfoAsync(
+            this,
+            "Initial Setup",
+            "Welcome! Please configure your CSWin64 compiler and Citadel Addons directory to get started."
+        );
+
+        if (needCsWin)
+        {
+            var csFolders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select CSWin64 Directory (containing resourcecompiler.exe)"
+            });
+
+            if (csFolders.Count > 0)
+            {
+                TxtCsWinPath.Text = csFolders[0].Path.LocalPath;
+                Log($"[SETUP] CSWin64 path configured: {csFolders[0].Path.LocalPath}");
+                SaveConfig();
+            }
+        }
+
+        if (needCitadel)
+        {
+            var citFolders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            {
+                Title = "Select Citadel Addons Directory (content/citadel_addons)"
+            });
+
+            if (citFolders.Count > 0)
+            {
+                TxtCitadelPath.Text = citFolders[0].Path.LocalPath;
+                Log($"[SETUP] Citadel addons path configured: {citFolders[0].Path.LocalPath}");
+                SaveConfig();
+                RescanModels();
+            }
+        }
+
+        CheckEnvironmentStatus();
     }
 
     private void Log(string message)
@@ -477,7 +528,7 @@ public partial class MainWindow : Window
             presets.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
             CmbHeroPreset.ItemsSource = presets;
             CmbHeroPreset.SelectedIndex = 0;
-            await DialogService.ShowInfoAsync(this, "Presets Restored", $"Successfully restored default hero preset database ({count} heroes).");
+            await DialogService.ShowInfoAsync(this, "Presets Restored", "Default hero presets restored successfully.");
         }
         else
         {
@@ -505,7 +556,7 @@ public partial class MainWindow : Window
                 list.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
                 CmbHeroPreset.ItemsSource = list;
                 CmbHeroPreset.SelectedIndex = 0;
-                await DialogService.ShowInfoAsync(this, "VPK Presets Updated", $"VPK Scan Complete!\nSuccessfully extracted and updated {presets.Count} hero presets from Deadlock VPK.");
+                await DialogService.ShowInfoAsync(this, "VPK Presets Updated", $"Hero presets updated successfully ({presets.Count} heroes).");
             }
             else
             {
@@ -540,7 +591,7 @@ public partial class MainWindow : Window
             Log(msg);
             if (success)
             {
-                await DialogService.ShowInfoAsync(this, "ModelDoc Fixed", msg);
+                await DialogService.ShowInfoAsync(this, "ModelDoc Fixed", "ModelDoc syntax cleaned successfully.");
             }
             else
             {
@@ -554,7 +605,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void BtnMakeVpk_Click(object? sender, RoutedEventArgs e)
+    private async Task<bool> MakeVpkAsync(bool suppressSuccessDialog = false)
     {
         var targetPath = GetResolvedTargetPath();
         var citadelDir = TxtCitadelPath.Text?.Trim();
@@ -563,32 +614,59 @@ public partial class MainWindow : Window
         {
             Log("[Make VPK] Please select an addon and target model first.");
             await DialogService.ShowErrorAsync(this, "Selection Required", "Please select an addon and target model first.");
-            return;
+            return false;
         }
 
         try
         {
             var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
-            var gameAddonDir = Path.Combine(Directory.GetParent(citadelDir)!.Parent!.FullName, "game", container, addonName);
+            var gameAddonDir = VmdlPipeline.ResolveGameAddonDir(targetPath, citadelDir, addonName);
             var outputVpk = Path.Combine(citadelDir, $"{addonName}.vpk");
+
+            // If game directory does not exist, check if user has built .vmdl_c or check content folder
+            if (!Directory.Exists(gameAddonDir))
+            {
+                var contentAddonDir = Path.Combine(citadelDir, addonName);
+                if (Directory.Exists(contentAddonDir))
+                {
+                    // Fallback to content folder if game folder does not exist
+                    gameAddonDir = contentAddonDir;
+                }
+                else
+                {
+                    await DialogService.ShowErrorAsync(this, "VPK Packaging Failed", $"Source directory does not exist:\n{gameAddonDir}");
+                    return false;
+                }
+            }
 
             var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
             if (res.Success)
             {
                 Log($"[Make VPK] Addon packaged successfully: {res.OutputVpkPath} ({res.FileCount} files, {res.TotalBytes / 1024 / 1024:N1} MB)");
-                await DialogService.ShowInfoAsync(this, "VPK Packaged Successfully", $"Addon packaged successfully:\n\n{res.OutputVpkPath}\n\nFiles: {res.FileCount}\nSize: {res.TotalBytes / 1024 / 1024:N1} MB");
+                if (!suppressSuccessDialog)
+                {
+                    await DialogService.ShowInfoAsync(this, "VPK Created", "Addon packaged into VPK successfully.");
+                }
+                return true;
             }
             else
             {
                 Log($"[Make VPK Error] {res.Message}");
                 await DialogService.ShowErrorAsync(this, "VPK Packaging Failed", res.Message);
+                return false;
             }
         }
         catch (Exception ex)
         {
             Log($"[Make VPK Error] {ex.Message}");
             await DialogService.ShowErrorAsync(this, "VPK Packaging Error", ex.Message);
+            return false;
         }
+    }
+
+    private async void BtnMakeVpk_Click(object? sender, RoutedEventArgs e)
+    {
+        await MakeVpkAsync(suppressSuccessDialog: false);
     }
 
     private async void BtnExportCsWin_Click(object? sender, RoutedEventArgs e)
@@ -621,7 +699,7 @@ public partial class MainWindow : Window
             Log(msg);
             if (success)
             {
-                await DialogService.ShowInfoAsync(this, "Export Complete", msg);
+                await DialogService.ShowInfoAsync(this, "Export Complete", "Exported to CSWin64 successfully.");
             }
             else
             {
@@ -684,7 +762,17 @@ public partial class MainWindow : Window
             if (success)
             {
                 Log($"COMPILATION SUCCESSFUL! {msg}");
-                await DialogService.ShowInfoAsync(this, "Compilation Successful", $"Model compiled and deployed successfully!\n\n{msg}");
+
+                var packVpk = await DialogService.ShowConfirmAsync(
+                    this,
+                    "Compilation Successful",
+                    "Model compiled and deployed successfully!\n\nWould you like to package the addon into a .vpk archive now?"
+                );
+
+                if (packVpk)
+                {
+                    await MakeVpkAsync(suppressSuccessDialog: false);
+                }
             }
             else
             {
