@@ -215,17 +215,19 @@
                 <!-- Main Action Button: Compile -->
                 <Button x:Name="BtnCompile"
                         Classes="primary"
-                        Height="34"
+                        Height="46"
+                        Margin="0,2,0,0"
                         Click="BtnCompile_Click"
+                        HorizontalAlignment="Stretch"
                         VerticalAlignment="Center"
                         HorizontalContentAlignment="Center">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
-                        <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="10">
+                        <Viewbox Width="16" Height="16" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
                                 <Path Data="M 7 4.5 C 7 3.6 8 3.1 8.8 3.6 L 19.8 10.6 C 20.5 11.1 20.5 12.1 19.8 12.6 L 8.8 19.6 C 8 20.1 7 19.6 7 18.7 Z" Fill="#FFFFFF"/>
                             </Canvas>
                         </Viewbox>
-                        <TextBlock x:Name="TxtCompileBtn" Text="compile" FontWeight="Bold" FontSize="12.5" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtCompileBtn" Text="compile" FontWeight="Bold" FontSize="14" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
             </StackPanel>
