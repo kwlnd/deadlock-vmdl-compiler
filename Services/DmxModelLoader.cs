@@ -85,7 +85,7 @@ public static class DmxModelLoader
             if (compositeMesh.Vertices.Count > 0)
             {
                 compositeMesh.RecalculateBounds();
-                LogDebug("[3D Loader] Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris");
+                LogDebug("[3D Loader] Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris, bounds radius=" + compositeMesh.Radius.ToString("F2"));
                 return compositeMesh;
             }
 
@@ -112,64 +112,83 @@ public static class DmxModelLoader
                 addonRoot = cleanDir.Substring(0, mIdx).Replace('/', Path.DirectorySeparatorChar);
             }
 
-            var dmxMatches = Regex.Matches(vmdlContent, "\"([^\r\n\"]+\\.(dmx|smd|fbx|obj))\"", RegexOptions.IgnoreCase);
+            var lines = vmdlContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            bool inRenderMeshList = false;
 
-            foreach (Match m in dmxMatches)
+            foreach (var line in lines)
             {
-                var rawFile = m.Groups[1].Value.Trim();
-                var fn = Path.GetFileName(rawFile).ToLowerInvariant();
+                var trimmed = line.Trim();
+                if (trimmed.Contains("RenderMeshList") || trimmed.Contains("RenderMeshFile"))
+                    inRenderMeshList = true;
+                if (trimmed.Contains("AnimationList") || trimmed.Contains("AnimFile"))
+                    inRenderMeshList = false;
 
-                if (fn.Contains("_lod") || fn.Contains("lod1") || fn.Contains("lod2") || fn.Contains("lod3") || fn.Contains("lod4"))
-                    continue;
-
-                var rel = rawFile.Replace('/', Path.DirectorySeparatorChar);
-                var fnOnly = Path.GetFileName(rel);
-
-                var candidates = new List<string>
+                if (inRenderMeshList && trimmed.StartsWith("filename ="))
                 {
-                    Path.Combine(vmdlDir, fnOnly),
-                    Path.Combine(vmdlDir, "mesh", fnOnly),
-                    Path.Combine(vmdlDir, rel)
-                };
-
-                if (!string.IsNullOrEmpty(addonRoot))
-                {
-                    candidates.Add(Path.Combine(addonRoot, rel));
-                    candidates.Add(Path.Combine(addonRoot, "models", rel));
-                    candidates.Add(Path.Combine(addonRoot, fnOnly));
-                }
-
-                if (!string.IsNullOrEmpty(citadelDir))
-                {
-                    candidates.Add(Path.Combine(citadelDir, rel));
-                    candidates.Add(Path.Combine(citadelDir, "models", rel));
-                }
-
-                var cur = vmdlDir;
-                for (int i = 0; i < 5; i++)
-                {
-                    var parent = Directory.GetParent(cur)?.FullName;
-                    if (string.IsNullOrEmpty(parent)) break;
-                    candidates.Add(Path.Combine(parent, rel));
-                    candidates.Add(Path.Combine(parent, fnOnly));
-                    candidates.Add(Path.Combine(parent, "mesh", fnOnly));
-                    cur = parent;
-                }
-
-                foreach (var cand in candidates)
-                {
-                    if (File.Exists(cand) && !result.Contains(cand))
+                    var q1 = trimmed.IndexOf('\"');
+                    var q2 = trimmed.LastIndexOf('\"');
+                    if (q1 >= 0 && q2 > q1)
                     {
-                        result.Add(cand);
-                        break;
+                        var raw = trimmed.Substring(q1 + 1, q2 - q1 - 1);
+                        var fn = Path.GetFileName(raw).ToLowerInvariant();
+
+                        if (fn.Contains("_lod") || fn.Contains("lod1") || fn.Contains("lod2") || fn.Contains("lod3") || fn.Contains("lod4"))
+                            continue;
+
+                        var rel = raw.Replace('/', Path.DirectorySeparatorChar);
+                        var fnOnly = Path.GetFileName(rel);
+
+                        var candidates = new List<string>
+                        {
+                            Path.Combine(vmdlDir, fnOnly),
+                            Path.Combine(vmdlDir, "mesh", fnOnly),
+                            Path.Combine(vmdlDir, rel)
+                        };
+
+                        if (!string.IsNullOrEmpty(addonRoot))
+                        {
+                            candidates.Add(Path.Combine(addonRoot, rel));
+                            candidates.Add(Path.Combine(addonRoot, "models", rel));
+                            candidates.Add(Path.Combine(addonRoot, fnOnly));
+                        }
+
+                        if (!string.IsNullOrEmpty(citadelDir))
+                        {
+                            candidates.Add(Path.Combine(citadelDir, rel));
+                            candidates.Add(Path.Combine(citadelDir, "models", rel));
+                        }
+
+                        var cur = vmdlDir;
+                        for (int i = 0; i < 5; i++)
+                        {
+                            var parent = Directory.GetParent(cur)?.FullName;
+                            if (string.IsNullOrEmpty(parent)) break;
+                            candidates.Add(Path.Combine(parent, rel));
+                            candidates.Add(Path.Combine(parent, fnOnly));
+                            candidates.Add(Path.Combine(parent, "mesh", fnOnly));
+                            cur = parent;
+                        }
+
+                        foreach (var cand in candidates)
+                        {
+                            if (File.Exists(cand) && !result.Contains(cand))
+                            {
+                                result.Add(cand);
+                                break;
+                            }
+                        }
                     }
                 }
             }
 
+            // Fallback if no RenderMeshList found: scan directory
             if (result.Count == 0 && Directory.Exists(vmdlDir))
             {
                 var allDmx = Directory.GetFiles(vmdlDir, "*.dmx", SearchOption.AllDirectories)
-                    .Where(f => !Path.GetFileName(f).ToLowerInvariant().Contains("_lod"))
+                    .Where(f => {
+                        var fn = Path.GetFileName(f).ToLowerInvariant();
+                        return !fn.Contains("_lod") && !fn.Contains("idle") && !fn.Contains("pose") && !fn.Contains("countdown");
+                    })
                     .ToList();
                 result.AddRange(allDmx);
             }
@@ -252,6 +271,7 @@ public static class DmxModelLoader
                             val = (strIdx >= 0 && strIdx < strings.Count) ? strings[strIdx] : string.Empty;
                             pos += 4; break;
                         case 6: pos += 4 + BitConverter.ToInt32(data, pos); break;
+                        case 7: pos += 16; break;
                         case 8: pos += 4; break;
                         case 9: pos += 8; break;
                         case 10:
@@ -262,6 +282,8 @@ public static class DmxModelLoader
                         case 14: pos += 64; break;
                         case 15: pos += 8; break;
                         case 16: pos += 1; break;
+                        case 31:
+                        case 32:
                         case 33:
                         case 34:
                             int cnt34 = BitConverter.ToInt32(data, pos); pos += 4;
@@ -300,6 +322,8 @@ public static class DmxModelLoader
                             pos += cnt42 * 12; break;
                         case 43:
                         case 45: pos += 4 + BitConverter.ToInt32(data, pos) * 16; break;
+                        default:
+                            break;
                     }
 
                     if (!string.IsNullOrEmpty(aname) && val != null)
@@ -315,28 +339,32 @@ public static class DmxModelLoader
             {
                 if (el.Type == "DmeMesh")
                 {
-                    var vertexDataIndices = new List<int>();
-
+                    int bindIdx = -1;
                     if (el.Attrs.TryGetValue("bindState", out var bs) && bs is int bsi && bsi >= 0 && bsi < elements.Count)
-                        vertexDataIndices.Add(bsi);
-                    if (el.Attrs.TryGetValue("currentState", out var cs) && cs is int csi && csi >= 0 && csi < elements.Count && !vertexDataIndices.Contains(csi))
-                        vertexDataIndices.Add(csi);
-                    if (el.Attrs.TryGetValue("baseStates", out var bst) && bst is int[] bstArray)
+                        bindIdx = bsi;
+                    else if (el.Attrs.TryGetValue("currentState", out var cs) && cs is int csi && csi >= 0 && csi < elements.Count)
+                        bindIdx = csi;
+
+                    if (bindIdx >= 0)
                     {
-                        foreach (var idx in bstArray)
+                        var vd = elements[bindIdx];
+                        Vector3[]? positions = null;
+                        int[]? posIndices = null;
+
+                        foreach (var kv in vd.Attrs)
                         {
-                            if (idx >= 0 && idx < elements.Count && !vertexDataIndices.Contains(idx))
-                                vertexDataIndices.Add(idx);
+                            if ((kv.Key == "position" || kv.Key == "position" || kv.Key.StartsWith("position")) && kv.Value is Vector3[] pts)
+                            {
+                                positions = pts;
+                            }
+                            if ((kv.Key == "positionIndices" || kv.Key == "position" || kv.Key.StartsWith("position") && kv.Key.EndsWith("Indices")) && kv.Value is int[] idxs)
+                            {
+                                posIndices = idxs;
+                            }
                         }
-                    }
 
-                    foreach (var vdIdx in vertexDataIndices)
-                    {
-                        var vdata = elements[vdIdx];
-                        if (vdata.Attrs.TryGetValue("position", out var pObj) && pObj is Vector3[] positions && positions.Length > 0)
+                        if (positions != null && positions.Length > 0)
                         {
-                            var pIndices = vdata.Attrs.TryGetValue("positionIndices", out var piObj) && piObj is int[] piArr ? piArr : null;
-
                             int baseVert = mesh.Vertices.Count;
                             for (int i = 0; i < positions.Length; i++)
                             {
@@ -366,11 +394,13 @@ public static class DmxModelLoader
                                                             int f1 = faces[curPolyStart + tri];
                                                             int f2 = faces[curPolyStart + tri + 1];
 
-                                                            int v0 = (pIndices != null && f0 < pIndices.Length) ? pIndices[f0] : f0;
-                                                            int v1 = (pIndices != null && f1 < pIndices.Length) ? pIndices[f1] : f1;
-                                                            int v2 = (pIndices != null && f2 < pIndices.Length) ? pIndices[f2] : f2;
+                                                            int v0 = (posIndices != null && f0 >= 0 && f0 < posIndices.Length) ? posIndices[f0] : f0;
+                                                            int v1 = (posIndices != null && f1 >= 0 && f1 < posIndices.Length) ? posIndices[f1] : f1;
+                                                            int v2 = (posIndices != null && f2 >= 0 && f2 < posIndices.Length) ? posIndices[f2] : f2;
 
-                                                            if (v0 < positions.Length && v1 < positions.Length && v2 < positions.Length)
+                                                            if (v0 >= 0 && v0 < positions.Length &&
+                                                                v1 >= 0 && v1 < positions.Length &&
+                                                                v2 >= 0 && v2 < positions.Length)
                                                             {
                                                                 mesh.Indices.Add(baseVert + v0);
                                                                 mesh.Indices.Add(baseVert + v1);
@@ -385,7 +415,6 @@ public static class DmxModelLoader
                                     }
                                 }
                             }
-                            break;
                         }
                     }
                 }
