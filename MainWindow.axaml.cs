@@ -70,7 +70,7 @@ public partial class MainWindow : Window
 
             Log("Environment verified. Ready.");
 
-            // First-time or missing path setup prompt
+            // First-time setup wizard
             var csValid = VmdlPipeline.IsValidCsWinDir(TxtCsWinPath.Text?.Trim());
             var citValid = !string.IsNullOrWhiteSpace(TxtCitadelPath.Text?.Trim()) && Directory.Exists(TxtCitadelPath.Text?.Trim());
 
@@ -88,6 +88,14 @@ public partial class MainWindow : Window
             _isUpdatingSelection = false;
             _isInitializing = false;
         }
+    }
+
+    private void BtnToggleAdvanced_Click(object? sender, RoutedEventArgs e)
+    {
+        PanelAdvancedContent.IsVisible = !PanelAdvancedContent.IsVisible;
+        IconAdvancedChevron.Data = PanelAdvancedContent.IsVisible
+            ? Geometry.Parse("M7.41 15.41L12 10.83L16.59 15.41L18 14L12 8L6 14L7.41 15.41Z")
+            : Geometry.Parse("M7.41 8.59L12 13.17L16.59 8.59L18 10L12 16L6 10L7.41 8.59Z");
     }
 
     private async Task PromptFirstTimeSetupAsync(bool needCsWin, bool needCitadel)
@@ -160,7 +168,7 @@ public partial class MainWindow : Window
                 var mesh = await DmxModelLoader.LoadModelFromVmdlAsync(path);
                 ModelViewport.CurrentMesh = mesh;
 
-                if (mesh != null)
+                if (mesh != null && mesh.Vertices.Count > 0)
                 {
                     LblMeshName.Text = $"mesh: {mesh.MeshName} ({mesh.Vertices.Count:N0} verts, {mesh.Indices.Count / 3:N0} tris)";
                 }
@@ -544,13 +552,66 @@ public partial class MainWindow : Window
         try
         {
             _isProcessing = true;
-            Log("Scanning Deadlock VPK files for updated hero paths...");
+            Log("Locating Deadlock VPK files for updated hero paths...");
 
-            var citadelDir = TxtCitadelPath.Text?.Trim() ?? string.Empty;
-            var (success, msg, presets) = await VpkHeroScanner.ScanVpkForHeroesAsync(citadelDir);
+            string? vpkPath = null;
+
+            // 1. Check auto-detected install
+            var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
+            if (deadlockInfo.IsValid && File.Exists(deadlockInfo.Pak01VpkPath))
+            {
+                vpkPath = deadlockInfo.Pak01VpkPath;
+            }
+
+            // 2. Check relative to citadel addons path
+            if (string.IsNullOrEmpty(vpkPath))
+            {
+                var cit = TxtCitadelPath.Text?.Trim();
+                if (!string.IsNullOrEmpty(cit))
+                {
+                    var cands = new[]
+                    {
+                        Path.Combine(cit, "..", "..", "game", "citadel", "pak01_dir.vpk"),
+                        Path.Combine(cit, "..", "game", "citadel", "pak01_dir.vpk"),
+                        Path.Combine(cit, "pak01_dir.vpk")
+                    };
+
+                    foreach (var c in cands)
+                    {
+                        var full = Path.GetFullPath(c);
+                        if (File.Exists(full)) { vpkPath = full; break; }
+                    }
+                }
+            }
+
+            // 3. If still not found, prompt user to select pak01_dir.vpk
+            if (string.IsNullOrEmpty(vpkPath))
+            {
+                var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "Select Deadlock pak01_dir.vpk to scan hero presets",
+                    FileTypeFilter = new[]
+                    {
+                        new FilePickerFileType("Deadlock VPK (*.vpk)") { Patterns = new[] { "pak01_dir.vpk", "*.vpk" } }
+                    }
+                });
+
+                if (files.Count > 0)
+                {
+                    vpkPath = files[0].Path.LocalPath;
+                }
+            }
+
+            if (string.IsNullOrEmpty(vpkPath) || !File.Exists(vpkPath))
+            {
+                Log("[VPK Scan] No pak01_dir.vpk selected.");
+                return;
+            }
+
+            Log($"Scanning VPK: {vpkPath}...");
+            var (success, msg, presets) = await VpkHeroScanner.ScanVpkForHeroesAsync(vpkPath);
             if (success && presets.Count > 0)
             {
-                HeroDatabase.SaveDatabase(presets);
                 Log($"VPK Scan Complete: Updated {presets.Count} hero presets.");
                 var list = new List<string> { "(Auto-Detect Hero Paths)" };
                 list.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
@@ -621,15 +682,13 @@ public partial class MainWindow : Window
         {
             var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
             var gameAddonDir = VmdlPipeline.ResolveGameAddonDir(targetPath, citadelDir, addonName);
-            var outputVpk = Path.Combine(citadelDir, $"{addonName}.vpk");
 
-            // If game directory does not exist, check if user has built .vmdl_c or check content folder
+            // If game directory does not exist, fallback to content addon directory
             if (!Directory.Exists(gameAddonDir))
             {
                 var contentAddonDir = Path.Combine(citadelDir, addonName);
                 if (Directory.Exists(contentAddonDir))
                 {
-                    // Fallback to content folder if game folder does not exist
                     gameAddonDir = contentAddonDir;
                 }
                 else
@@ -638,6 +697,26 @@ public partial class MainWindow : Window
                     return false;
                 }
             }
+
+            // Let user choose destination path & filename
+            var saveFile = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save Addon VPK File",
+                DefaultExtension = "vpk",
+                SuggestedFileName = $"{addonName}.vpk",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("Valve Pack File (*.vpk)") { Patterns = new[] { "*.vpk" } }
+                }
+            });
+
+            if (saveFile == null)
+            {
+                Log("[Make VPK] Packaging cancelled by user.");
+                return false;
+            }
+
+            var outputVpk = saveFile.Path.LocalPath;
 
             var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
             if (res.Success)

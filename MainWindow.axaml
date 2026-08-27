@@ -70,8 +70,8 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             
-                            <Button Grid.Column="2" Height="32" Padding="8,2" Click="Rescan_Click" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button Grid.Column="2" Height="32" Padding="8,2" Click="Rescan_Click" VerticalAlignment="Center" HorizontalContentAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
                                             <Path Data="M17.65 6.35C16.2 4.9 14.21 4 12 4C7.58 4 4.01 7.58 4.01 12C4.01 16.42 7.58 20 12 20C15.73 20 18.84 17.45 19.73 14H17.65C16.83 16.33 14.61 18 12 18C8.69 18 6 15.31 6 12C6 8.69 8.69 6 12 6C13.66 6 15.14 6.69 16.22 7.78L13 11H20V4L17.65 6.35Z" Fill="#60A5FA"/>
@@ -110,8 +110,8 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
 
-                            <Button Grid.Column="2" Height="32" Padding="8,2" Click="BrowseFile_Click" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                            <Button Grid.Column="2" Height="32" Padding="8,2" Click="BrowseFile_Click" VerticalAlignment="Center" HorizontalContentAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
                                             <Path Data="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12" Stroke="#60A5FA" StrokeThickness="2"/>
@@ -139,11 +139,11 @@
 
                         <Border Height="1" Background="#2D394E" Margin="0,2"/>
 
-                        <!-- Row 4: Action Tools Grid (Clean 5-button balanced layout) -->
+                        <!-- Row 4: Action Tools Grid (Perfect Centering & Alignment) -->
                         <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
                             
-                            <!-- Row 0, Col 0: restore ag2 list -->
-                            <Button x:Name="BtnRestorePresets" Grid.Row="0" Grid.Column="0" Height="28" Margin="0,0,3,4" Click="BtnRestorePresets_Click" VerticalAlignment="Center">
+                            <!-- Top Row (3 equal buttons) -->
+                            <Button x:Name="BtnRestorePresets" Grid.Row="0" Grid.Column="0" Height="28" Margin="0,0,3,4" Click="BtnRestorePresets_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                                     <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
@@ -154,8 +154,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 0, Col 1: get ag2 lists -->
-                            <Button x:Name="BtnUpdateVpkPresets" Grid.Row="0" Grid.Column="1" Height="28" Margin="3,0,3,4" Click="BtnUpdateVpkPresets_Click" VerticalAlignment="Center">
+                            <Button x:Name="BtnUpdateVpkPresets" Grid.Row="0" Grid.Column="1" Height="28" Margin="3,0,3,4" Click="BtnUpdateVpkPresets_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                                     <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
@@ -166,8 +165,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 0, Col 2: fix for modeldoc -->
-                            <Button x:Name="BtnSanitizeModelDoc" Grid.Row="0" Grid.Column="2" Height="28" Margin="3,0,0,4" Click="BtnSanitizeModelDoc_Click" VerticalAlignment="Center">
+                            <Button x:Name="BtnSanitizeModelDoc" Grid.Row="0" Grid.Column="2" Height="28" Margin="3,0,0,4" Click="BtnSanitizeModelDoc_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                                     <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
@@ -178,29 +176,31 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- Row 1: make vpk & export to cswin64 -->
-                            <Button x:Name="BtnMakeVpk" Grid.Row="1" Grid.Column="0" Height="28" Margin="0,0,3,0" Click="BtnMakeVpk_Click" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
-                                    <Viewbox Width="12" Height="12" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M2 7C2 5.89 2.89 5 4 5H10.22L16.5 10H2V7Z" Fill="#458FFF"/>
-                                            <Path Data="M4 8H20C21.1 8 22 8.89 22 10V17C22 18.1 21.1 19 20 19H4C2.89 19 2 18.1 2 17V10C2 8.89 2.89 8 4 8Z" Fill="#313F59"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock x:Name="TxtMakeVpkBtn" Text="make vpk..." FontSize="11" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                            <!-- Bottom Row (2 equal wide buttons) -->
+                            <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,*">
+                                <Button x:Name="BtnMakeVpk" Grid.Column="0" Height="28" Margin="0,0,3,0" Click="BtnMakeVpk_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
+                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M2 7C2 5.89 2.89 5 4 5H10.22L16.5 10H2V7Z" Fill="#458FFF"/>
+                                                <Path Data="M4 8H20C21.1 8 22 8.89 22 10V17C22 18.1 21.1 19 20 19H4C2.89 19 2 18.1 2 17V10C2 8.89 2.89 8 4 8Z" Fill="#313F59"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock x:Name="TxtMakeVpkBtn" Text="make vpk..." FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
 
-                            <Button x:Name="BtnExportCsWin" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Height="28" Margin="3,0,0,0" Click="BtnExportCsWin_Click" VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
-                                    <Viewbox Width="12" Height="12" VerticalAlignment="Center">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="M12 4V15.5M12 15.5L16 11.5M12 15.5L8 11.5M7 20H17" Stroke="#60A5FA" StrokeThickness="2"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64" FontSize="11" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                                <Button x:Name="BtnExportCsWin" Grid.Column="1" Height="28" Margin="3,0,0,0" Click="BtnExportCsWin_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
+                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="M12 4V15.5M12 15.5L16 11.5M12 15.5L8 11.5M7 20H17" Stroke="#60A5FA" StrokeThickness="2"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
                         </Grid>
 
                     </StackPanel>
@@ -211,7 +211,8 @@
                         Classes="primary"
                         Height="34"
                         Click="BtnCompile_Click"
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Center"
+                        HorizontalContentAlignment="Center">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8">
                         <Viewbox Width="13" Height="13" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
@@ -249,13 +250,35 @@
         </Grid>
 
         <!-- ======================================================== -->
-        <!-- ROW 1: ADVANCED EXPANDER (Full Window Width)             -->
+        <!-- ROW 1: ADVANCED SECTION (Custom Zero-Hover-Box Toggle)   -->
         <!-- ======================================================== -->
-        <Expander x:Name="ExpanderAdvanced" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,2,0,0">
-            <Expander.Header>
-                <TextBlock Text="advanced settings &amp; tools" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
-            </Expander.Header>
-            <Border Background="#1A2230" BorderBrush="#2D394E" BorderThickness="1" CornerRadius="6" Margin="0,4,0,0" Padding="10">
+        <StackPanel Grid.Row="1" Margin="0,4,0,0">
+            
+            <Button x:Name="BtnToggleAdvanced"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Padding="0,3"
+                    HorizontalAlignment="Left"
+                    Cursor="Hand"
+                    Click="BtnToggleAdvanced_Click">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path x:Name="IconAdvancedChevron" Data="M7.41 8.59L12 13.17L16.59 8.59L18 10L12 16L6 10L7.41 8.59Z" Fill="#94A3B8"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock Text="advanced settings &amp; tools" FontSize="11" FontWeight="Bold" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+
+            <Border x:Name="PanelAdvancedContent"
+                    IsVisible="False"
+                    Background="#1A2230"
+                    BorderBrush="#2D394E"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Margin="0,4,0,0"
+                    Padding="10">
                 <StackPanel Spacing="8">
                     
                     <!-- Environment Paths Header -->
@@ -284,7 +307,7 @@
                             </Viewbox>
                         </Border>
 
-                        <Button Grid.Column="3" Height="28" Padding="8,2" Click="BrowseCsWin_Click" VerticalAlignment="Center">
+                        <Button Grid.Column="3" Height="28" Padding="8,2" Click="BrowseCsWin_Click" VerticalAlignment="Center" HorizontalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                     <Canvas Width="24" Height="24">
@@ -303,7 +326,7 @@
                             <TextBlock x:Name="LblCitadelStatus" Text="checking..." FontSize="10" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </StackPanel>
                         <TextBox x:Name="TxtCitadelPath" Grid.Column="1" Height="28" Margin="6,0,6,0" VerticalAlignment="Center" TextChanged="TxtCitadelPath_TextChanged"/>
-                        <Button Grid.Column="2" Height="28" Padding="8,2" Click="BrowseCitadel_Click" VerticalAlignment="Center">
+                        <Button Grid.Column="2" Height="28" Padding="8,2" Click="BrowseCitadel_Click" VerticalAlignment="Center" HorizontalContentAlignment="Center">
                             <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
                                 <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                     <Canvas Width="24" Height="24">
@@ -359,6 +382,6 @@
 
                 </StackPanel>
             </Border>
-        </Expander>
+        </StackPanel>
     </Grid>
 </Window>

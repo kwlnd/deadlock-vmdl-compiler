@@ -25,10 +25,6 @@ public class VpkEntry
 
 public static class VpkHeroScanner
 {
-    /// <summary>
-    /// Scans a pak01_dir.vpk (or directory with models) ONLY for models in models/heroes_staging and models/heroes_wip,
-    /// extracting ONLY models that contain AG2 nodes (m_animGraph2Refs / m_vecNmSkeletonRefs).
-    /// </summary>
     public static async Task<(bool Success, string Message, Dictionary<string, HeroPreset> Presets)> ScanVpkForHeroesAsync(string targetPath)
     {
         if (string.IsNullOrWhiteSpace(targetPath))
@@ -36,20 +32,19 @@ public static class VpkHeroScanner
 
         var resolvedPath = Path.GetFullPath(targetPath);
 
-        // If user selected a directory, find pak01_dir.vpk inside if available
+        // If directory was passed, try to locate pak01_dir.vpk inside
         if (Directory.Exists(resolvedPath))
         {
             var candVpk = Path.Combine(resolvedPath, "pak01_dir.vpk");
-            if (File.Exists(candVpk))
-            {
-                resolvedPath = candVpk;
-            }
+            if (File.Exists(candVpk)) resolvedPath = candVpk;
             else
             {
                 var candCitadelVpk = Path.Combine(resolvedPath, "game", "citadel", "pak01_dir.vpk");
-                if (File.Exists(candCitadelVpk))
+                if (File.Exists(candCitadelVpk)) resolvedPath = candCitadelVpk;
+                else
                 {
-                    resolvedPath = candCitadelVpk;
+                    var candCitadel2 = Path.Combine(resolvedPath, "citadel", "pak01_dir.vpk");
+                    if (File.Exists(candCitadel2)) resolvedPath = candCitadel2;
                 }
             }
         }
@@ -64,16 +59,17 @@ public static class VpkHeroScanner
                 {
                     var entries = ReadVpkDirectory(resolvedPath);
 
-                    // Filter ONLY models/heroes_staging and models/heroes_wip with extension vmdl_c
+                    // Scan ALL models/heroes, models/heroes_staging, models/heroes_wip, models/characters
                     var targetEntries = entries.Where(e =>
                         e.Extension.Equals("vmdl_c", StringComparison.OrdinalIgnoreCase) &&
-                        (e.Directory.StartsWith("models/heroes_staging", StringComparison.OrdinalIgnoreCase) ||
-                         e.Directory.StartsWith("models/heroes_wip", StringComparison.OrdinalIgnoreCase))
+                        (e.Directory.StartsWith("models/heroes", StringComparison.OrdinalIgnoreCase) ||
+                         e.Directory.StartsWith("models/characters", StringComparison.OrdinalIgnoreCase) ||
+                         e.Directory.Contains("heroes", StringComparison.OrdinalIgnoreCase))
                     ).ToList();
 
                     if (targetEntries.Count == 0)
                     {
-                        return (false, $"No hero models found in models/heroes_staging or models/heroes_wip in: {Path.GetFileName(resolvedPath)}", results);
+                        return (false, $"No hero models found in: {Path.GetFileName(resolvedPath)}", results);
                     }
 
                     var vpkBaseDir = Path.GetDirectoryName(resolvedPath) ?? string.Empty;
@@ -105,24 +101,11 @@ public static class VpkHeroScanner
                 }
                 else if (Directory.Exists(resolvedPath))
                 {
-                    // Loose files scan (e.g. extracted game directory)
-                    var wipDir = Path.Combine(resolvedPath, "models", "heroes_wip");
-                    var stagingDir = Path.Combine(resolvedPath, "models", "heroes_staging");
-
-                    var targetDirs = new List<string>();
-                    if (Directory.Exists(wipDir)) targetDirs.Add(wipDir);
-                    if (Directory.Exists(stagingDir)) targetDirs.Add(stagingDir);
-
-                    var altWipDir = Path.Combine(resolvedPath, "game", "citadel", "models", "heroes_wip");
-                    var altStagingDir = Path.Combine(resolvedPath, "game", "citadel", "models", "heroes_staging");
-                    if (Directory.Exists(altWipDir)) targetDirs.Add(altWipDir);
-                    if (Directory.Exists(altStagingDir)) targetDirs.Add(altStagingDir);
-
-                    var allVmdlcFiles = new List<string>();
-                    foreach (var d in targetDirs)
-                    {
-                        allVmdlcFiles.AddRange(Directory.GetFiles(d, "*.vmdl_c", SearchOption.AllDirectories));
-                    }
+                    // Loose files scan
+                    var allVmdlcFiles = Directory.GetFiles(resolvedPath, "*.vmdl_c", SearchOption.AllDirectories)
+                        .Where(f => f.Replace('\\', '/').Contains("/heroes", StringComparison.OrdinalIgnoreCase) ||
+                                    f.Replace('\\', '/').Contains("/characters", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
 
                     foreach (var filePath in allVmdlcFiles)
                     {
@@ -153,7 +136,7 @@ public static class VpkHeroScanner
 
                 if (results.Count == 0)
                 {
-                    return (false, "Scan completed, but no models with AnimGraph2 nodes were found in heroes_staging / heroes_wip.", results);
+                    return (false, "Scan completed, but no models with AnimGraph2 nodes were found in the selected VPK.", results);
                 }
 
                 // Merge with existing base database so built-in heroes are preserved
@@ -163,10 +146,9 @@ public static class VpkHeroScanner
                     merged[kv.Key] = kv.Value;
                 }
 
-                // Save to hero_paths.json
-                var savedPath = HeroDatabase.SaveDatabase(merged);
+                HeroDatabase.SaveDatabase(merged);
 
-                return (true, $"Successfully scanned and saved {merged.Count} hero preset(s) (including base heroes) to: {savedPath}", merged);
+                return (true, $"Updated {merged.Count} hero preset(s).", merged);
             }
             catch (Exception ex)
             {
@@ -201,7 +183,6 @@ public static class VpkHeroScanner
             }
 
             // 2. Extract AnimGraphs: m_animGraph2Refs
-            // Match each { m_sIdentifier = "..." m_hGraph = resource:"..." } block
             var blockMatches = Regex.Matches(text, @"\{\s*m_sIdentifier\s*=\s*""([^""]*)""[\s\S]*?m_hGraph\s*=\s*(?:resource:)?\s*""([^""]+\.vnmgraph)""\s*\}", RegexOptions.IgnoreCase);
             foreach (Match bm in blockMatches)
             {
@@ -218,7 +199,6 @@ public static class VpkHeroScanner
                 }
             }
 
-            // Also check reverse order of attributes (m_hGraph then m_sIdentifier)
             if (string.IsNullOrEmpty(graph) || string.IsNullOrEmpty(uiGraph))
             {
                 var revMatches = Regex.Matches(text, @"\{\s*m_hGraph\s*=\s*(?:resource:)?\s*""([^""]+\.vnmgraph)""[\s\S]*?m_sIdentifier\s*=\s*""([^""]*)""\s*\}", RegexOptions.IgnoreCase);
@@ -238,7 +218,7 @@ public static class VpkHeroScanner
                 }
             }
 
-            // Clean leading prefixes
+            // Clean prefixes
             if (skel.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
                 skel = skel["resource:".Length..].Trim().Trim('"');
             if (graph.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
@@ -246,35 +226,12 @@ public static class VpkHeroScanner
             if (uiGraph.StartsWith("resource:", StringComparison.OrdinalIgnoreCase))
                 uiGraph = uiGraph["resource:".Length..].Trim().Trim('"');
 
-            // CRITICAL: ONLY return true if the model actually has AnimGraph2 / NmSkeleton nodes!
             if (string.IsNullOrWhiteSpace(skel) && string.IsNullOrWhiteSpace(graph))
-            {
                 return (false, null, string.Empty);
-            }
 
-            // Determine canonical Hero Key name
-            var dirParts = dirName.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
-            var heroName = dirParts.Length > 0 ? dirParts[^1] : fileName;
-
-            heroName = Regex.Replace(heroName, @"_v\d+$", "", RegexOptions.IgnoreCase);
-
-            if (fileName.Contains(heroName, StringComparison.OrdinalIgnoreCase))
-            {
-                if (string.Equals(fileName, heroName, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(fileName, heroName + "_body", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(fileName, heroName + "_model", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Primary hero key
-                }
-                else
-                {
-                    heroName = fileName;
-                }
-            }
-            else
-            {
-                heroName = fileName;
-            }
+            var heroKey = DeriveHeroKey(dirName, fileName);
+            if (string.IsNullOrEmpty(heroKey))
+                return (false, null, string.Empty);
 
             var preset = new HeroPreset
             {
@@ -283,7 +240,7 @@ public static class VpkHeroScanner
                 UiGraph = uiGraph
             };
 
-            return (true, preset, heroName.ToLowerInvariant());
+            return (true, preset, heroKey);
         }
         catch
         {
@@ -291,21 +248,47 @@ public static class VpkHeroScanner
         }
     }
 
-    private static List<VpkEntry> ReadVpkDirectory(string vpkPath)
+    private static string DeriveHeroKey(string dirName, string fileName)
     {
-        var list = new List<VpkEntry>();
+        var cleanDir = dirName.Replace('\\', '/').Trim('/');
+        var parts = cleanDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        for (int i = parts.Length - 1; i >= 0; i--)
+        {
+            var p = parts[i].ToLowerInvariant();
+            if (p != "mesh" && p != "anims" && p != "heroes_staging" && p != "heroes_wip" && p != "heroes" && p != "models" && p != "characters")
+            {
+                return p;
+            }
+        }
+
+        var fn = fileName.ToLowerInvariant();
+        if (fn.EndsWith("_body")) fn = fn[..^5];
+        if (fn.EndsWith("_model")) fn = fn[..^6];
+        if (fn.EndsWith("_base")) fn = fn[..^5];
+
+        return fn;
+    }
+
+    public static List<VpkEntry> ReadVpkDirectory(string vpkPath)
+    {
+        var entries = new List<VpkEntry>();
         using var fs = new FileStream(vpkPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         using var reader = new BinaryReader(fs);
 
         uint signature = reader.ReadUInt32();
-        if (signature != 0x55aa1234) return list;
+        if (signature != 0x55aa1234)
+            throw new InvalidDataException($"Invalid VPK signature: 0x{signature:X8}");
 
         uint version = reader.ReadUInt32();
         uint treeSize = reader.ReadUInt32();
 
         if (version == 2)
         {
-            fs.Seek(16, SeekOrigin.Current); // Skip V2 header extras
+            reader.ReadUInt32(); // fileDataSectionSize
+            reader.ReadUInt32(); // archiveMDESectionSize
+            reader.ReadUInt32(); // otherMDESectionSize
+            reader.ReadUInt32(); // signatureSectionSize
         }
 
         while (true)
@@ -326,7 +309,7 @@ public static class VpkHeroScanner
                     var entry = new VpkEntry
                     {
                         Extension = ext,
-                        Directory = dir.Replace('\\', '/'),
+                        Directory = dir == " " ? string.Empty : dir,
                         FileName = filename,
                         CRC32 = reader.ReadUInt32(),
                         PreloadBytes = reader.ReadUInt16(),
@@ -335,63 +318,62 @@ public static class VpkHeroScanner
                         EntryLength = reader.ReadUInt32()
                     };
 
-                    ushort terminator = reader.ReadUInt16(); // 0xFFFF
+                    ushort terminator = reader.ReadUInt16();
 
                     if (entry.PreloadBytes > 0)
                     {
                         entry.PreloadData = reader.ReadBytes(entry.PreloadBytes);
                     }
 
-                    list.Add(entry);
+                    entries.Add(entry);
                 }
             }
         }
 
-        return list;
+        return entries;
     }
 
-    private static byte[]? ExtractVpkEntryBytes(VpkEntry entry, string dirVpkPath, string baseDir, string baseName)
+    private static byte[]? ExtractVpkEntryBytes(VpkEntry entry, string dirVpkPath, string vpkBaseDir, string vpkBaseName)
     {
-        int totalLen = entry.PreloadBytes + (int)entry.EntryLength;
-        if (totalLen == 0) return Array.Empty<byte>();
+        if (entry.EntryLength == 0 && entry.PreloadBytes > 0)
+            return entry.PreloadData;
 
-        var result = new byte[totalLen];
-        int dstOffset = 0;
+        int totalLen = (int)(entry.PreloadBytes + entry.EntryLength);
+        var buffer = new byte[totalLen];
 
         if (entry.PreloadBytes > 0 && entry.PreloadData != null)
         {
-            Buffer.BlockCopy(entry.PreloadData, 0, result, 0, entry.PreloadBytes);
-            dstOffset = entry.PreloadBytes;
+            Buffer.BlockCopy(entry.PreloadData, 0, buffer, 0, entry.PreloadBytes);
         }
 
         if (entry.EntryLength > 0)
         {
-            string dataVpkPath;
-            if (entry.ArchiveIndex == 0x7FFF)
+            string archivePath;
+            if (entry.ArchiveIndex == 0x7fff)
             {
-                dataVpkPath = dirVpkPath;
+                archivePath = dirVpkPath;
             }
             else
             {
-                dataVpkPath = Path.Combine(baseDir, $"{baseName}_{entry.ArchiveIndex:D3}.vpk");
+                archivePath = Path.Combine(vpkBaseDir, $"{vpkBaseName}_{entry.ArchiveIndex:D3}.vpk");
             }
 
-            if (File.Exists(dataVpkPath))
-            {
-                using var fs = new FileStream(dataVpkPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                fs.Seek(entry.EntryOffset, SeekOrigin.Begin);
-                int bytesRead = fs.Read(result, dstOffset, (int)entry.EntryLength);
-            }
+            if (!File.Exists(archivePath)) return null;
+
+            using var afs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            afs.Seek(entry.EntryOffset, SeekOrigin.Begin);
+            afs.ReadExactly(buffer, entry.PreloadBytes, (int)entry.EntryLength);
         }
 
-        return result;
+        return buffer;
     }
 
     private static string ReadNullTerminatedString(BinaryReader reader)
     {
         var sb = new StringBuilder();
-        while (reader.BaseStream.Position < reader.BaseStream.Length)
+        while (true)
         {
+            if (reader.BaseStream.Position >= reader.BaseStream.Length) break;
             byte b = reader.ReadByte();
             if (b == 0) break;
             sb.Append((char)b);
