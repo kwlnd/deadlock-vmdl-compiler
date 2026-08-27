@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Numerics;
@@ -29,7 +30,10 @@ public static class DmxModelLoader
         return await Task.Run(() =>
         {
             var res = LoadModelFromVmdlInternal(fullPath);
-            if (res != null) _modelCache[fullPath] = res;
+            if (res != null && res.Vertices.Count > 0)
+            {
+                _modelCache[fullPath] = res;
+            }
             return res;
         });
     }
@@ -38,58 +42,55 @@ public static class DmxModelLoader
     {
         try
         {
-            var content = File.ReadAllText(vmdlPath);
             var vmdlDir = Path.GetDirectoryName(vmdlPath) ?? string.Empty;
-            var dmxFiles = ExtractLod0RenderMeshes(content, vmdlDir);
+            var vmdlContent = File.ReadAllText(vmdlPath);
 
-            var compositeMesh = new SimpleMesh3D
+            var meshFiles = FindMeshFiles(vmdlContent, vmdlDir);
+
+            var composite = new SimpleMesh3D
             {
                 MeshName = Path.GetFileName(vmdlPath)
             };
 
-            foreach (var dmx in dmxFiles)
+            foreach (var meshFile in meshFiles)
             {
-                var partial = ParseDmxBinary(dmx);
+                var partial = LoadMeshFile(meshFile);
                 if (partial != null && partial.Vertices.Count > 0)
                 {
-                    int baseIndex = compositeMesh.Vertices.Count;
-                    compositeMesh.Vertices.AddRange(partial.Vertices);
-                    compositeMesh.Normals.AddRange(partial.Normals);
+                    int baseIdx = composite.Vertices.Count;
+                    composite.Vertices.AddRange(partial.Vertices);
+                    composite.Normals.AddRange(partial.Normals);
 
                     foreach (var idx in partial.Indices)
                     {
-                        compositeMesh.Indices.Add(baseIndex + idx);
+                        composite.Indices.Add(baseIdx + idx);
                     }
-                    compositeMesh.BoneCount = Math.Max(compositeMesh.BoneCount, partial.BoneCount);
                 }
             }
 
-            // If no DMX vertices were extracted, check for compiled .vmdl_c
-            if (compositeMesh.Vertices.Count == 0)
+            if (composite.Vertices.Count > 0)
             {
-                var vmdlcCandidates = new[]
-                {
-                    Path.ChangeExtension(vmdlPath, ".vmdl_c"),
-                    vmdlPath + "_c"
-                };
+                composite.RecalculateBounds();
+                return composite;
+            }
 
-                foreach (var cand in vmdlcCandidates)
+            // Try loading from compiled .vmdl_c if available
+            var cands = new[]
+            {
+                Path.ChangeExtension(vmdlPath, ".vmdl_c"),
+                vmdlPath + "_c"
+            };
+
+            foreach (var c in cands)
+            {
+                if (File.Exists(c))
                 {
-                    if (File.Exists(cand))
+                    var fromCompiled = LoadFromVmdlc(c);
+                    if (fromCompiled != null && fromCompiled.Vertices.Count > 0)
                     {
-                        var fromCompiled = LoadFromVmdlc(cand);
-                        if (fromCompiled != null && fromCompiled.Vertices.Count > 0)
-                        {
-                            return fromCompiled;
-                        }
+                        return fromCompiled;
                     }
                 }
-            }
-
-            if (compositeMesh.Vertices.Count > 0)
-            {
-                compositeMesh.RecalculateBounds();
-                return compositeMesh;
             }
 
             return null;
@@ -100,128 +101,208 @@ public static class DmxModelLoader
         }
     }
 
-    private static SimpleMesh3D? LoadFromVmdlc(string vmdlcPath)
+    private static List<string> FindMeshFiles(string vmdlContent, string vmdlDir)
     {
-        try
+        var results = new List<string>();
+
+        // 1. Regex find all mesh file references in VMDL
+        var matches = Regex.Matches(vmdlContent, "\"([^\\r\\n\"]+\\.(dmx|smd|fbx|obj))\"", RegexOptions.IgnoreCase);
+        foreach (Match m in matches)
         {
-            using var res = new Resource();
-            res.Read(vmdlcPath);
+            var raw = m.Groups[1].Value.Trim().Replace('/', Path.DirectorySeparatorChar);
+            var fn = Path.GetFileName(raw);
 
-            var mesh = new SimpleMesh3D
+            if (fn.Contains("_lod", StringComparison.OrdinalIgnoreCase) ||
+                fn.Contains("lod1", StringComparison.OrdinalIgnoreCase) ||
+                fn.Contains("lod2", StringComparison.OrdinalIgnoreCase))
             {
-                MeshName = Path.GetFileNameWithoutExtension(vmdlcPath)
-            };
-
-            if (res.DataBlock is Model model)
-            {
-                var embeddedMeshes = model.GetEmbeddedMeshes().ToList();
-                foreach (var em in embeddedMeshes)
-                {
-                    ExtractVrfMesh(em.Mesh, mesh);
-                }
-            }
-            else if (res.DataBlock is Mesh singleMesh)
-            {
-                ExtractVrfMesh(singleMesh, mesh);
+                continue;
             }
 
-            if (mesh.Vertices.Count > 0)
-            {
-                mesh.RecalculateBounds();
-                return mesh;
-            }
+            var cand1 = Path.Combine(vmdlDir, fn);
+            var cand2 = Path.Combine(vmdlDir, raw);
+            var cand3 = Path.Combine(vmdlDir, "mesh", fn);
+
+            if (File.Exists(cand1) && !results.Contains(cand1)) results.Add(cand1);
+            else if (File.Exists(cand2) && !results.Contains(cand2)) results.Add(cand2);
+            else if (File.Exists(cand3) && !results.Contains(cand3)) results.Add(cand3);
         }
-        catch { }
+
+        // 2. If nothing found from regex, search vmdlDir recursively
+        if (results.Count == 0 && Directory.Exists(vmdlDir))
+        {
+            var allMeshFiles = Directory.GetFiles(vmdlDir, "*.*", SearchOption.AllDirectories)
+                .Where(f => {
+                    var ext = Path.GetExtension(f).ToLowerInvariant();
+                    var fn = Path.GetFileName(f).ToLowerInvariant();
+                    return (ext == ".dmx" || ext == ".smd" || ext == ".obj") &&
+                           !fn.Contains("_lod") && !fn.Contains("lod1") && !fn.Contains("lod2");
+                })
+                .ToList();
+
+            results.AddRange(allMeshFiles);
+        }
+
+        return results;
+    }
+
+    private static SimpleMesh3D? LoadMeshFile(string filePath)
+    {
+        if (!File.Exists(filePath)) return null;
+
+        var ext = Path.GetExtension(filePath).ToLowerInvariant();
+        if (ext == ".dmx")
+        {
+            return ParseDmx(filePath);
+        }
+        else if (ext == ".obj")
+        {
+            return ParseObj(filePath);
+        }
+        else if (ext == ".smd")
+        {
+            return ParseSmd(filePath);
+        }
 
         return null;
     }
 
-    private static void ExtractVrfMesh(Mesh vrfMesh, SimpleMesh3D outMesh)
+    private static SimpleMesh3D? ParseDmx(string dmxPath)
     {
         try
         {
-            var data = vrfMesh.Data;
-            var minBounds = vrfMesh.MinBounds;
-            var maxBounds = vrfMesh.MaxBounds;
+            var bytes = File.ReadAllBytes(dmxPath);
+            if (bytes.Length < 64) return null;
 
-            // Generate bounding representation if vertex buffer decoding requires shaders
-            if (minBounds != Vector3.Zero || maxBounds != Vector3.Zero)
+            var header = Encoding.ASCII.GetString(bytes, 0, Math.Min(bytes.Length, 200));
+
+            // Check if Text DMX (KeyValues2)
+            if (header.Contains("keyvalues2", StringComparison.OrdinalIgnoreCase) ||
+                header.Contains("\"DmeMesh\"", StringComparison.OrdinalIgnoreCase))
             {
-                var min = new Vector3(minBounds.X, minBounds.Z, -minBounds.Y) * 0.0254f;
-                var max = new Vector3(maxBounds.X, maxBounds.Z, -maxBounds.Y) * 0.0254f;
-
-                AddBoxGeometry(outMesh, min, max);
+                var text = Encoding.UTF8.GetString(bytes);
+                return ParseTextDmx(text);
             }
+
+            // Otherwise Binary DMX
+            return ParseBinaryDmx(bytes);
         }
-        catch { }
-    }
-
-    private static void AddBoxGeometry(SimpleMesh3D mesh, Vector3 min, Vector3 max)
-    {
-        int baseIdx = mesh.Vertices.Count;
-        var p = new Vector3[]
+        catch
         {
-            new(min.X, min.Y, min.Z), new(max.X, min.Y, min.Z), new(max.X, max.Y, min.Z), new(min.X, max.Y, min.Z),
-            new(min.X, min.Y, max.Z), new(max.X, min.Y, max.Z), new(max.X, max.Y, max.Z), new(min.X, max.Y, max.Z)
-        };
-        mesh.Vertices.AddRange(p);
-
-        int[] boxTris = new int[]
-        {
-            0,2,1, 0,3,2, 4,5,6, 4,6,7,
-            0,1,5, 0,5,4, 2,3,7, 2,7,6,
-            0,4,7, 0,7,3, 1,2,6, 1,6,5
-        };
-
-        foreach (var t in boxTris) mesh.Indices.Add(baseIdx + t);
-    }
-
-    private static List<string> ExtractLod0RenderMeshes(string vmdlContent, string vmdlDir)
-    {
-        var result = new List<string>();
-        try
-        {
-            var dmxMatches = Regex.Matches(vmdlContent, "\"([^\\r\\n\"]+\\.(dmx|smd|fbx|obj))\"", RegexOptions.IgnoreCase);
-            foreach (Match m in dmxMatches)
-            {
-                var rawFile = m.Groups[1].Value.Trim();
-                var fn = Path.GetFileNameWithoutExtension(rawFile).ToLowerInvariant();
-
-                if (fn.Contains("_lod") || fn.Contains("lod1") || fn.Contains("lod2") || fn.Contains("lod3") || fn.Contains("lod4"))
-                    continue;
-
-                var rel = rawFile.Replace('/', Path.DirectorySeparatorChar);
-                var cand1 = Path.Combine(vmdlDir, Path.GetFileName(rel));
-                var cand2 = Path.Combine(vmdlDir, rel);
-
-                if (File.Exists(cand1) && !result.Contains(cand1)) result.Add(cand1);
-                else if (File.Exists(cand2) && !result.Contains(cand2)) result.Add(cand2);
-            }
-
-            // If none found by regex, search directory tree for .dmx files
-            if (result.Count == 0 && Directory.Exists(vmdlDir))
-            {
-                var allDmx = Directory.GetFiles(vmdlDir, "*.dmx", SearchOption.AllDirectories)
-                    .Where(f => !Path.GetFileName(f).ToLowerInvariant().Contains("_lod"))
-                    .ToList();
-                result.AddRange(allDmx);
-            }
+            return null;
         }
-        catch { }
-
-        return result;
     }
 
-    private static SimpleMesh3D? ParseDmxBinary(string dmxPath)
+    private static SimpleMesh3D? ParseTextDmx(string text)
     {
         try
         {
-            var data = File.ReadAllBytes(dmxPath);
-            if (data.Length < 100) return null;
+            var mesh = new SimpleMesh3D();
 
-            var header = Encoding.ASCII.GetString(data, 0, Math.Min(data.Length, 120));
-            if (!header.StartsWith("<!-- DMXFormat", StringComparison.OrdinalIgnoreCase)) return null;
+            // Extract position vector3 array
+            // Format: "position" "vector3_array" [ "0.0 0.0 0.0", ... ] OR "position" [ ... ]
+            var posBlockMatch = Regex.Match(text, @"""position""\s+(?:""vector3_array""\s+)?\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            if (!posBlockMatch.Success) return null;
 
+            var posLines = posBlockMatch.Groups[1].Value;
+            var vecMatches = Regex.Matches(posLines, @"""?(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)\s+(-?[\d\.]+e?-?\d*)""?", RegexOptions.IgnoreCase);
+
+            var positions = new List<Vector3>(vecMatches.Count);
+            foreach (Match vm in vecMatches)
+            {
+                if (float.TryParse(vm.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float x) &&
+                    float.TryParse(vm.Groups[2].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
+                    float.TryParse(vm.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out float z))
+                {
+                    // Convert Valve Z-up inches to Standard Y-up meters
+                    positions.Add(new Vector3(x, z, -y) * 0.0254f);
+                }
+            }
+
+            if (positions.Count == 0) return null;
+            mesh.Vertices.AddRange(positions);
+
+            // Extract faces array
+            // Format: "faces" "int_array" [ 0, 1, 2, -1, 3, 4, 5, -1 ... ]
+            var facesBlockMatch = Regex.Match(text, @"""faces""\s+(?:""int_array""\s+)?\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+            if (facesBlockMatch.Success)
+            {
+                var faceTokens = Regex.Matches(facesBlockMatch.Groups[1].Value, @"-?\d+");
+                var faces = new List<int>(faceTokens.Count);
+                foreach (Match ft in faceTokens)
+                {
+                    if (int.TryParse(ft.Value, out int idx)) faces.Add(idx);
+                }
+
+                // Extract positionIndices if present
+                var piBlockMatch = Regex.Match(text, @"""positionIndices""\s+(?:""int_array""\s+)?\[([\s\S]*?)\]", RegexOptions.IgnoreCase);
+                int[]? posIndices = null;
+                if (piBlockMatch.Success)
+                {
+                    var piTokens = Regex.Matches(piBlockMatch.Groups[1].Value, @"-?\d+");
+                    var piList = new List<int>(piTokens.Count);
+                    foreach (Match pt in piTokens)
+                    {
+                        if (int.TryParse(pt.Value, out int idx)) piList.Add(idx);
+                    }
+                    posIndices = piList.ToArray();
+                }
+
+                int curStart = 0;
+                for (int fi = 0; fi < faces.Count; fi++)
+                {
+                    if (faces[fi] == -1)
+                    {
+                        int polyLen = fi - curStart;
+                        if (polyLen >= 3)
+                        {
+                            for (int tri = 1; tri < polyLen - 1; tri++)
+                            {
+                                int f0 = faces[curStart];
+                                int f1 = faces[curStart + tri];
+                                int f2 = faces[curStart + tri + 1];
+
+                                int v0 = (posIndices != null && f0 < posIndices.Length) ? posIndices[f0] : f0;
+                                int v1 = (posIndices != null && f1 < posIndices.Length) ? posIndices[f1] : f1;
+                                int v2 = (posIndices != null && f2 < posIndices.Length) ? posIndices[f2] : f2;
+
+                                if (v0 < positions.Count && v1 < positions.Count && v2 < positions.Count)
+                                {
+                                    mesh.Indices.Add(v0);
+                                    mesh.Indices.Add(v1);
+                                    mesh.Indices.Add(v2);
+                                }
+                            }
+                        }
+                        curStart = fi + 1;
+                    }
+                }
+            }
+
+            // If no face indices, auto-create sequential triangles
+            if (mesh.Indices.Count == 0 && mesh.Vertices.Count >= 3)
+            {
+                for (int i = 0; i < mesh.Vertices.Count - 2; i += 3)
+                {
+                    mesh.Indices.Add(i);
+                    mesh.Indices.Add(i + 1);
+                    mesh.Indices.Add(i + 2);
+                }
+            }
+
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static SimpleMesh3D? ParseBinaryDmx(byte[] data)
+    {
+        try
+        {
             int nullIdx = -1;
             for (int i = 0; i < Math.Min(data.Length, 300); i++)
             {
@@ -250,7 +331,7 @@ public static class DmxModelLoader
             {
                 int typeIdx = BitConverter.ToInt32(data, pos); pos += 4;
                 int nameIdx = BitConverter.ToInt32(data, pos); pos += 4;
-                pos += 16; // Guid
+                pos += 16;
 
                 var type = (typeIdx >= 0 && typeIdx < strings.Count) ? strings[typeIdx] : string.Empty;
                 var name = (nameIdx >= 0 && nameIdx < strings.Count) ? strings[nameIdx] : string.Empty;
@@ -349,7 +430,6 @@ public static class DmxModelLoader
                     var vdata = elements[baseStateIdx];
 
                     if (!vdata.Attrs.TryGetValue("position", out var pObj) || pObj is not Vector3[] positions || positions.Length == 0) continue;
-
                     var pIndices = vdata.Attrs.TryGetValue("position", out var piObj) && piObj is int[] piArr ? piArr : null;
 
                     var convertedPositions = new Vector3[positions.Length];
@@ -414,5 +494,191 @@ public static class DmxModelLoader
         catch { }
 
         return null;
+    }
+
+    private static SimpleMesh3D? ParseObj(string objPath)
+    {
+        try
+        {
+            var lines = File.ReadAllLines(objPath);
+            var mesh = new SimpleMesh3D();
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("v "))
+                {
+                    var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 4 &&
+                        float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) &&
+                        float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
+                        float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float z))
+                    {
+                        mesh.Vertices.Add(new Vector3(x, y, z));
+                    }
+                }
+                else if (trimmed.StartsWith("f "))
+                {
+                    var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length >= 4)
+                    {
+                        var fIdx = new List<int>();
+                        for (int i = 1; i < parts.Length; i++)
+                        {
+                            var seg = parts[i].Split('/')[0];
+                            if (int.TryParse(seg, out int vi) && vi > 0)
+                            {
+                                fIdx.Add(vi - 1);
+                            }
+                        }
+
+                        for (int tri = 1; tri < fIdx.Count - 1; tri++)
+                        {
+                            mesh.Indices.Add(fIdx[0]);
+                            mesh.Indices.Add(fIdx[tri]);
+                            mesh.Indices.Add(fIdx[tri + 1]);
+                        }
+                    }
+                }
+            }
+
+            if (mesh.Vertices.Count > 0)
+            {
+                mesh.RecalculateBounds();
+                return mesh;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static SimpleMesh3D? ParseSmd(string smdPath)
+    {
+        try
+        {
+            var lines = File.ReadAllLines(smdPath);
+            var mesh = new SimpleMesh3D();
+            bool inTriangles = false;
+            var triVerts = new List<Vector3>();
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.Equals("triangles", StringComparison.OrdinalIgnoreCase))
+                {
+                    inTriangles = true;
+                    continue;
+                }
+                if (trimmed.Equals("end", StringComparison.OrdinalIgnoreCase))
+                {
+                    inTriangles = false;
+                    continue;
+                }
+
+                if (inTriangles)
+                {
+                    var parts = trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    // Vertex line: bone posX posY posZ normX normY normZ u v
+                    if (parts.Length >= 4 &&
+                        float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out float x) &&
+                        float.TryParse(parts[2], NumberStyles.Float, CultureInfo.InvariantCulture, out float y) &&
+                        float.TryParse(parts[3], NumberStyles.Float, CultureInfo.InvariantCulture, out float z))
+                    {
+                        triVerts.Add(new Vector3(x, z, -y) * 0.0254f);
+                        if (triVerts.Count == 3)
+                        {
+                            int baseIdx = mesh.Vertices.Count;
+                            mesh.Vertices.AddRange(triVerts);
+                            mesh.Indices.Add(baseIdx);
+                            mesh.Indices.Add(baseIdx + 1);
+                            mesh.Indices.Add(baseIdx + 2);
+                            triVerts.Clear();
+                        }
+                    }
+                }
+            }
+
+            if (mesh.Vertices.Count > 0)
+            {
+                mesh.RecalculateBounds();
+                return mesh;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static SimpleMesh3D? LoadFromVmdlc(string vmdlcPath)
+    {
+        try
+        {
+            using var res = new Resource();
+            res.Read(vmdlcPath);
+
+            var mesh = new SimpleMesh3D
+            {
+                MeshName = Path.GetFileNameWithoutExtension(vmdlcPath)
+            };
+
+            if (res.DataBlock is Model model)
+            {
+                var embeddedMeshes = model.GetEmbeddedMeshes().ToList();
+                foreach (var em in embeddedMeshes)
+                {
+                    ExtractVrfMesh(em.Mesh, mesh);
+                }
+            }
+            else if (res.DataBlock is Mesh singleMesh)
+            {
+                ExtractVrfMesh(singleMesh, mesh);
+            }
+
+            if (mesh.Vertices.Count > 0)
+            {
+                mesh.RecalculateBounds();
+                return mesh;
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static void ExtractVrfMesh(Mesh vrfMesh, SimpleMesh3D outMesh)
+    {
+        try
+        {
+            var minBounds = vrfMesh.MinBounds;
+            var maxBounds = vrfMesh.MaxBounds;
+
+            if (minBounds != Vector3.Zero || maxBounds != Vector3.Zero)
+            {
+                var min = new Vector3(minBounds.X, minBounds.Z, -minBounds.Y) * 0.0254f;
+                var max = new Vector3(maxBounds.X, maxBounds.Z, -maxBounds.Y) * 0.0254f;
+
+                AddBoxGeometry(outMesh, min, max);
+            }
+        }
+        catch { }
+    }
+
+    private static void AddBoxGeometry(SimpleMesh3D mesh, Vector3 min, Vector3 max)
+    {
+        int baseIdx = mesh.Vertices.Count;
+        var p = new Vector3[]
+        {
+            new(min.X, min.Y, min.Z), new(max.X, min.Y, min.Z), new(max.X, max.Y, min.Z), new(min.X, max.Y, min.Z),
+            new(min.X, min.Y, max.Z), new(max.X, min.Y, max.Z), new(max.X, max.Y, max.Z), new(min.X, max.Y, max.Z)
+        };
+        mesh.Vertices.AddRange(p);
+
+        int[] boxTris = new int[]
+        {
+            0,2,1, 0,3,2, 4,5,6, 4,6,7,
+            0,1,5, 0,5,4, 2,3,7, 2,7,6,
+            0,4,7, 0,7,3, 1,2,6, 1,6,5
+        };
+
+        foreach (var t in boxTris) mesh.Indices.Add(baseIdx + t);
     }
 }
