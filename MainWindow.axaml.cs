@@ -525,25 +525,29 @@ public partial class MainWindow : Window
         RescanModels();
     }
 
-    private async void BtnRestorePresets_Click(object? sender, RoutedEventArgs e)
+    private void BtnRestorePresets_Click(object? sender, RoutedEventArgs e)
     {
-        var confirm = await DialogService.ShowConfirmAsync(this, "Restore Default Presets", "Are you sure you want to reset and restore the default hero preset database from built-in resources?");
-        if (!confirm) return;
-
         var (success, msg, count) = HeroDatabase.RestoreOriginalDatabase();
         if (success)
         {
-            Log($"Restored default hero preset database ({count} heroes).");
+            Log($"[AG2 Presets] Restored default hero preset database ({count} heroes).");
             var presets = new List<string> { "(Auto-Detect Hero Paths)" };
             presets.AddRange(HeroDatabase.GetDatabase().Keys.OrderBy(k => k));
             CmbHeroPreset.ItemsSource = presets;
-            CmbHeroPreset.SelectedIndex = 0;
-            await DialogService.ShowInfoAsync(this, "Presets Restored", "Default hero presets restored successfully.");
+
+            var targetPath = GetResolvedTargetPath();
+            if (!string.IsNullOrEmpty(targetPath))
+            {
+                UpdateHeroDetailsFromPath(targetPath);
+            }
+            else
+            {
+                CmbHeroPreset.SelectedIndex = 0;
+            }
         }
         else
         {
             Log($"[Restore Error] {msg}");
-            await DialogService.ShowErrorAsync(this, "Restore Failed", msg);
         }
     }
 

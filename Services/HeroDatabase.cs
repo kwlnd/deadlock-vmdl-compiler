@@ -109,28 +109,46 @@ public static class HeroDatabase
     {
         try
         {
+            Dictionary<string, HeroPreset>? data = null;
+
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = "DeadlockVmdlCompiler.hero_paths.json";
             using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
+            if (stream != null)
             {
-                return (false, "Embedded original hero_paths.json resource not found.", 0);
+                using var reader = new StreamReader(stream);
+                var json = reader.ReadToEnd();
+                data = JsonSerializer.Deserialize<Dictionary<string, HeroPreset>>(json);
             }
 
-            using var reader = new StreamReader(stream);
-            var json = reader.ReadToEnd();
-            var data = JsonSerializer.Deserialize<Dictionary<string, HeroPreset>>(json);
             if (data == null)
             {
-                return (false, "Failed to parse original embedded presets.", 0);
+                var candidates = new[]
+                {
+                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hero_paths.json"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "hero_paths.json")
+                };
+                foreach (var c in candidates)
+                {
+                    if (File.Exists(c))
+                    {
+                        var json = File.ReadAllText(c);
+                        data = JsonSerializer.Deserialize<Dictionary<string, HeroPreset>>(json);
+                        if (data != null) break;
+                    }
+                }
             }
 
-            var dict = new Dictionary<string, HeroPreset>(StringComparer.OrdinalIgnoreCase);
-            foreach (var kv in data)
-                dict[kv.Key] = kv.Value;
+            if (data == null || data.Count == 0)
+            {
+                return (false, "Could not find valid hero preset database.", 0);
+            }
 
+            var dict = new Dictionary<string, HeroPreset>(data, StringComparer.OrdinalIgnoreCase);
+            _database = dict;
             SaveDatabase(dict);
-            return (true, $"Restored {dict.Count} original built-in hero presets.", dict.Count);
+
+            return (true, $"Restored {dict.Count} default hero presets.", dict.Count);
         }
         catch (Exception ex)
         {
