@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -303,7 +303,9 @@ public static class DmxModelLoader
                 var trimmed = line.Trim();
                 if (trimmed.Contains("RenderMeshList") || trimmed.Contains("RenderMeshFile"))
                     inRenderMeshList = true;
-                if (trimmed.Contains("AnimationList") || trimmed.Contains("AnimFile"))
+                if (trimmed.Contains("AnimationList") || trimmed.Contains("AnimFile") || 
+                    trimmed.Contains("ClothProxyMesh") || trimmed.Contains("Physics") || 
+                    trimmed.Contains("Hitbox") || trimmed.Contains("AttachmentList"))
                     inRenderMeshList = false;
 
                 if (inRenderMeshList && trimmed.StartsWith("filename ="))
@@ -621,9 +623,9 @@ public static class DmxModelLoader
                                                     {
                                                         for (int tri = 1; tri < polyLen - 1; tri++)
                                                         {
-                                                            int f0 = curPolyStart;
-                                                            int f1 = curPolyStart + tri;
-                                                            int f2 = curPolyStart + tri + 1;
+                                                            int f0 = faces[curPolyStart];
+                                                            int f1 = faces[curPolyStart + tri];
+                                                            int f2 = faces[curPolyStart + tri + 1];
 
                                                             int v0 = GetOrCreateVert(f0);
                                                             int v1 = GetOrCreateVert(f1);
