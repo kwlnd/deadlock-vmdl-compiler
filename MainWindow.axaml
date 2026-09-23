@@ -414,7 +414,7 @@
                             <CheckBox x:Name="ChkUiGraph" Grid.Column="0" Content="inject ui animgraph2 (ui)" IsChecked="True" VerticalAlignment="Center"/>
                             <TextBox x:Name="TxtUiGraph" Grid.Column="1" Height="26" IsReadOnly="True" Foreground="#94A3B8" VerticalAlignment="Center"/>
                         </Grid>
-                        <CheckBox x:Name="ChkDisableAnimList" Content="disable animationlist (uncheck to keep animations)" IsChecked="True" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="ChkAutoDetectAnims" Content="auto-detect animations (keep animationlist if source files exist)" IsChecked="True" VerticalAlignment="Center"/>
                         <CheckBox x:Name="ChkRevert" Content="revert vmdl back (clean workspace after compile)" IsChecked="True" VerticalAlignment="Center"/>
                     </StackPanel>
 

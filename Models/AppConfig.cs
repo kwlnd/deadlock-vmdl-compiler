@@ -34,8 +34,8 @@ public class AppConfig
     [JsonPropertyName("chk_backup")]
     public bool ChkBackup { get; set; } = true;
 
-    [JsonPropertyName("chk_disable_anim_list")]
-    public bool ChkDisableAnimList { get; set; } = true;
+    [JsonPropertyName("chk_auto_detect_anims")]
+    public bool ChkAutoDetectAnims { get; set; } = true;
 
     [JsonPropertyName("last_vpk_export_dir")]
     public string? LastVpkExportDir { get; set; }
