@@ -18,14 +18,23 @@ public class MeshTexture
 
         u = u - MathF.Floor(u);
         v = v - MathF.Floor(v);
-
-        int x = (int)(u * Width);
-        int y = (int)(v * Height);
-
-        if (x < 0) x = 0; if (x >= Width) x = Width - 1;
-        if (y < 0) y = 0; if (y >= Height) y = Height - 1;
-
-        return Pixels[y * Width + x];
+        // Source 2 textures are authored with a top-left image origin. Bilinear
+        // filtering removes the pixelated look of the old nearest-neighbour path.
+        float fx = u * Width - 0.5f;
+        float fy = v * Height - 0.5f;
+        int x0 = Math.Clamp((int)MathF.Floor(fx), 0, Width - 1);
+        int y0 = Math.Clamp((int)MathF.Floor(fy), 0, Height - 1);
+        int x1 = Math.Min(Width - 1, x0 + 1);
+        int y1 = Math.Min(Height - 1, y0 + 1);
+        float tx = Math.Clamp(fx - MathF.Floor(fx), 0, 1);
+        float ty = Math.Clamp(fy - MathF.Floor(fy), 0, 1);
+        int c00 = Pixels[y0 * Width + x0], c10 = Pixels[y0 * Width + x1];
+        int c01 = Pixels[y1 * Width + x0], c11 = Pixels[y1 * Width + x1];
+        static byte Ch(int c, int shift) => (byte)((c >> shift) & 0xFF);
+        int r = (int)MathF.Round(Ch(c00, 16) * (1 - tx) * (1 - ty) + Ch(c10, 16) * tx * (1 - ty) + Ch(c01, 16) * (1 - tx) * ty + Ch(c11, 16) * tx * ty);
+        int g = (int)MathF.Round(Ch(c00, 8) * (1 - tx) * (1 - ty) + Ch(c10, 8) * tx * (1 - ty) + Ch(c01, 8) * (1 - tx) * ty + Ch(c11, 8) * tx * ty);
+        int b = (int)MathF.Round(Ch(c00, 0) * (1 - tx) * (1 - ty) + Ch(c10, 0) * tx * (1 - ty) + Ch(c01, 0) * (1 - tx) * ty + Ch(c11, 0) * tx * ty);
+        return unchecked((int)(0xFF000000u | ((uint)r << 16) | ((uint)g << 8) | (uint)b));
     }
 }
 

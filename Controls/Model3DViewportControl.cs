@@ -355,7 +355,13 @@ public class Model3DViewportControl : Control
 
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0)
                 {
-                    float z = w0 * z0 + w1 * z1 + w2 * z2;
+                        // Interpolate depth and texture coordinates in perspective space;
+                        // affine UVs visibly swim on the close-up hero meshes.
+                        float invZ0 = 1.0f / MathF.Max(0.0001f, z0);
+                        float invZ1 = 1.0f / MathF.Max(0.0001f, z1);
+                        float invZ2 = 1.0f / MathF.Max(0.0001f, z2);
+                        float invZ = w0 * invZ0 + w1 * invZ1 + w2 * invZ2;
+                        float z = 1.0f / MathF.Max(0.0001f, invZ);
                     int idx = rowStart + x;
 
                     if (z < depthBuffer[idx])
@@ -363,8 +369,8 @@ public class Model3DViewportControl : Control
                         depthBuffer[idx] = z;
 
                         float lighting = w0 * l0 + w1 * l1 + w2 * l2;
-                        float u = w0 * u0 + w1 * u1 + w2 * u2;
-                        float v = w0 * v_0 + w1 * v_1 + w2 * v_2;
+                        float u = (w0 * u0 * invZ0 + w1 * u1 * invZ1 + w2 * u2 * invZ2) / invZ;
+                        float v = (w0 * v_0 * invZ0 + w1 * v_1 * invZ1 + w2 * v_2 * invZ2) / invZ;
 
                         int baseCol = hasMat ? mat!.Sample(u, v) : unchecked((int)0xFF94A3B8);
                         byte br = (byte)((baseCol >> 16) & 0xFF);
