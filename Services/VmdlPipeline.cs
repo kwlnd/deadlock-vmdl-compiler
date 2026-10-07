@@ -202,6 +202,30 @@ public static class VmdlPipeline
         string Detail
     );
 
+    // CSWin64 has no Deadlock shaders, so every synced .vmat fails to compile there.
+    // The model only stores the material path, so this block is expected and harmless.
+    private static bool IsMaterialShaderNoise(string line, ref bool insideMaterialFailure)
+    {
+        var text = line.Trim();
+        if (text.StartsWith("- ", StringComparison.Ordinal) && text.EndsWith(".vmat", StringComparison.OrdinalIgnoreCase))
+        {
+            insideMaterialFailure = true;
+            return true;
+        }
+        if (!insideMaterialFailure) return false;
+        if (text == "[FAIL]")
+        {
+            insideMaterialFailure = false;
+            return true;
+        }
+        if (text.Contains("No valid vcs file found for shader", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("LoadVfxAndFeatureCombo", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("Feature combo not found", StringComparison.OrdinalIgnoreCase))
+            return true;
+        insideMaterialFailure = false;
+        return false;
+    }
+
     private static bool IsCompilerNoiseLine(string rawLine, out string? cleanedLine)
     {
         cleanedLine = null;
@@ -308,7 +332,10 @@ public static class VmdlPipeline
 
             var filesToCopy = Directory.EnumerateFiles(csdkVmdlDir, "*.*", SearchOption.AllDirectories)
                 .Where(f => allowedExts.Contains(Path.GetExtension(f)))
+                .Where(f => NeedsCopy(f, Path.Combine(csWinVmdlDir, Path.GetRelativePath(csdkVmdlDir, f))))
                 .ToList();
+            // A first sync copies hundreds of clips; list files only when the list is readable.
+            var listFiles = filesToCopy.Count <= 20;
 
             int copied = 0;
             foreach (var srcFile in filesToCopy)
@@ -316,7 +343,6 @@ public static class VmdlPipeline
                 cancellationToken.ThrowIfCancellationRequested();
                 var relFile = Path.GetRelativePath(csdkVmdlDir, srcFile);
                 var dstFile = Path.Combine(csWinVmdlDir, relFile);
-                if (!NeedsCopy(srcFile, dstFile)) continue;
                 try
                 {
                     Directory.CreateDirectory(Path.GetDirectoryName(dstFile)!);
@@ -335,7 +361,7 @@ public static class VmdlPipeline
                     "[2/5] syncing assets",
                     relFile
                 ));
-                onLog?.Invoke($"[sync] copied: {relFile}");
+                if (listFiles) onLog?.Invoke($"[sync] copied: {relFile}");
             }
             onLog?.Invoke($"[sync] synchronized {copied} updated asset(s) to cswin64");
         }
@@ -385,6 +411,8 @@ public static class VmdlPipeline
         var errorLines = new List<string>();
         var rawLines = new List<string>();
         var outputLock = new object();
+        var insideMaterialFailure = false;
+        var hiddenMaterials = 0;
 
         using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.OutputDataReceived += (s, e) =>
@@ -392,6 +420,11 @@ public static class VmdlPipeline
             if (e.Data != null)
             {
                 lock (outputLock) rawLines.Add(e.Data);
+                if (IsMaterialShaderNoise(e.Data, ref insideMaterialFailure))
+                {
+                    if (e.Data.Trim() == "[FAIL]") hiddenMaterials++;
+                    return;
+                }
                 if (!IsCompilerNoiseLine(e.Data, out var cleaned))
                 {
                     lock (outputLock) outputLines.Add(cleaned!);
@@ -429,6 +462,9 @@ public static class VmdlPipeline
             throw;
         }
 
+        if (hiddenMaterials > 0)
+            onLog?.Invoke($"[cswin64] skipped {hiddenMaterials} material(s): CSWin64 has no Deadlock shaders, the model keeps their paths");
+
         if (proc.ExitCode != 0)
         {
             var msg = errorLines.Count > 0 
@@ -449,8 +485,8 @@ public static class VmdlPipeline
 
         progress?.Report(new CompileProgress(5, 5, 90, "[5/5] deploying model", Path.GetFileName(csWinCompiledVmdlc)));
 
-        var csdk12GameVmdlc = Path.Combine(
-            ResolveGameAddonDir(csdk12VmdlPath, useCitadelDir, addonName), subpath + "_c");
+        var csdk12GameVmdlc = Path.GetFullPath(Path.Combine(
+            ResolveGameAddonDir(csdk12VmdlPath, useCitadelDir, addonName), subpath + "_c"));
 
         Directory.CreateDirectory(Path.GetDirectoryName(csdk12GameVmdlc)!);
         beforeDeploy?.Invoke(csdk12GameVmdlc);
@@ -835,23 +871,23 @@ public static class VmdlPipeline
     private static string DisableNodeByClass(string content, string className) =>
         ModelDocAg2Editor.SetNodeDisabled(content, className, disabled: true);
 
-    public static async Task<(bool Success, string Message)> SanitizeVmdlForModelDocAsync(
+    public static async Task<(bool Success, string Message, bool Changed)> SanitizeVmdlForModelDocAsync(
         string vmdlPath,
         bool createBackup = true,
         bool disableAnimationList = true)
     {
         vmdlPath = Path.GetFullPath(vmdlPath);
         if (!File.Exists(vmdlPath))
-            return (false, $"File not found: {vmdlPath}");
+            return (false, $"File not found: {vmdlPath}", false);
 
         var content = await File.ReadAllTextAsync(vmdlPath);
         var (clean, changes) = Ag2Sanitizer.SanitizeVmdlContent(content, disableAnimationList);
         if (clean == content)
-            return (true, "VMDL was already clean and ModelDoc compatible");
+            return (true, "VMDL is already clean and ModelDoc compatible; nothing was changed", false);
 
         if (createBackup)
             CreateUniqueBackup(vmdlPath);
         await File.WriteAllTextAsync(vmdlPath, clean);
-        return (true, $"ModelDoc Fix Applied: {string.Join(", ", changes)}");
+        return (true, $"ModelDoc Fix Applied: {string.Join(", ", changes)}", true);
     }
 }

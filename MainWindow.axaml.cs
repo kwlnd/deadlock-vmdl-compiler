@@ -862,14 +862,14 @@ public partial class MainWindow : Window
         {
             _isProcessing = true;
             var disableAnimationList = ChkDisableAnimList.IsChecked == true;
-            var (success, msg) = await Task.Run(() => VmdlPipeline.SanitizeVmdlForModelDocAsync(
+            var (success, msg, changed) = await Task.Run(() => VmdlPipeline.SanitizeVmdlForModelDocAsync(
                 targetPath,
                 disableAnimationList: disableAnimationList
             ));
             Log(msg);
             if (success)
             {
-                await DialogService.ShowInfoAsync(this, "modeldoc fixed", msg);
+                await DialogService.ShowInfoAsync(this, changed ? "modeldoc fixed" : "nothing to fix", msg);
             }
             else
             {
