@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
 
 - Compilation, fix(modeldoc) and CSWin64 export run off the UI thread. ModelDoc parsing no longer rescans the file for every node: a 743 KB hero model with 300 clips prepares in about 0.4 s instead of 4 s, with byte-identical output.
 - The compile button cancels a running compile and stops `resourcecompiler.exe`; nothing is deployed.
@@ -15,6 +15,7 @@
 - A missing material no longer aborts add addon. A configured folder on a disconnected drive is kept in settings.
 - Deadlock is located from Steam's Windows uninstall entry first, then the library list and app manifest. Inside the installation the content folder is identified by the game's own `steam.inf` app id and the launcher by the content-folder name it embeds, so no folder or executable names are assumed.
 - 3D preview: materials written by the Material Editor (unquoted keys) now load their textures, Blender `.001` material duplicates resolve to the base material, the first UV set is always used, and additive effect surfaces are left out. Textures are sampled at up to 1024 px with perspective-correct mapping.
+- 3D preview, merged from Qusai0's 1.3.8 work: bilinear texture filtering, compiled `.vtex_c` textures, `TextureAlbedo` and `BaseTexture` colour keys, `F_ALPHA_TEST` cut-outs, DMX `flipVCoordinates`, and a model cache. The cache is now dropped when a mesh, material or texture of the model changes, and the `ValvePak` 4.0 reference that conflicted with the bundled ValveResourceFormat was removed.
 - 3D preview controls: drag orbits with the model following the cursor, right or middle drag (or Shift+drag) pans, the wheel zooms proportionally, double-click, F or **reset view** frames the model. The model is shown at real scale on a half-metre ground grid, lit from the camera, rendered on all cores and at half resolution while a heavy model is dragged.
 - New consistent icon set across the main window and dialogs.
 - Removed unused code: the placeholder mesh statistics, the old launcher, the unused cloth chain generator and VPK preset scanner, and unused settings.

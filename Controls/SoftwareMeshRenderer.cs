@@ -207,6 +207,7 @@ public sealed class SoftwareMeshRenderer
         uvC *= c.Z;
         float lightA = a.W * a.Z, lightB = b.W * b.Z, lightC = c.W * c.Z;
         var textured = material is { Pixels.Length: > 0 };
+        var cutout = textured && material!.AlphaTest;
         var flat = material?.FallbackColor ?? UntexturedColor;
 
         for (var y = minY; y <= maxY; y++)
@@ -225,14 +226,16 @@ public sealed class SoftwareMeshRenderer
                 var inverseW = weightA * a.Z + weightB * b.Z + weightC * c.Z;
                 var index = row + x;
                 if (inverseW <= depth[index]) continue;
-                depth[index] = inverseW;
 
                 var w = 1.0f / inverseW;
-                var light = (weightA * lightA + weightB * lightB + weightC * lightC) * w;
                 var color = textured
                     ? material!.Sample((weightA * uvA.X + weightB * uvB.X + weightC * uvC.X) * w,
                         (weightA * uvA.Y + weightB * uvB.Y + weightC * uvC.Y) * w)
                     : flat;
+                // A cut-out texel leaves both the colour and the depth of what is behind it.
+                if (cutout && (color >>> 24) < 128) continue;
+                depth[index] = inverseW;
+                var light = (weightA * lightA + weightB * lightB + weightC * lightC) * w;
 
                 var red = Math.Min(255, (int)(((color >> 16) & 0xFF) * light));
                 var green = Math.Min(255, (int)(((color >> 8) & 0xFF) * light));
