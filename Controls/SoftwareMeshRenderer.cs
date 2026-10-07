@@ -1,7 +1,5 @@
-using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using DeadlockVmdlCompiler.Models;
 
 namespace DeadlockVmdlCompiler.Controls;

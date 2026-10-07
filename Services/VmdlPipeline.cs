@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using DeadlockVmdlCompiler.Models;
 using ValveResourceFormat;
 
@@ -33,23 +27,6 @@ public static class VmdlPipeline
     }
 
     public static bool IsValidCsWinDir(string? path) => ResolveCsWinLayout(path) != null;
-
-    public static string? ExtractCitadelAddonsDir(string filepath)
-    {
-        if (string.IsNullOrWhiteSpace(filepath))
-            return null;
-
-        var clean = filepath.Replace('\\', '/');
-        var m = Regex.Match(clean, @"^(.*?/content/(citadel_addons|citadel_community_addons|citadel))(/|$)", RegexOptions.IgnoreCase);
-        if (m.Success)
-            return Path.GetFullPath(m.Groups[1].Value);
-
-        var m2 = Regex.Match(clean, @"^(.*?/citadel_addons)(/|$)", RegexOptions.IgnoreCase);
-        if (m2.Success)
-            return Path.GetFullPath(m2.Groups[1].Value);
-
-        return null;
-    }
 
     public static string? DetectHeroFromPath(string filepath)
     {
@@ -195,8 +172,6 @@ public static class VmdlPipeline
             addSkel, addGraph, addUiGraph, upgradeHeader, ModelDoc41Header, namedGraphs);
 
     public record CompileProgress(
-        int Step,
-        int TotalSteps,
         int Percent,
         string Stage,
         string Detail
@@ -332,7 +307,7 @@ public static class VmdlPipeline
         // 1. Sync mesh/model files (.dmx, .fbx, .smd, .obj, .vmat, .png, .vanim) to CSWin64 so resourcecompiler finds them
         if (!string.IsNullOrEmpty(csdkVmdlDir) && Directory.Exists(csdkVmdlDir))
         {
-            progress?.Report(new CompileProgress(2, 5, 25, "[2/5] syncing assets", "scanning model assets..."));
+            progress?.Report(new CompileProgress(25, "[2/5] syncing assets", "scanning model assets..."));
 
             var allowedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -363,10 +338,7 @@ public static class VmdlPipeline
                     return (false, $"Could not sync {relFile} to CSWin64: {ex.Message}");
                 }
                 copied++;
-                progress?.Report(new CompileProgress(
-                    2,
-                    5,
-                    25 + (int)(20.0 * copied / Math.Max(1, filesToCopy.Count)),
+                progress?.Report(new CompileProgress(25 + (int)(20.0 * copied / Math.Max(1, filesToCopy.Count)),
                     "[2/5] syncing assets",
                     relFile
                 ));
@@ -391,7 +363,7 @@ public static class VmdlPipeline
         }
 
         // 2. Keep the manual override and the contributor's automatic mode.
-        progress?.Report(new CompileProgress(3, 5, 50, "[3/5] preparing modeldoc", "temporary definition..."));
+        progress?.Report(new CompileProgress(50, "[3/5] preparing modeldoc", "temporary definition..."));
         var csWinContent = PrepareAnimationNodesForCompilation(upgradedVmdlContent,
             disableAnimationList, autoDetectAnims, csdkVmdlDir ?? string.Empty, csWinVmdlDir,
             csdkAddonRoot, csWinAddonRoot, onLog);
@@ -412,7 +384,7 @@ public static class VmdlPipeline
             CreateNoWindow = true
         };
 
-        progress?.Report(new CompileProgress(4, 5, 60, "[4/5] compiling model", "resourcecompiler.exe"));
+        progress?.Report(new CompileProgress(60, "[4/5] compiling model", "resourcecompiler.exe"));
         onLog?.Invoke($"[compiler] starting: resourcecompiler.exe -f -i \"{Path.GetFileName(csWinVmdlPath)}\"");
 
         var outputLines = new List<string>();
@@ -443,7 +415,7 @@ public static class VmdlPipeline
                         if (cleaned!.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
                             compilerErrors?.Add(cleaned["ERROR:".Length..].Trim());
                     }
-                    progress?.Report(new CompileProgress(4, 5, 75, "[4/5] compiling model", cleaned!));
+                    progress?.Report(new CompileProgress(75, "[4/5] compiling model", cleaned!));
                     onLog?.Invoke($"[cswin64] {cleaned!}");
                 }
             }
@@ -456,7 +428,7 @@ public static class VmdlPipeline
                 if (!IsCompilerNoiseLine(e.Data, out var cleaned))
                 {
                     lock (outputLock) errorLines.Add(cleaned!);
-                    progress?.Report(new CompileProgress(4, 5, 75, "[4/5] compiling model", cleaned!));
+                    progress?.Report(new CompileProgress(75, "[4/5] compiling model", cleaned!));
                     onLog?.Invoke($"[cswin64 err] {cleaned!}");
                 }
             }
@@ -498,7 +470,7 @@ public static class VmdlPipeline
         if (verificationError != null)
             return (false, verificationError);
 
-        progress?.Report(new CompileProgress(5, 5, 90, "[5/5] deploying model", Path.GetFileName(csWinCompiledVmdlc)));
+        progress?.Report(new CompileProgress(90, "[5/5] deploying model", Path.GetFileName(csWinCompiledVmdlc)));
 
         var csdk12GameVmdlc = Path.GetFullPath(Path.Combine(
             ResolveGameAddonDir(csdk12VmdlPath, useCitadelDir, addonName), subpath + "_c"));
@@ -630,7 +602,7 @@ public static class VmdlPipeline
         if (!File.Exists(filepath))
             return (false, $"File not found: {filepath}");
 
-        progress?.Report(new CompileProgress(1, 5, 10, "[1/5] preparing source", Path.GetFileName(filepath)));
+        progress?.Report(new CompileProgress(10, "[1/5] preparing source", Path.GetFileName(filepath)));
 
         var (defSkel, defGraph, defUiGraph) = DeriveDefaultPaths(filepath);
         var useSkel = !string.IsNullOrWhiteSpace(skelPath) ? skelPath : defSkel;
@@ -691,7 +663,7 @@ public static class VmdlPipeline
             stepLogs.Add(compMsg);
         }
 
-        progress?.Report(new CompileProgress(5, 5, 95, "[5/5] finalizing", revertVmdl ? "leaving source unchanged" : "saving vmdl"));
+        progress?.Report(new CompileProgress(95, "[5/5] finalizing", revertVmdl ? "leaving source unchanged" : "saving vmdl"));
 
         if (revertVmdl)
         {
@@ -710,7 +682,7 @@ public static class VmdlPipeline
             onLog?.Invoke($"[save] saved upgraded .vmdl with ag2 node injections");
         }
 
-        progress?.Report(new CompileProgress(5, 5, 100, "[5/5] complete", "model compiled and deployed successfully"));
+        progress?.Report(new CompileProgress(100, "[5/5] complete", "model compiled and deployed successfully"));
 
         return (true, string.Join(" | ", stepLogs));
     }

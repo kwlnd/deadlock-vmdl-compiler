@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using DeadlockVmdlCompiler.Models;
 using ValveResourceFormat;
 using ValveResourceFormat.IO;

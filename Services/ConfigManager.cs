@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Text.Json;
 using DeadlockVmdlCompiler.Models;
 
@@ -26,9 +24,7 @@ public static class ConfigManager
             var tempDir = Path.GetTempPath().ToLowerInvariant().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             return norm.StartsWith(tempDir) ||
-                   norm.Contains("appdata\\local\\temp") ||
-                   norm.Contains("hero_filter_test_") ||
-                   norm.Contains("citadel_test_");
+                   norm.Contains("appdata\\local\\temp");
         }
         catch
         {

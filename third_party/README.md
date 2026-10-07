@@ -20,6 +20,3 @@ dotnet pack ValveResourceFormat/ValveResourceFormat.csproj -c Release -p:Package
 ```
 
 SHA256: `D141534CB6BF0892918D34AB9BEE950171803F976ED0C74E690A1F1DA9DEBC14`
-
-`ValveResourceFormat.20.0.7151.nupkg` is the previous package from the working
-`deadlock-model-decompiler` project, retained for reference.

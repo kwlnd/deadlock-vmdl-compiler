@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Security.Cryptography;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -31,7 +25,6 @@ public partial class MainWindow : Window
     private Dictionary<string, Bitmap> _presetPortraits = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _portraitLoadGate = new(1, 1);
     private string? _portraitSource;
-    private int _logLineCount = 0;
     private bool _logFlushPending;
     private int _previewRequest;
     private CancellationTokenSource? _compileCancellation;
@@ -415,7 +408,6 @@ public partial class MainWindow : Window
     private void BtnClearLog_Click(object? sender, RoutedEventArgs e)
     {
         _logBuffer.Clear();
-        _logLineCount = 0;
         TxtLog.Text = string.Empty;
     }
 
@@ -439,7 +431,6 @@ public partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             _logBuffer.AppendLine(line);
-            _logLineCount++;
 
             // Truncate buffer if exceedingly large (keep latest ~150k chars) to preserve UI responsiveness
             if (_logBuffer.Length > 200_000)
@@ -606,7 +597,6 @@ public partial class MainWindow : Window
                 Name = $"(select addon: {_discoveredAddons.Count} available)",
                 FullPath = string.Empty,
                 HeroModels = new List<DiscoveredModel>(),
-                IsPlaceholder = true,
                 Display = $"(select addon: {_discoveredAddons.Count} available)"
             };
             displayList.Add(placeholder);
@@ -614,7 +604,6 @@ public partial class MainWindow : Window
 
             CmbDiscovered.ItemsSource = displayList;
 
-            int totalModels = _discoveredAddons.Sum(a => a.HeroModels.Count);
             LblDiscoveredCount.Text = $"{_discoveredAddons.Count} addon(s) available";
             LblDiscoveredCount.Foreground = BrushMuted;
 
@@ -829,9 +818,7 @@ public partial class MainWindow : Window
             var model = new DiscoveredModel
             {
                 FullPath = fullPath,
-                Filename = Path.GetFileName(fullPath),
-                Display = Path.GetFileName(fullPath),
-                Addon = "manual"
+                Display = Path.GetFileName(fullPath)
             };
             CmbTargetVmdl.ItemsSource = new List<DiscoveredModel> { model };
             CmbTargetVmdl.SelectedIndex = 0;
@@ -903,7 +890,7 @@ public partial class MainWindow : Window
 
         try
         {
-            var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
+            var (_, addonName, subpath) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
             var gameAddonDir = VmdlPipeline.ResolveGameAddonDir(targetPath, citadelDir, addonName);
 
             if (!Directory.Exists(gameAddonDir))

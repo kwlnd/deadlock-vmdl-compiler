@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-
 namespace DeadlockVmdlCompiler.Services;
 
 /// <summary>Resolves the authored animation path without substituting a same-named file.</summary>

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text;
 
 namespace DeadlockVmdlCompiler.Services;
@@ -11,7 +7,6 @@ public class VpkEntry
     public string Extension { get; set; } = string.Empty;
     public string Directory { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
-    public uint CRC32 { get; set; }
     public ushort PreloadBytes { get; set; }
     public ushort ArchiveIndex { get; set; }
     public uint EntryOffset { get; set; }
@@ -72,12 +67,12 @@ public static class VpkHeroScanner
 
                     EnsureTreeBytesAvailable(reader, treeEnd, sizeof(uint) + sizeof(ushort) * 2 + sizeof(uint) * 2 + sizeof(ushort));
 
+                    reader.ReadUInt32(); // CRC32, not checked here
                     var entry = new VpkEntry
                     {
                         Extension = ext,
                         Directory = dir == " " ? string.Empty : dir,
                         FileName = filename,
-                        CRC32 = reader.ReadUInt32(),
                         PreloadBytes = reader.ReadUInt16(),
                         ArchiveIndex = reader.ReadUInt16(),
                         EntryOffset = reader.ReadUInt32(),

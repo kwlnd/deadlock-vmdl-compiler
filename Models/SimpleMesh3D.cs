@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Numerics;
 
 namespace DeadlockVmdlCompiler.Models;
@@ -42,19 +41,13 @@ public class SimpleMesh3D
     public List<int> TriangleMaterialIds { get; set; } = new();
     public List<MeshTexture> Materials { get; set; } = new();
 
-    public Vector3 BoundsMin { get; set; } = new Vector3(-1, -1, -1);
-    public Vector3 BoundsMax { get; set; } = new Vector3(1, 1, 1);
     public Vector3 Center { get; set; } = Vector3.Zero;
     public float Radius { get; set; } = 1.0f;
-    public int BoneCount { get; set; }
-    public int MaterialCount { get; set; }
 
     public void RecalculateBounds()
     {
         if (Vertices.Count == 0)
         {
-            BoundsMin = new Vector3(-1, -1, -1);
-            BoundsMax = new Vector3(1, 1, 1);
             Center = Vector3.Zero;
             Radius = 1.0f;
             return;
@@ -69,8 +62,6 @@ public class SimpleMesh3D
             max = Vector3.Max(max, v);
         }
 
-        BoundsMin = min;
-        BoundsMax = max;
         Center = (min + max) * 0.5f;
 
         float maxDistSq = 0;

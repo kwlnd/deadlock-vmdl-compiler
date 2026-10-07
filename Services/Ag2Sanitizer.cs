@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace DeadlockVmdlCompiler.Services;
 
 /// <summary>Strips AG2 nodes that crash CSDK12 ModelDoc; shared by addon export and fix(modeldoc).</summary>

@@ -1,12 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -16,20 +12,10 @@ namespace DeadlockVmdlCompiler.Services;
 
 public static class DmxModelLoader
 {
-    public static Action<string>? DebugLogger { get; set; }
-
-    private static void LogDebug(string msg)
-    {
-        try { DebugLogger?.Invoke(msg); } catch { }
-    }
-
     public static async Task<SimpleMesh3D?> LoadModelFromVmdlAsync(string vmdlPath, string? citadelDir = null)
     {
         if (string.IsNullOrWhiteSpace(vmdlPath) || !File.Exists(vmdlPath))
-        {
-            LogDebug("[3D Loader] VMDL path is invalid: " + vmdlPath);
             return null;
-        }
 
         var fullPath = Path.GetFullPath(vmdlPath);
         return await Task.Run(() => LoadModelFromVmdlInternal(fullPath, citadelDir));
@@ -39,7 +25,6 @@ public static class DmxModelLoader
     {
         try
         {
-            LogDebug("[3D Loader] Parsing VMDL: " + vmdlPath);
             var vmdlDir = Path.GetDirectoryName(vmdlPath) ?? string.Empty;
             var vmdlContent = File.ReadAllText(vmdlPath);
 
@@ -48,7 +33,6 @@ public static class DmxModelLoader
 
             // 2. Resolve render meshes from RenderMeshList
             var dmxFiles = ExtractLod0RenderMeshes(vmdlContent, vmdlDir, citadelDir);
-            LogDebug("[3D Loader] Found " + dmxFiles.Count + " render mesh file(s): " + string.Join(", ", dmxFiles.Select(Path.GetFileName)));
 
             var compositeMesh = new SimpleMesh3D
             {
@@ -63,17 +47,13 @@ public static class DmxModelLoader
             if (compositeMesh.Vertices.Count > 0)
             {
                 compositeMesh.RecalculateBounds();
-                var texturedMaterials = compositeMesh.Materials.Count(material => material.Pixels.Length > 0);
-                LogDebug("[3D Loader] Composite Mesh ready: " + compositeMesh.Vertices.Count + " verts, " + (compositeMesh.Indices.Count / 3) + " tris, " + compositeMesh.Materials.Count + " active materials (" + texturedMaterials + " textured)");
                 return compositeMesh;
             }
 
-            LogDebug("[3D Loader] No vertices loaded.");
             return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            LogDebug("[3D Loader Exception] " + ex.Message);
             return null;
         }
     }
@@ -289,7 +269,6 @@ public static class DmxModelLoader
                         for (var row = 0; row < targetH; row++)
                             Marshal.Copy(IntPtr.Add(locked.Address, row * locked.RowBytes), pixels, row * targetW, targetW);
 
-                        LogDebug("[3D Loader] Loaded Texture for [" + Path.GetFileNameWithoutExtension(vmatPath) + "]: " + Path.GetFileName(texFile) + " (" + targetW + "x" + targetH + ")");
                         return new MeshTexture
                         {
                             Name = Path.GetFileNameWithoutExtension(vmatPath),
@@ -301,9 +280,9 @@ public static class DmxModelLoader
                         };
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    LogDebug("[3D Loader] Could not decode texture " + Path.GetFileName(texFile) + ": " + ex.Message);
+                    // An undecodable texture falls back to the material's flat colour.
                 }
             }
 
@@ -738,9 +717,9 @@ public static class DmxModelLoader
 
             return compositeMesh;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            LogDebug("[DMX Parse Exception] " + ex.Message);
+            // A DMX the preview cannot read is skipped; the other meshes still show.
         }
 
         return null;

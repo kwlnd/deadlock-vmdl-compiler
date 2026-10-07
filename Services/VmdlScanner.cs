@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using DeadlockVmdlCompiler.Models;
 
 namespace DeadlockVmdlCompiler.Services;
@@ -75,17 +71,14 @@ public static class VmdlScanner
                 if (string.IsNullOrEmpty(hero))
                     continue;
 
-                var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(fullPath, searchPath);
+                var (_, _, subpath) = VmdlPipeline.ParseCsdkPath(fullPath, searchPath);
 
                 // Clean display without any bracket prefixes
                 results.Add(new DiscoveredModel
                 {
                     Display = subpath,
                     Hero = hero,
-                    FullPath = fullPath,
-                    Addon = addonName,
-                    Subpath = subpath,
-                    Filename = file.Name
+                    FullPath = fullPath
                 });
             }
         }
