@@ -298,7 +298,6 @@ public partial class MainWindow : Window
         {
             _isInitializing = true;
             _isUpdatingSelection = true;
-            DmxModelLoader.DebugLogger = Log;
 
             _config = ConfigManager.LoadConfig();
 
@@ -757,7 +756,6 @@ public partial class MainWindow : Window
         {
             UpdateHeroDetailsFromPath(path);
             _ = Init3DSceneAsync(path);
-            Log($"selected model: {Path.GetFileName(path)}");
         }
         SaveConfig();
     }
@@ -1226,6 +1224,7 @@ public partial class MainWindow : Window
                 });
             });
 
+            var compilerErrors = new List<string>();
             // Parsing, asset sync and the compiler all stay off the UI thread;
             // the deploy callbacks touch window state, so they hop back.
             var (success, msg) = await Task.Run(() => VmdlPipeline.ProcessVmdlFileAsync(
@@ -1256,7 +1255,8 @@ public partial class MainWindow : Window
                     UpdateProtectionStatus();
                     Log($"[protect] CSDK12 cannot overwrite {Path.GetFileName(deployedPath)} until packaging or refusal.");
                 }),
-                cancellationToken: cancellation
+                cancellationToken: cancellation,
+                compilerErrors: compilerErrors
             ), cancellation);
             EndCompileCancellation();
 
@@ -1267,12 +1267,19 @@ public partial class MainWindow : Window
                 LblCompileStage.Text = "[5/5] complete";
                 LblCompileDetail.Text = "deployed successfully";
 
-                Log($"[compile success] {msg}");
+                // resourcecompiler can exit cleanly with a broken reference inside the model.
+                var errorNote = compilerErrors.Count == 0 ? string.Empty :
+                    $"resourcecompiler reported {compilerErrors.Count} error(s); the model was built, but these parts may be broken in game:\n\n" +
+                    string.Join("\n", compilerErrors.Take(6).Select(error => "- " + error)) +
+                    (compilerErrors.Count > 6 ? $"\n- and {compilerErrors.Count - 6} more in the log" : string.Empty) + "\n\n";
+                if (compilerErrors.Count > 0)
+                    Log($"[compile warning] model deployed with {compilerErrors.Count} compiler error(s), see ERROR lines above");
 
                 var packVpk = await DialogService.ShowConfirmAsync(
                     this,
-                    "compilation successful",
-                    "model compiled and deployed successfully!\n\nwould you like to package the addon into a .vpk archive now?"
+                    compilerErrors.Count == 0 ? "compilation successful" : "compiled with errors",
+                    (compilerErrors.Count == 0 ? "model compiled and deployed successfully!\n\n" : errorNote) +
+                    "would you like to package the addon into a .vpk archive now?"
                 );
 
                 if (packVpk)

@@ -250,6 +250,15 @@ public static class VmdlPipeline
             return true;
         }
 
+        // Device banner, the echoed input path and per-file timing repeat what the summary line says.
+        if (line.StartsWith("Creating device for graphics adapter", StringComparison.OrdinalIgnoreCase) ||
+            line.StartsWith("Compile of ", StringComparison.OrdinalIgnoreCase) ||
+            (line.StartsWith("- ", StringComparison.Ordinal) && line.EndsWith(".vmdl", StringComparison.OrdinalIgnoreCase)) ||
+            Regex.IsMatch(line, @"^\d+/\s*\d+ \(elapsed"))
+        {
+            return true;
+        }
+
         // 3. Dashed or equal sign horizontal separator lines
         if (line.Length >= 5 && line.All(c => c == '-' || c == '='))
         {
@@ -293,7 +302,8 @@ public static class VmdlPipeline
         Action<string, string>? afterDeploy = null,
         bool autoDetectAnims = true,
         IReadOnlyDictionary<string, string>? expectedNamedGraphs = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ICollection<string>? compilerErrors = null)
     {
         var cfg = ConfigManager.LoadConfig();
         var useCsWinDir = !string.IsNullOrWhiteSpace(cswinDir) ? cswinDir : cfg.CsWinDir;
@@ -323,7 +333,6 @@ public static class VmdlPipeline
         if (!string.IsNullOrEmpty(csdkVmdlDir) && Directory.Exists(csdkVmdlDir))
         {
             progress?.Report(new CompileProgress(2, 5, 25, "[2/5] syncing assets", "scanning model assets..."));
-            onLog?.Invoke("[sync] scanning for model assets (.dmx, .fbx, .smd, .vmat, .png, .vanim)...");
 
             var allowedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -363,7 +372,7 @@ public static class VmdlPipeline
                 ));
                 if (listFiles) onLog?.Invoke($"[sync] copied: {relFile}");
             }
-            onLog?.Invoke($"[sync] synchronized {copied} updated asset(s) to cswin64");
+            if (copied > 0) onLog?.Invoke($"[sync] copied {copied} new or changed asset(s) to cswin64");
         }
 
         // Animations can live outside the model folder. Preserve their addon-relative
@@ -388,7 +397,6 @@ public static class VmdlPipeline
             csdkAddonRoot, csWinAddonRoot, onLog);
 
         await File.WriteAllTextAsync(csWinVmdlPath, csWinContent, cancellationToken);
-        onLog?.Invoke("[prepare] wrote temporary modeldoc definition to cswin64 addon");
 
         // A successful compiler exit must not be mistaken for an old output from a previous run.
         if (File.Exists(csWinCompiledVmdlc))
@@ -427,7 +435,14 @@ public static class VmdlPipeline
                 }
                 if (!IsCompilerNoiseLine(e.Data, out var cleaned))
                 {
-                    lock (outputLock) outputLines.Add(cleaned!);
+                    lock (outputLock)
+                    {
+                        // The compiler repeats each warning without its prefix a moment later.
+                        if (outputLines.Any(seen => seen.EndsWith(cleaned!, StringComparison.Ordinal))) return;
+                        outputLines.Add(cleaned!);
+                        if (cleaned!.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+                            compilerErrors?.Add(cleaned["ERROR:".Length..].Trim());
+                    }
                     progress?.Report(new CompileProgress(4, 5, 75, "[4/5] compiling model", cleaned!));
                     onLog?.Invoke($"[cswin64] {cleaned!}");
                 }
@@ -608,7 +623,8 @@ public static class VmdlPipeline
         Action<string, string>? afterDeploy = null,
         bool autoDetectAnims = true,
         IReadOnlyDictionary<string, string>? namedGraphs = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ICollection<string>? compilerErrors = null)
     {
         filepath = Path.GetFullPath(filepath);
         if (!File.Exists(filepath))
@@ -665,7 +681,8 @@ public static class VmdlPipeline
                 expectedNamedGraphs: useNamedGraphs,
                 beforeDeploy: beforeDeploy,
                 afterDeploy: afterDeploy,
-                cancellationToken: cancellationToken
+                cancellationToken: cancellationToken,
+                compilerErrors: compilerErrors
             );
 
             if (!compSuccess)
@@ -679,7 +696,6 @@ public static class VmdlPipeline
         if (revertVmdl)
         {
             stepLogs.Add("Left CSDK12 VMDL unchanged (ModelDoc compatible)");
-            onLog?.Invoke("[revert] working .vmdl was not modified");
         }
         else
         {
@@ -695,7 +711,6 @@ public static class VmdlPipeline
         }
 
         progress?.Report(new CompileProgress(5, 5, 100, "[5/5] complete", "model compiled and deployed successfully"));
-        onLog?.Invoke($"[success] compilation finished successfully for {Path.GetFileName(filepath)}!");
 
         return (true, string.Join(" | ", stepLogs));
     }
@@ -830,7 +845,8 @@ public static class VmdlPipeline
         }
         var result = AutoDisableAnimationNodesForCompilation(content,
             csdkVmdlDir, csWinVmdlDir, csdkAddonRoot, csWinAddonRoot);
-        onLog?.Invoke($"[animations] auto-detected {result.FoundCount} source file(s), {result.MissingCount} missing; missing clips disabled, existing clip mute settings preserved");
+        onLog?.Invoke($"[animations] {result.FoundCount} clip source(s) found" +
+                      (result.MissingCount > 0 ? $", {result.MissingCount} missing and disabled for this compile" : string.Empty));
         return result.Content;
     }
 
@@ -852,9 +868,9 @@ public static class VmdlPipeline
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 File.Copy(source, destination, overwrite: true);
                 copied++;
-                onLog?.Invoke($"[sync animation] {filename}");
             }
         }
+        if (copied > 0) onLog?.Invoke($"[sync] copied {copied} animation source(s) from outside the model folder");
         return copied;
     }
 
