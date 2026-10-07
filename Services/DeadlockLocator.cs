@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Win32;
 using ValveKeyValue;
 
@@ -7,26 +8,43 @@ namespace DeadlockVmdlCompiler.Services;
 public class DeadlockInstallInfo
 {
     public string GameRootPath { get; set; } = string.Empty;
+    public string ModDirectoryName { get; set; } = string.Empty;
     public string DeadlockExePath { get; set; } = string.Empty;
     public string Pak01VpkPath { get; set; } = string.Empty;
     public bool IsValid => !string.IsNullOrEmpty(DeadlockExePath) && File.Exists(DeadlockExePath) &&
                            !string.IsNullOrEmpty(Pak01VpkPath) && File.Exists(Pak01VpkPath);
 }
 
+/// <summary>
+/// Finds Deadlock from what Steam and the game record about themselves: the Windows uninstall
+/// entry, Steam's library list and app manifest, and the game's own steam.inf. No folder or
+/// file names are guessed.
+/// </summary>
 public static class DeadlockLocator
 {
     private const string DeadlockAppId = "1422450";
+    private static DeadlockInstallInfo? _cached;
 
     public static DeadlockInstallInfo DetectDeadlockInstallation(string? hintPath = null)
     {
-        // 1. If a hint path was provided, validate it first
         if (!string.IsNullOrWhiteSpace(hintPath))
         {
             var fromHint = ValidateAndExtractInfo(hintPath);
             if (fromHint.IsValid) return fromHint;
         }
 
-        return DetectFromSteamLibraries(GetSteamLibraryFolders());
+        if (_cached is { IsValid: true }) return _cached;
+
+        // Steam registers every installed app with Windows, including its real location.
+        foreach (var location in GetRegisteredInstallLocations())
+        {
+            var info = InspectInstallation(location, null);
+            if (info.IsValid) return _cached = info;
+        }
+
+        var fromLibraries = DetectFromSteamLibraries(GetSteamLibraryFolders());
+        if (fromLibraries.IsValid) _cached = fromLibraries;
+        return fromLibraries;
     }
 
     public static DeadlockInstallInfo DetectFromSteamLibraries(IEnumerable<string> libraryFolders)
@@ -45,8 +63,7 @@ public static class DeadlockLocator
                 var common = Path.GetFullPath(Path.Combine(steamApps, "common"));
                 var candidate = Path.GetFullPath(Path.Combine(common, installDir));
                 if (!candidate.StartsWith(common + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;
-                var info = ExtractInfo(candidate);
-                if (!info.IsValid) info = ExtractInfo(candidate, flatLayout: true);
+                var info = InspectInstallation(candidate, GetString(manifest.Root, "name"));
                 if (info.IsValid) return info;
             }
             catch (ArgumentException) { }
@@ -58,6 +75,7 @@ public static class DeadlockLocator
         return new DeadlockInstallInfo();
     }
 
+    /// <summary>Accepts any path inside the installation: its root, game folder, a VPK or the executable.</summary>
     public static DeadlockInstallInfo ValidateAndExtractInfo(string candidateDir)
     {
         if (string.IsNullOrWhiteSpace(candidateDir)) return new DeadlockInstallInfo();
@@ -66,18 +84,10 @@ public static class DeadlockLocator
             var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidateDir));
             if (File.Exists(full)) full = Path.GetDirectoryName(full)!;
             if (!Directory.Exists(full)) return new DeadlockInstallInfo();
-            var roots = new List<string>();
-            for (var dir = full; dir != null && roots.Count < 4; dir = Directory.GetParent(dir)?.FullName)
-                roots.Add(dir);
-            // Find the installation root even when the hint is game/, bin/win64/ or a VPK file.
-            foreach (var root in roots)
+            var levels = 0;
+            for (var dir = full; dir != null && levels < 5; dir = Directory.GetParent(dir)?.FullName, levels++)
             {
-                var info = ExtractInfo(root);
-                if (info.IsValid) return info;
-            }
-            foreach (var root in roots)
-            {
-                var info = ExtractInfo(root, flatLayout: true);
+                var info = InspectInstallation(dir, null);
                 if (info.IsValid) return info;
             }
         }
@@ -88,16 +98,113 @@ public static class DeadlockLocator
         return new DeadlockInstallInfo();
     }
 
-    private static DeadlockInstallInfo ExtractInfo(string root, bool flatLayout = false)
+    /// <summary>
+    /// The game identifies its own content folder with a steam.inf carrying its app id. The
+    /// archive sits beside that file, and the launcher is found beside the content folder.
+    /// </summary>
+    private static DeadlockInstallInfo InspectInstallation(string root, string? displayName)
     {
-        var game = flatLayout ? root : Path.Combine(root, "game");
-        var exe = new[] { "deadlock.exe", "project8.exe" }
-            .Select(name => Path.Combine(game, "bin", "win64", name)).FirstOrDefault(File.Exists);
-        var vpk = new[] { Path.Combine(game, "citadel", "pak01_dir.vpk"), Path.Combine(game, "pak01_dir.vpk") }
-            .FirstOrDefault(File.Exists);
-        return exe != null && vpk != null
-            ? new DeadlockInstallInfo { GameRootPath = root, DeadlockExePath = exe, Pak01VpkPath = vpk }
-            : new DeadlockInstallInfo();
+        try
+        {
+            if (!Directory.Exists(root)) return new DeadlockInstallInfo();
+            var search = new EnumerationOptions
+            {
+                RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true
+            };
+            foreach (var steamInf in Directory.EnumerateFiles(root, "steam.inf", search))
+            {
+                if (!IsDeadlockSteamInf(steamInf)) continue;
+                var modDirectory = Path.GetDirectoryName(steamInf)!;
+                var archive = Path.Combine(modDirectory, "pak01_dir.vpk");
+                var gameDirectory = Path.GetDirectoryName(modDirectory);
+                if (!File.Exists(archive) || gameDirectory == null) continue;
+
+                var modName = Path.GetFileName(modDirectory);
+                var launcher = FindLauncher(gameDirectory, modName, displayName ?? Path.GetFileName(root));
+                if (launcher == null) continue;
+                return new DeadlockInstallInfo
+                {
+                    GameRootPath = Path.GetDirectoryName(gameDirectory) ?? gameDirectory,
+                    ModDirectoryName = modName,
+                    DeadlockExePath = launcher,
+                    Pak01VpkPath = archive
+                };
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return new DeadlockInstallInfo();
+    }
+
+    private static bool IsDeadlockSteamInf(string path)
+    {
+        try
+        {
+            foreach (var line in File.ReadLines(path))
+            {
+                var separator = line.IndexOf('=');
+                if (separator > 0 && line[..separator].Trim().Equals("appID", StringComparison.OrdinalIgnoreCase))
+                    return line[(separator + 1)..].Trim() == DeadlockAppId;
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return false;
+    }
+
+    /// <summary>
+    /// Picks the game launcher among the executables shipped with the engine. A Source 2 launcher
+    /// embeds the name of the content folder it starts; tools such as vconsole do not.
+    /// </summary>
+    private static string? FindLauncher(string gameDirectory, string modName, string? displayName)
+    {
+        var binaries = Path.Combine(gameDirectory, "bin");
+        if (!Directory.Exists(binaries)) return null;
+        var executables = Directory.EnumerateFiles(binaries, "*.exe", new EnumerationOptions
+        {
+            RecurseSubdirectories = true, MaxRecursionDepth = 2, IgnoreInaccessible = true
+        }).ToList();
+        if (executables.Count <= 1) return executables.FirstOrDefault();
+
+        var embedded = Encoding.Unicode.GetBytes(modName);
+        var launchers = executables.Where(exe =>
+        {
+            try { return new FileInfo(exe).Length < 64 * 1024 * 1024 && File.ReadAllBytes(exe).AsSpan().IndexOf(embedded) >= 0; }
+            catch (IOException) { return false; }
+            catch (UnauthorizedAccessException) { return false; }
+        }).ToList();
+        if (launchers.Count == 1) return launchers[0];
+
+        // Steam's own name for the app is the next best evidence.
+        var pool = launchers.Count > 0 ? launchers : executables;
+        static string Key(string? value) => new((value ?? string.Empty).Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        var named = pool.FirstOrDefault(exe => Key(displayName).Length > 0 &&
+                                               Key(Path.GetFileNameWithoutExtension(exe)) == Key(displayName));
+        // A launcher is a small stub; engine tools are many times larger.
+        return named ?? pool.OrderBy(exe => new FileInfo(exe).Length).First();
+    }
+
+    private static IEnumerable<string> GetRegisteredInstallLocations()
+    {
+        if (!OperatingSystem.IsWindows()) yield break;
+        const string uninstallKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App " + DeadlockAppId;
+        foreach (var (hive, view) in new[]
+                 {
+                     (RegistryHive.LocalMachine, RegistryView.Registry64),
+                     (RegistryHive.LocalMachine, RegistryView.Registry32),
+                     (RegistryHive.CurrentUser, RegistryView.Default)
+                 })
+        {
+            string? location = null;
+            try
+            {
+                using var root = RegistryKey.OpenBaseKey(hive, view);
+                using var key = root.OpenSubKey(uninstallKey);
+                location = key?.GetValue("InstallLocation") as string;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException) { }
+            if (ExistingDirectory(location) is { } directory) yield return directory;
+        }
     }
 
     public static List<string> GetSteamLibraryFolders()
@@ -148,12 +255,19 @@ public static class DeadlockLocator
 
     public static List<string> GetSteamLibraryFolders(IEnumerable<string> steamRoots)
     {
-        var libraries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var libraries = new List<string>();
+        var listingApp = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        void Add(string library, bool listsApp)
+        {
+            if (!libraries.Contains(library, StringComparer.OrdinalIgnoreCase)) libraries.Add(library);
+            if (listsApp) listingApp.Add(library);
+        }
+
         foreach (var steamRoot in steamRoots)
         {
             var root = ExistingDirectory(steamRoot);
             if (root == null) continue;
-            libraries.Add(root);
+            Add(root, false);
             foreach (var relative in new[] { "steamapps", "config" })
             {
                 var document = ReadKeyValues(Path.Combine(root, relative, "libraryfolders.vdf"));
@@ -166,12 +280,17 @@ public static class DeadlockLocator
                     var path = entry.IsCollection ? GetString(entry, "path") :
                         entry.ValueType == KVValueType.String ? (string)entry : string.Empty;
                     var library = ExistingDirectory(path);
-                    if (library != null) libraries.Add(library);
+                    if (library == null) continue;
+                    var listsApp = entry.IsCollection && entry.Children.Any(child =>
+                        child.Key.Equals("apps", StringComparison.OrdinalIgnoreCase) && child.Value.IsCollection &&
+                        child.Value.Children.Any(app => app.Key == DeadlockAppId));
+                    Add(library, listsApp);
                 }
             }
         }
 
-        return libraries.ToList();
+        // Steam says which library holds the app; look there first, then verify the rest.
+        return libraries.OrderByDescending(listingApp.Contains).ToList();
     }
 
     private static string? ExistingDirectory(string? path)

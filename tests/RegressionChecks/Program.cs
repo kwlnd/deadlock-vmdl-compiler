@@ -13,8 +13,16 @@ static void CreateSteamInstallation(string directory)
 {
     Directory.CreateDirectory(Path.Combine(directory, "game", "bin", "win64"));
     Directory.CreateDirectory(Path.Combine(directory, "game", "citadel"));
-    File.WriteAllText(Path.Combine(directory, "game", "bin", "win64", "deadlock.exe"), "fixture");
+    // A launcher embeds the name of its content folder; engine tools beside it do not.
+    File.WriteAllBytes(Path.Combine(directory, "game", "bin", "win64", "deadlock.exe"),
+        System.Text.Encoding.Unicode.GetBytes("launcher for citadel"));
+    File.WriteAllText(Path.Combine(directory, "game", "bin", "win64", "aaa_tool.exe"), "tool");
     File.WriteAllText(Path.Combine(directory, "game", "citadel", "pak01_dir.vpk"), "fixture");
+    File.WriteAllText(Path.Combine(directory, "game", "citadel", "steam.inf"), "ClientVersion=1\nappID=1422450\n");
+    // Language folders and other games carry their own steam.inf or none at all.
+    Directory.CreateDirectory(Path.Combine(directory, "game", "core"));
+    File.WriteAllText(Path.Combine(directory, "game", "core", "pak01_dir.vpk"), "fixture");
+    File.WriteAllText(Path.Combine(directory, "game", "core", "steam.inf"), "appID=730\n");
 }
 
 static string SteamManifest(string installDir, string appId = "1422450") =>
@@ -319,6 +327,22 @@ try
     var detectedFixture = DeadlockLocator.DetectFromSteamLibraries(steamLibraries);
     Check(detectedFixture.GameRootPath == renamedGame,
         "Steam detection guessed a folder name or failed to use installdir from the secondary library manifest.");
+    Check(detectedFixture.ModDirectoryName == "citadel" &&
+          Path.GetFileName(detectedFixture.DeadlockExePath) == "deadlock.exe" &&
+          detectedFixture.Pak01VpkPath == Path.Combine(renamedGame, "game", "citadel", "pak01_dir.vpk"),
+        "The game folder was not identified by its steam.inf, or an engine tool was taken for the launcher.");
+    var relocated = Path.Combine(root, "relocated install");
+    CreateSteamInstallation(relocated);
+    Directory.Move(Path.Combine(relocated, "game", "citadel"), Path.Combine(relocated, "game", "renamed_mod"));
+    File.WriteAllBytes(Path.Combine(relocated, "game", "bin", "win64", "deadlock.exe"),
+        System.Text.Encoding.Unicode.GetBytes("launcher for renamed_mod"));
+    var relocatedInfo = DeadlockLocator.ValidateAndExtractInfo(relocated);
+    Check(relocatedInfo.IsValid && relocatedInfo.ModDirectoryName == "renamed_mod" &&
+          relocatedInfo.Pak01VpkPath == Path.Combine(relocated, "game", "renamed_mod", "pak01_dir.vpk"),
+        "Detection depends on the content folder being called citadel.");
+    File.Delete(Path.Combine(relocated, "game", "renamed_mod", "steam.inf"));
+    Check(!DeadlockLocator.ValidateAndExtractInfo(relocated).IsValid,
+        "A folder without the game's own steam.inf was accepted as Deadlock.");
     Check(DeadlockLocator.ValidateAndExtractInfo(Path.Combine(renamedGame, "game", "citadel", "pak01_dir.vpk")).GameRootPath == renamedGame,
         "An explicit game VPK hint was not normalized to the installation root.");
     File.WriteAllText(primaryManifest, "\"AppState\" { \"appid\"");
@@ -340,7 +364,7 @@ try
     {
         var installedGame = DeadlockLocator.DetectDeadlockInstallation();
         Check(installedGame.IsValid, "The real Steam installation was not found through its library list and app manifest.");
-        Console.WriteLine($"Live Steam detection passed: {installedGame.GameRootPath}");
+        Console.WriteLine($"Live Steam detection passed: {installedGame.GameRootPath} | {Path.GetFileName(installedGame.DeadlockExePath)} | {installedGame.ModDirectoryName}/{Path.GetFileName(installedGame.Pak01VpkPath)}");
     }
 
     var animationRoot = Path.Combine(root, "animation_sources");

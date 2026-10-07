@@ -561,7 +561,8 @@ public partial class MainWindow : Window
             var info = DeadlockLocator.DetectDeadlockInstallation();
             if (info.IsValid && !citadelValid)
             {
-                var candAddons = Path.Combine(info.GameRootPath, "content", "citadel_addons");
+                // Workshop tools installed into the game keep addons beside it, named after its content folder.
+                var candAddons = Path.Combine(info.GameRootPath, "content", info.ModDirectoryName + "_addons");
                 if (Directory.Exists(candAddons))
                 {
                     TxtCitadelPath.Text = candAddons;

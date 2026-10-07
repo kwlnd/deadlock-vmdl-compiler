@@ -38,7 +38,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - **export to cswin64**: Copies the prepared source files directly to the CSWin64 workspace for manual inspection.
 
 ### Environment Paths & Options
-- **Deadlock installation**: Detected through Steam's registry/client location, `libraryfolders.vdf`, and `appmanifest_1422450.acf`. The manifest's `installdir` determines the game folder in each Steam library; no fixed drive paths or game folder names are required. If Steam metadata is unavailable, addon creation still offers manual VPK selection.
+- **Deadlock installation**: Detected from the location Steam registers with Windows for the app, then from Steam's registry/client location, `libraryfolders.vdf`, and `appmanifest_1422450.acf`. Inside the installation the content folder is the one whose `steam.inf` carries Deadlock's app id, and the launcher is the executable that embeds that folder's name; no drive paths, folder names or executable names are assumed. If Steam metadata is unavailable, addon creation still offers manual VPK selection.
 - **cswin64 installation**: Select the CSWin64 installation root that contains `game/bin/win64/resourcecompiler.exe`, not the `bin` directory itself. Selecting its `game` directory (containing `bin/win64/resourcecompiler.exe`) also works; `content` is then expected beside it.
 - **csdk addons folder**: Path to your Deadlock content/citadel_addons directory.
 - **inject nmskeleton**: Injects compiled vanilla .vnmskel reference before compiling.
