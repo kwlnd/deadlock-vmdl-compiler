@@ -64,21 +64,9 @@ public static class ConfigManager
             }
         }
 
-        // Sanitize temporary or deleted paths
-        if (IsTemporaryPath(config.CitadelAddonsDir) || (!string.IsNullOrEmpty(config.CitadelAddonsDir) && !Directory.Exists(config.CitadelAddonsDir)))
-        {
+        // A missing folder is kept: the drive may simply be disconnected right now.
+        if (IsTemporaryPath(config.CitadelAddonsDir))
             config.CitadelAddonsDir = string.Empty;
-        }
-
-        if (!string.IsNullOrEmpty(config.CsWinDir) && !Directory.Exists(config.CsWinDir))
-        {
-            config.CsWinDir = string.Empty;
-        }
-
-        if (IsTemporaryPath(config.LastTargetPath))
-        {
-            config.LastTargetPath = string.Empty;
-        }
 
         return config;
     }
@@ -89,9 +77,6 @@ public static class ConfigManager
         {
             if (IsTemporaryPath(config.CitadelAddonsDir))
                 config.CitadelAddonsDir = string.Empty;
-
-            if (IsTemporaryPath(config.LastTargetPath))
-                config.LastTargetPath = string.Empty;
 
             var path = GetConfigPath();
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Hashing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -118,7 +117,7 @@ public static class VpkBuilder
                 using var treeStream = new MemoryStream();
                 using var treeWriter = new BinaryWriter(treeStream);
 
-                var fileOffsetMap = new List<(string FullPath, uint EntryOffset, uint EntryLength)>();
+                var fileOffsetMap = new List<(string FullPath, uint Crc, uint EntryLength)>();
                 uint currentDataOffset = 0;
 
                 foreach (var extKv in tree)
@@ -144,7 +143,7 @@ public static class VpkBuilder
                             treeWriter.Write((uint)fileBytes.Length);     // EntryLength (4 bytes)
                             treeWriter.Write((ushort)0xFFFF);            // Terminator (2 bytes)
 
-                            fileOffsetMap.Add((file.FullPath, currentDataOffset, (uint)fileBytes.Length));
+                            fileOffsetMap.Add((file.FullPath, crc, (uint)fileBytes.Length));
                             currentDataOffset += (uint)fileBytes.Length;
                         }
 
@@ -160,29 +159,40 @@ public static class VpkBuilder
                 var treeBytes = treeStream.ToArray();
                 uint treeSize = (uint)treeBytes.Length;
 
-                // Write final VPK File (Header + Tree + Data)
-                Directory.CreateDirectory(Path.GetDirectoryName(outputVpkPath)!);
-                using var outFs = new FileStream(outputVpkPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                using var outWriter = new BinaryWriter(outFs);
-
-                // Header (12 bytes for VPK v1)
-                outWriter.Write((uint)0x55aa1234); // Signature
-                outWriter.Write((uint)1);          // Version 1
-                outWriter.Write(treeSize);         // TreeSize
-
-                // Tree
-                outWriter.Write(treeBytes);
-
-                // Data Section
+                // Write beside the destination and swap at the end, so a failed
+                // run never leaves a truncated archive over the previous one.
+                Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputVpkPath))!);
+                var tempVpkPath = outputVpkPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
                 long totalBytesWritten = 0;
-                foreach (var f in fileOffsetMap)
+                try
                 {
-                    var bytes = File.ReadAllBytes(f.FullPath);
-                    outWriter.Write(bytes);
-                    totalBytesWritten += bytes.Length;
-                }
+                    using (var outFs = new FileStream(tempVpkPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    using (var outWriter = new BinaryWriter(outFs))
+                    {
+                        // Header (12 bytes for VPK v1)
+                        outWriter.Write((uint)0x55aa1234); // Signature
+                        outWriter.Write((uint)1);          // Version 1
+                        outWriter.Write(treeSize);         // TreeSize
 
-                outWriter.Flush();
+                        // Tree
+                        outWriter.Write(treeBytes);
+
+                        // Data Section
+                        foreach (var f in fileOffsetMap)
+                        {
+                            var bytes = File.ReadAllBytes(f.FullPath);
+                            if (bytes.Length != f.EntryLength || ComputeCrc32(bytes) != f.Crc)
+                                throw new IOException($"File changed while packaging: {f.FullPath}");
+                            outWriter.Write(bytes);
+                            totalBytesWritten += bytes.Length;
+                        }
+                    }
+                    File.Move(tempVpkPath, outputVpkPath, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(tempVpkPath)) File.Delete(tempVpkPath);
+                }
 
                 result.Success = true;
                 result.FileCount = validFiles.Count;

@@ -10,17 +10,8 @@ public class AppConfig
     [JsonPropertyName("citadel_addons_dir")]
     public string CitadelAddonsDir { get; set; } = string.Empty;
 
-    [JsonPropertyName("last_target_path")]
-    public string LastTargetPath { get; set; } = string.Empty;
-
-    [JsonPropertyName("chk_compile")]
-    public bool ChkCompile { get; set; } = true;
-
     [JsonPropertyName("chk_revert")]
     public bool ChkRevert { get; set; } = true;
-
-    [JsonPropertyName("chk_header")]
-    public bool ChkHeader { get; set; } = true;
 
     [JsonPropertyName("chk_skel")]
     public bool ChkSkel { get; set; } = true;
@@ -31,20 +22,11 @@ public class AppConfig
     [JsonPropertyName("chk_ui_graph")]
     public bool ChkUiGraph { get; set; } = true;
 
-    [JsonPropertyName("chk_backup")]
-    public bool ChkBackup { get; set; } = true;
-
     [JsonPropertyName("chk_disable_anim_list")]
     public bool ChkDisableAnimList { get; set; }
 
     [JsonPropertyName("chk_auto_detect_anims")]
     public bool ChkAutoDetectAnims { get; set; } = true;
-
-    [JsonPropertyName("last_vpk_export_dir")]
-    public string? LastVpkExportDir { get; set; }
-
-    [JsonPropertyName("prompt_vpk_after_compile")]
-    public bool PromptVpkAfterCompile { get; set; } = true;
 
     [JsonPropertyName("hero_paths_file")]
     public string? HeroPathsFile { get; set; }

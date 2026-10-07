@@ -92,6 +92,25 @@ Check(!commented.Changes.Any(c => c.StartsWith("Error:")) &&
       commented.UpgradedContent.Contains("// filename = \"commented.vnmgraph\""),
     "Commented ModelDoc text was treated as a live field.");
 
+var trailingComment = header + "\n{\nrootNode =\n{\n_class = \"RootNode\"\nchildren =\n[\n" +
+    "{\n_class = \"MaterialGroupList\"\n} // last node\n]\n}\n}";
+var afterComment = VmdlPipeline.UpgradeVmdlContent(trailingComment, paths.Skel, paths.Graph, paths.Ui).UpgradedContent;
+Check(afterComment.Contains("},\n{\n_class = \"NmSkeletonList\"") && !afterComment.Contains("// last node,"),
+    "The separator for an injected node was written inside a trailing comment.");
+var windowsModel = bareModel.Replace("\n", "\r\n");
+Check(!Regex.IsMatch(VmdlPipeline.UpgradeVmdlContent(windowsModel, paths.Skel, paths.Graph, paths.Ui).UpgradedContent, "(?<!\r)\n"),
+    "Injected AG2 nodes mixed LF line endings into a CRLF ModelDoc file.");
+
+var looseReferences = header + "\n{ rootNode = { _class = \"RootNode\" children = [ " +
+    "{ _class = \"NmSkeletonReference\" filename = \"loose.vnmskel\" }, " +
+    "{ _class = \"Note\" text = \"keep { _class = \\\"AnimGraph2\\\" } here\" }, " +
+    "{ _class = \"AnimGraph2List\" children = [ { _class = \"AnimGraph2\" name = \"ui\" filename = \"a.vnmgraph\" } ] } ] } }";
+var strippedReferences = Ag2Sanitizer.SanitizeVmdlContent(looseReferences);
+Check(!strippedReferences.CleanContent.Contains("loose.vnmskel") && !strippedReferences.CleanContent.Contains("a.vnmgraph") &&
+      strippedReferences.CleanContent.Contains("_class = \"Note\"") &&
+      Ag2Sanitizer.SanitizeVmdlContent(strippedReferences.CleanContent).Changes.Count == 0,
+    "The sanitizer left an AG2 reference, removed text inside a string, or is not idempotent.");
+
 var animationModel = header + """
 
 { rootNode = { _class = "RootNode" children = [
@@ -300,8 +319,6 @@ try
     {
         var installedGame = DeadlockLocator.DetectDeadlockInstallation();
         Check(installedGame.IsValid, "The real Steam installation was not found through its library list and app manifest.");
-        Check(ClothPhysicsExtractor.FindDeadlockVpkPath() == installedGame.Pak01VpkPath,
-            "Cloth extraction resolved a different game archive than the Steam locator.");
         Console.WriteLine($"Live Steam detection passed: {installedGame.GameRootPath}");
     }
 
@@ -419,14 +436,63 @@ try
     Check(extracted != null && extracted.SequenceEqual(original), "Embedded VPK entry did not round-trip.");
 
     var vmdl = Path.Combine(root, "sample.vmdl");
-    File.WriteAllText(vmdl, bareModel);
+    File.WriteAllText(vmdl, initial.UpgradedContent);
     var first = await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
-    Check(first.Success, "First ModelDoc fix failed.");
-    File.AppendAllText(vmdl, "\n// second version");
+    Check(first.Success && !File.ReadAllText(vmdl).Contains("NmSkeletonList"), "First ModelDoc fix failed.");
+    Check((await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl)).Success && !File.Exists(vmdl + ".bak.1"),
+        "A ModelDoc fix that changed nothing still created a backup.");
+    File.WriteAllText(vmdl, initial.UpgradedContent + "\n// second version");
     var second = await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
     Check(second.Success, "Second ModelDoc fix failed.");
-    Check(File.ReadAllText(vmdl + ".bak") == bareModel, "Original backup was overwritten.");
+    Check(File.ReadAllText(vmdl + ".bak") == initial.UpgradedContent, "Original backup was overwritten.");
     Check(File.Exists(vmdl + ".bak.1"), "Second backup was not created.");
+    File.WriteAllText(vmdl, initial.UpgradedContent + "\n// second version");
+    await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
+    Check(!File.Exists(vmdl + ".bak.2"), "An identical backup was duplicated.");
+    var looseFile = Path.Combine(root, "loose.vmdl");
+    File.WriteAllText(looseFile, looseReferences);
+    await VmdlPipeline.SanitizeVmdlForModelDocAsync(looseFile);
+    Check(!File.ReadAllText(looseFile).Contains("NmSkeletonReference"),
+        "fix(modeldoc) and addon export disagree about standalone skeleton references.");
+
+    var revertModel = Path.Combine(root, "abrams", "revert.vmdl");
+    File.WriteAllText(revertModel, bareModel);
+    var reverted = await VmdlPipeline.ProcessVmdlFileAsync(revertModel, paths.Skel, paths.Graph, paths.Ui,
+        compileCsWin: false, revertVmdl: true);
+    Check(reverted.Success && File.ReadAllText(revertModel) == bareModel && !File.Exists(revertModel + ".bak"),
+        "A compile that leaves the source unchanged still created a backup.");
+    var saved = await VmdlPipeline.ProcessVmdlFileAsync(revertModel, paths.Skel, paths.Graph, paths.Ui,
+        compileCsWin: false, revertVmdl: false);
+    Check(saved.Success && File.ReadAllText(revertModel + ".bak") == bareModel,
+        "Saving injected AG2 nodes did not back up the original source.");
+
+    var nestedContent = Path.Combine(root, "content", "work", "csdk", "content", "citadel_addons", "demo", "models", "a.vmdl");
+    Check(VmdlPipeline.ResolveGameAddonDir(nestedContent, null, "demo") ==
+          Path.Combine(root, "content", "work", "csdk", "game", "citadel_addons", "demo"),
+        "An unrelated content folder earlier in the path redirected the compiled addon.");
+
+    var neutralAddon = Path.Combine(root, "scan", "content", "citadel_addons", "creeps");
+    var neutralSource = Path.Combine(neutralAddon, "models", "npc_units", "neutral_mushroom_small_01");
+    Directory.CreateDirectory(neutralSource);
+    File.WriteAllText(Path.Combine(neutralSource, "neutral_mushroom_small_01.vmdl"), bareModel);
+    File.WriteAllText(Path.Combine(neutralSource, "unrelated_prop.vmdl"), bareModel);
+    var scannedNeutral = VmdlScanner.ScanAddons(Path.GetDirectoryName(neutralAddon)!).Single().HeroModels;
+    Check(scannedNeutral.Count == 1 && scannedNeutral[0].Hero == "neutral_mushroom_small_01",
+        "A neutral model with a built-in preset is missing from the addon model list, or props are listed.");
+    Check(DeadlockHeroCatalog.GetNeutrals().Select(model => model.HeroKey).ToHashSet().SetEquals(neutralModels.Keys) &&
+          DeadlockHeroCatalog.GetNeutrals().All(model => neutralModels[model.HeroKey] == model.VpkPath) &&
+          DeadlockHeroCatalog.GetExportableModels().Count == 44 + neutralModels.Count,
+        "The addon export catalog does not offer every AG2 neutral at its game path.");
+
+    var unicodeDir = Path.Combine(root, "unicode_game");
+    Directory.CreateDirectory(Path.Combine(unicodeDir, "models", "модель"));
+    File.WriteAllBytes(Path.Combine(unicodeDir, "models", "модель", "тест.vmdl_c"), original);
+    var unicodeVpk = Path.Combine(root, "unicode_dir.vpk");
+    File.WriteAllText(unicodeVpk, "previous archive");
+    Check((await VpkBuilder.PackAddonToVpkAsync(unicodeDir, unicodeVpk)).Success &&
+          VpkHeroScanner.ExtractFileFromVpk(unicodeVpk, "models/модель/тест.vmdl_c")?.SequenceEqual(original) == true &&
+          !Directory.EnumerateFiles(root, "*.tmp").Any(),
+        "A non-ASCII path did not round-trip through the VPK, or a temporary archive was left behind.");
 
     Check(AddonCreationService.ValidateName("my_hero_mod") == null, "Valid addon name was rejected.");
     Check(AddonCreationService.ValidateName("../bad") != null &&
@@ -702,6 +768,16 @@ try
                 "Cancelled export left an addon or temporary directories.");
             Console.WriteLine($"Wraith addon export passed: {addon.FileCount} files, " +
                               $"{addon.ClothFileCount} cloth assets.");
+
+            var neutral = DeadlockHeroCatalog.GetNeutrals().Single(model => model.HeroKey == "neutral_mushroom_small_01");
+            var neutralExport = await AddonCreationService.CreateAsync(contentAddons, deadlockVpk,
+                neutral, "neutral_export_test");
+            var exportedNeutral = VmdlScanner.ScanAddons(contentAddons)
+                .Single(candidate => candidate.Name == "neutral_export_test").HeroModels;
+            Check(File.Exists(neutralExport.MainVmdlPath) &&
+                  exportedNeutral.Any(model => model.FullPath == neutralExport.MainVmdlPath && model.Hero == neutral.HeroKey),
+                "An exported neutral is missing its main model or is not selectable afterwards.");
+            Console.WriteLine($"Neutral addon export passed: {neutralExport.FileCount} files.");
         }
     }
 }

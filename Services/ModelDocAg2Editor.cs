@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -50,10 +51,31 @@ internal static class ModelDocAg2Editor
     }
 
     private static bool IsNodeDisabled(string content, Node node) =>
-        Regex.Matches(content.Substring(node.Start, node.End - node.Start), @"\bdisabled\s*=\s*true\b",
-            RegexOptions.IgnoreCase).Cast<Match>().Any(field =>
-                !IsIgnoredAt(content, node.Start + field.Index) &&
-                IsDirectField(content, node, node.Start + field.Index));
+        DirectFieldMatches(content, node, "disabled", @"true\b").Any();
+
+    /// <summary>Removes every node of the class, wherever it is nested.</summary>
+    internal static string RemoveNodes(string content, string className)
+    {
+        var outermost = new List<Node>();
+        foreach (var node in EnumerateAllNodes(content)
+                     .Where(node => node.ClassName.Equals(className, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(node => node.Start))
+        {
+            if (outermost.Count == 0 || node.Start >= outermost[^1].End) outermost.Add(node);
+        }
+
+        foreach (var node in outermost.AsEnumerable().Reverse())
+        {
+            var end = node.End;
+            while (end < content.Length && content[end] is ' ' or '\t') end++;
+            if (end < content.Length && content[end] == ',') end++;
+            while (end < content.Length && content[end] is '\r' or '\n') end++;
+            var start = node.Start;
+            while (start > 0 && content[start - 1] is ' ' or '\t') start--;
+            content = content.Remove(start, end - start);
+        }
+        return content;
+    }
 
     private static IEnumerable<Node> EnumerateAllNodes(string content)
     {
@@ -75,7 +97,6 @@ internal static class ModelDocAg2Editor
     {
         var classPattern = new Regex(@"\b_class\s*=\s*""" + Regex.Escape(className) + @"""",
             RegexOptions.IgnoreCase);
-        var disabledPattern = new Regex(@"\bdisabled\s*=\s*(true|false)\b", RegexOptions.IgnoreCase);
         var value = disabled ? "true" : "false";
         var searchStart = 0;
 
@@ -94,16 +115,14 @@ internal static class ModelDocAg2Editor
             if (!IsDirectField(content, node, classMatch.Index)) continue;
 
             var block = content.Substring(node.Start, node.End - node.Start);
-            var fields = disabledPattern.Matches(block).Cast<Match>()
-                .Where(field => !IsIgnoredAt(content, node.Start + field.Index) &&
-                                IsDirectField(content, node, node.Start + field.Index))
-                .ToList();
+            var fields = DirectFieldMatches(content, node, "disabled", @"(true|false)\b").ToList();
             if (fields.Count > 0)
             {
                 foreach (var field in fields.AsEnumerable().Reverse())
                 {
                     var oldValue = field.Groups[1];
-                    block = block.Remove(oldValue.Index, oldValue.Length).Insert(oldValue.Index, value);
+                    block = block.Remove(oldValue.Index - node.Start, oldValue.Length)
+                        .Insert(oldValue.Index - node.Start, value);
                 }
             }
             else
@@ -190,7 +209,7 @@ internal static class ModelDocAg2Editor
             var list = FindNode(content, rootOpen, rootClose, "NmSkeletonList");
             if (list is null)
             {
-                content = InsertIntoArray(content, rootOpen, rootClose, ListNode("NmSkeletonList", [ReferenceNode("NmSkeletonReference", skelPath)], newline), newline);
+                content = InsertIntoArray(content, rootOpen, rootClose, ListNode("NmSkeletonList", [ReferenceNode(newline, "NmSkeletonReference", skelPath)], newline), newline);
                 changes.Add("Injected NmSkeletonList node");
             }
             else if (!TryGetChildren(content, list.Value, out var childOpen, out var childClose))
@@ -203,7 +222,7 @@ internal static class ModelDocAg2Editor
                 var reference = FindNode(content, childOpen, childClose, "NmSkeletonReference");
                 if (reference is null)
                 {
-                    content = InsertIntoArray(content, childOpen, childClose, ReferenceNode("NmSkeletonReference", skelPath), newline);
+                    content = InsertIntoArray(content, childOpen, childClose, ReferenceNode(newline, "NmSkeletonReference", skelPath), newline);
                     changes.Add("Injected NmSkeletonReference node");
                 }
                 else
@@ -233,10 +252,10 @@ internal static class ModelDocAg2Editor
             if (list is null)
             {
                 var children = new List<string>();
-                if (addDefaultGraph) children.Add(ReferenceNode("DefaultAnimGraph2", graphPath));
-                if (addUiGraph) children.Add(ReferenceNode("AnimGraph2", uiGraphPath!, "ui"));
+                if (addDefaultGraph) children.Add(ReferenceNode(newline, "DefaultAnimGraph2", graphPath));
+                if (addUiGraph) children.Add(ReferenceNode(newline, "AnimGraph2", uiGraphPath!, "ui"));
                 if (extraGraphs != null)
-                    children.AddRange(extraGraphs.Select(pair => ReferenceNode("AnimGraph2", pair.Value, pair.Key)));
+                    children.AddRange(extraGraphs.Select(pair => ReferenceNode(newline, "AnimGraph2", pair.Value, pair.Key)));
                 content = InsertIntoArray(content, rootOpen, rootClose, ListNode("AnimGraph2List", children, newline), newline);
                 changes.Add("Injected AnimGraph2List node");
             }
@@ -253,7 +272,7 @@ internal static class ModelDocAg2Editor
                     var reference = FindNode(content, childOpen, childClose, "DefaultAnimGraph2");
                     if (reference is null)
                     {
-                        content = InsertIntoArray(content, childOpen, childClose, ReferenceNode("DefaultAnimGraph2", graphPath), newline);
+                        content = InsertIntoArray(content, childOpen, childClose, ReferenceNode(newline, "DefaultAnimGraph2", graphPath), newline);
                         changes.Add("Injected DefaultAnimGraph2 node");
                     }
                     else
@@ -277,7 +296,7 @@ internal static class ModelDocAg2Editor
                         FieldValue(content, n, "name").Equals("ui", StringComparison.OrdinalIgnoreCase));
                     if (reference == default)
                     {
-                        content = InsertIntoArray(content, childOpen, childClose, ReferenceNode("AnimGraph2", uiGraphPath!, "ui"), newline);
+                        content = InsertIntoArray(content, childOpen, childClose, ReferenceNode(newline, "AnimGraph2", uiGraphPath!, "ui"), newline);
                         changes.Add("Injected ui AnimGraph2 node");
                     }
                     else
@@ -302,7 +321,7 @@ internal static class ModelDocAg2Editor
                             FieldValue(content, node, "name").Equals(name, StringComparison.OrdinalIgnoreCase));
                         if (reference == default)
                         {
-                            content = InsertIntoArray(content, childOpen, childClose, ReferenceNode("AnimGraph2", path, name), newline);
+                            content = InsertIntoArray(content, childOpen, childClose, ReferenceNode(newline, "AnimGraph2", path, name), newline);
                             changes.Add($"Injected {name} AnimGraph2 node");
                         }
                         else
@@ -321,10 +340,10 @@ internal static class ModelDocAg2Editor
     private static bool ValidPath(string? path) => !string.IsNullOrWhiteSpace(path) &&
         !path.Any(c => c is '"' or '\r' or '\n' or '\0');
 
-    private static string ReferenceNode(string className, string path, string? name = null) =>
-        "{\n_class = \"" + className + "\"\n" +
-        (name is null ? string.Empty : "name = \"" + name + "\"\n") +
-        "filename = \"" + path.Replace('\\', '/') + "\"\n}";
+    private static string ReferenceNode(string newline, string className, string path, string? name = null) =>
+        "{" + newline + "_class = \"" + className + "\"" + newline +
+        (name is null ? string.Empty : "name = \"" + name + "\"" + newline) +
+        "filename = \"" + path.Replace('\\', '/') + "\"" + newline + "}";
 
     private static string ListNode(string className, IEnumerable<string> children, string newline) =>
         "{" + newline + "_class = \"" + className + "\"" + newline +
@@ -378,16 +397,11 @@ internal static class ModelDocAg2Editor
     private static bool TryGetChildren(string content, Node node, out int open, out int close)
     {
         open = close = -1;
-        var block = content.Substring(node.Start, node.End - node.Start);
-        foreach (Match match in Regex.Matches(block, @"\bchildren\s*=\s*\[", RegexOptions.IgnoreCase))
-        {
-            var matchIndex = node.Start + match.Index;
-            if (IsIgnoredAt(content, matchIndex) || !IsDirectField(content, node, matchIndex)) continue;
-            open = content.IndexOf('[', matchIndex);
-            close = FindMatching(content, open, '[', ']');
-            return close >= 0 && close < node.End;
-        }
-        return false;
+        var match = DirectFieldMatches(content, node, "children", @"\[").FirstOrDefault();
+        if (match is null) return false;
+        open = match.Index + match.Length - 1;
+        close = FindMatching(content, open, '[', ']');
+        return close >= 0 && close < node.End;
     }
 
     private static Node? FindNode(string content, int open, int close, string className)
@@ -412,17 +426,43 @@ internal static class ModelDocAg2Editor
         }
     }
 
-    private static string FieldValue(string content, Node node, string field)
+    private const string StringValue = @"""([^""]*)""";
+    private static readonly ConcurrentDictionary<string, Regex> FieldPatterns = new();
+
+    private static string FieldValue(string content, Node node, string field) =>
+        DirectFieldMatches(content, node, field, StringValue).FirstOrDefault()?.Groups[1].Value ?? string.Empty;
+
+    /// <summary>
+    /// Finds "field = value" among the node's own fields in one pass, without
+    /// rescanning the document for each candidate inside nested nodes.
+    /// </summary>
+    private static IEnumerable<Match> DirectFieldMatches(string content, Node node, string field, string valuePattern)
     {
-        var pattern = @"\b" + Regex.Escape(field) + @"\s*=\s*""([^""]*)""";
-        var block = content.Substring(node.Start, node.End - node.Start);
-        foreach (Match match in Regex.Matches(block, pattern, RegexOptions.IgnoreCase))
+        var pattern = FieldPatterns.GetOrAdd(field + "\0" + valuePattern, _ => new Regex(
+            @"\G" + Regex.Escape(field) + @"\s*=\s*" + valuePattern,
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+        var depth = 0;
+        for (var i = node.Start + 1; i < node.End - 1; i++)
         {
-            if (!IsIgnoredAt(content, node.Start + match.Index) &&
-                IsDirectField(content, node, node.Start + match.Index)) return match.Groups[1].Value;
+            var skipped = SkipIgnored(content, i);
+            if (skipped != i) { i = skipped - 1; continue; }
+            var c = content[i];
+            if (c is '{' or '[') depth++;
+            else if (c is '}' or ']') depth--;
+            else if (IsWordChar(c) && !IsWordChar(content[i - 1]))
+            {
+                if (depth == 0 && string.Compare(content, i, field, 0, field.Length,
+                        StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    var match = pattern.Match(content, i);
+                    if (match.Success && match.Index + match.Length <= node.End) yield return match;
+                }
+                while (i + 1 < node.End && IsWordChar(content[i + 1])) i++;
+            }
         }
-        return string.Empty;
     }
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
 
     private static bool IsDirectField(string content, Node node, int fieldIndex)
     {
@@ -447,28 +487,38 @@ internal static class ModelDocAg2Editor
 
     private static string SetFilename(string content, Node node, string path, string newline, out bool changed)
     {
-        var block = content.Substring(node.Start, node.End - node.Start);
-        var match = Regex.Matches(block, @"\bfilename\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase)
-            .Cast<Match>().FirstOrDefault(candidate => !IsIgnoredAt(block, candidate.Index));
+        var value = DirectFieldMatches(content, node, "filename", StringValue).FirstOrDefault()?.Groups[1];
         var normalized = path.Replace('\\', '/');
-        if (match is not null && match.Groups[1].Value.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+        if (value is not null && value.Value.Equals(normalized, StringComparison.OrdinalIgnoreCase))
         {
             changed = false;
             return content;
         }
         changed = true;
-        if (match is not null)
-            block = block.Remove(match.Groups[1].Index, match.Groups[1].Length).Insert(match.Groups[1].Index, normalized);
-        else
-            block = block.Insert(1, newline + "filename = \"" + normalized + "\"");
-        return content.Remove(node.Start, node.End - node.Start).Insert(node.Start, block);
+        return value is not null
+            ? content.Remove(value.Index, value.Length).Insert(value.Index, normalized)
+            : content.Insert(node.Start + 1, newline + "filename = \"" + normalized + "\"");
     }
 
     private static string InsertIntoArray(string content, int open, int close, string node, string newline)
     {
-        var insertAt = close;
-        while (insertAt > open + 1 && char.IsWhiteSpace(content[insertAt - 1])) insertAt--;
-        var separator = insertAt > open + 1 && content[insertAt - 1] != ',' ? "," : string.Empty;
+        // Insert after the last element, never inside a trailing comment.
+        var insertAt = open + 1;
+        var last = '\0';
+        for (var i = open + 1; i < close; i++)
+        {
+            var skipped = SkipIgnored(content, i);
+            if (skipped != i)
+            {
+                if (content[i] == '"') { insertAt = skipped; last = '"'; }
+                i = skipped - 1;
+                continue;
+            }
+            if (char.IsWhiteSpace(content[i])) continue;
+            insertAt = i + 1;
+            last = content[i];
+        }
+        var separator = insertAt > open + 1 && last != ',' ? "," : string.Empty;
         return content.Insert(insertAt, separator + newline + node + ",");
     }
 

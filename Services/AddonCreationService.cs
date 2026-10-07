@@ -42,8 +42,8 @@ public static class AddonCreationService
     {
         var nameError = ValidateName(name);
         if (nameError != null) throw new ArgumentException(nameError, nameof(name));
-        if (!DeadlockHeroCatalog.GetHeroes().Contains(hero))
-            throw new ArgumentException("Choose a hero from the catalog.", nameof(hero));
+        if (!DeadlockHeroCatalog.GetExportableModels().Contains(hero))
+            throw new ArgumentException("Choose a model from the catalog.", nameof(hero));
         if (!File.Exists(pak01VpkPath))
             throw new FileNotFoundException("Deadlock pak01_dir.vpk was not found.", pak01VpkPath);
 

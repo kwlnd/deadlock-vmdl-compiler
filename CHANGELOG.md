@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Compilation, fix(modeldoc) and CSWin64 export run off the UI thread. ModelDoc parsing no longer rescans the file for every node: a 743 KB hero model with 300 clips prepares in about 0.4 s instead of 4 s, with byte-identical output.
+- The compile button cancels a running compile and stops `resourcecompiler.exe`; nothing is deployed.
+- A mesh or material that cannot be copied to CSWin64 now fails the compile instead of silently compiling the previous copy. Replaced files are detected by size and timestamp, including older ones.
+- Neutral creep models are listed in the addon model menu and can be exported with add addon.
+- fix(modeldoc) and addon export share one comment- and string-aware cleaner; standalone `NmSkeletonReference` nodes are removed by both.
+- Backups are created only when the source `.vmdl` is rewritten, and identical backups are not duplicated.
+- Added **load list...** for custom AG2 preset files.
+- Deployment and packaging resolve the compiled addon directory through the same code, also when an unrelated `content` folder appears earlier in the path. Selecting CSWin64's `game` directory now uses the matching `content` directory.
+- VPK archives are written to a temporary file and swapped in on success; files that change during packaging are rejected; non-ASCII paths verify correctly.
+- Injected nodes keep CRLF line endings and are no longer separated by a comma inside a trailing comment.
+- A missing material no longer aborts add addon. A configured folder on a disconnected drive is kept in settings.
+- Removed unused code: the placeholder mesh statistics, the old launcher, the unused cloth chain generator and VPK preset scanner, and unused settings.
+
 ## 1.3.7
 
 - Added support for neutral creeps.

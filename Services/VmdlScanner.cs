@@ -23,12 +23,14 @@ public static class VmdlScanner
             {
                 var fullPath = file.FullName;
                 var cleanPath = fullPath.Replace('\\', '/').ToLowerInvariant();
-
-                // Must be strictly inside heroes_wip or heroes_staging
-                if (!cleanPath.Contains("heroes_wip") && !cleanPath.Contains("heroes_staging"))
-                    continue;
-
                 var filenameStem = Path.GetFileNameWithoutExtension(file.Name).ToLowerInvariant();
+                var db = HeroDatabase.GetDatabase();
+
+                // Heroes live in heroes_wip or heroes_staging. Other models, such as
+                // neutral creeps, are listed only when their file name is a preset.
+                if (!cleanPath.Contains("heroes_wip") && !cleanPath.Contains("heroes_staging") &&
+                    !db.ContainsKey(filenameStem))
+                    continue;
 
                 // Skip accessory/fx files
                 if (filenameStem.EndsWith("_dragon") || filenameStem.EndsWith("_horse") || filenameStem.EndsWith("_horse_knight") ||
@@ -39,7 +41,6 @@ public static class VmdlScanner
                     continue;
                 }
 
-                var db = HeroDatabase.GetDatabase();
                 string? hero = null;
 
                 if (db.ContainsKey(filenameStem))
@@ -91,50 +92,6 @@ public static class VmdlScanner
         catch { }
 
         return results.OrderBy(m => m.Display).ToList();
-    }
-
-    public static List<DiscoveredModel> ScanHeroModelsInAddon(string vmdlOrAddonPath, string? citadelAddonsDir = null)
-    {
-        var results = new List<DiscoveredModel>();
-        try
-        {
-            var clean = vmdlOrAddonPath.Replace('\\', '/');
-            var (container, addonName, subpath) = VmdlPipeline.ParseCsdkPath(vmdlOrAddonPath, citadelAddonsDir);
-            string? addonRoot = null;
-
-            if (!string.IsNullOrEmpty(addonName) && addonName != "addon")
-            {
-                var matchIdx = clean.IndexOf("/" + addonName + "/", StringComparison.OrdinalIgnoreCase);
-                if (matchIdx >= 0)
-                {
-                    addonRoot = clean.Substring(0, matchIdx + addonName.Length + 1);
-                }
-                else if (!string.IsNullOrEmpty(citadelAddonsDir))
-                {
-                    var candidate = Path.Combine(citadelAddonsDir, addonName);
-                    if (Directory.Exists(candidate))
-                        addonRoot = candidate;
-                }
-            }
-
-            if (string.IsNullOrEmpty(addonRoot))
-            {
-                if (Directory.Exists(vmdlOrAddonPath))
-                    addonRoot = vmdlOrAddonPath;
-                else if (File.Exists(vmdlOrAddonPath))
-                    addonRoot = Path.GetDirectoryName(vmdlOrAddonPath);
-            }
-
-            if (!string.IsNullOrEmpty(addonRoot) && Directory.Exists(addonRoot))
-            {
-                var models = ScanHeroModels(addonRoot);
-                if (models.Count > 0)
-                    return models;
-            }
-        }
-        catch { }
-
-        return results;
     }
 
     public static List<DiscoveredAddon> ScanAddons(string citadelAddonsDir)

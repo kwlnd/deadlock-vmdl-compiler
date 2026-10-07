@@ -52,5 +52,41 @@ public static class DeadlockHeroCatalog
         new("Yamato", "yamato", "models/heroes_staging/yamato_v2/yamato.vmdl_c", "yamato_sm_psd")
     });
 
+    // Neutral creeps with AG2 skeletons; keys match their hero_paths.json presets.
+    private static readonly IReadOnlyList<DeadlockHeroModel> Neutrals = Array.AsReadOnly(new[]
+    {
+        "models/npc_units/neutral_barrel_mimic_01/neutral_barrel_mimic_01.vmdl_c",
+        "models/npc_units/neutral_barrel_mimic_02/neutral_barrel_mimic_02.vmdl_c",
+        "models/npc_units/neutral_ct_lanterns/neutral_ct_lantern.vmdl_c",
+        "models/npc_units/neutral_ct_lanterns/neutral_ct_lantern_elite.vmdl_c",
+        "models/npc/neutral_drain_creature/neutral_drain_creature.vmdl_c",
+        "models/npc/neutral_drain_creature/neutral_drain_creature_large.vmdl_c",
+        "models/npc_units/neutral_library_bookmoth/neutral_library_bookmoth.vmdl_c",
+        "models/npc_units/neutral_library_watcher_01/neutral_library_watcher_01.vmdl_c",
+        "models/npc_units/neutral_mushroom_large_01/neutral_mushroom_large_01.vmdl_c",
+        "models/npc_units/neutral_mushroom_small_01/neutral_mushroom_small_01.vmdl_c",
+        "models/npc_units/neutral_park_watcher_01/neutral_park_watcher_01.vmdl_c",
+        "models/npc_units/neutral_pigeon_cerberus/neutral_pigeon_cerberus.vmdl_c",
+        "models/npc_units/neutral_plant_large_01/neutral_plant_large_01.vmdl_c",
+        "models/npc_units/neutral_plant_small_01/neutral_plant_small_01.vmdl_c",
+        "models/npc_units/neutral_specimens/neutral_specimen_01.vmdl_c",
+        "models/npc_units/neutral_theatre_puppeteer_01/neutral_theatre_puppeteer_01.vmdl_c",
+        "models/npc_units/neutral_theatre_puppeteer_02/neutral_theatre_puppeteer_02.vmdl_c",
+        "models/npc_units/neutral_theatre_puppeteer_03/neutral_theatre_puppeteer_03.vmdl_c",
+        "models/npc_units/neutral_underhand_01/neutral_underhand_01.vmdl_c"
+    }.Select(path =>
+    {
+        var key = Path.GetFileName(path)[..^".vmdl_c".Length];
+        return new DeadlockHeroModel("Neutral: " + key["neutral_".Length..].Replace('_', ' '), key, path);
+    }).ToArray());
+
+    private static readonly IReadOnlyList<DeadlockHeroModel> Exportable =
+        Array.AsReadOnly(Heroes.Concat(Neutrals).ToArray());
+
     public static IReadOnlyList<DeadlockHeroModel> GetHeroes() => Heroes;
+
+    public static IReadOnlyList<DeadlockHeroModel> GetNeutrals() => Neutrals;
+
+    /// <summary>Everything "add addon" can export: heroes first, then neutral creeps.</summary>
+    public static IReadOnlyList<DeadlockHeroModel> GetExportableModels() => Exportable;
 }

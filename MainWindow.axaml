@@ -146,10 +146,14 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <Grid ColumnDefinitions="*,Auto">
+                            <Grid ColumnDefinitions="*,Auto,Auto">
                                 <TextBlock x:Name="LblHeroPathsSource" Text="built-in presets" Classes="field-hint"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                                <Button x:Name="BtnDefaultHeroPaths" Grid.Column="1" Classes="utility" Height="24"
+                                <Button x:Name="BtnLoadHeroPaths" Grid.Column="1" Classes="utility" Height="24"
+                                        Content="load list..." Click="BtnLoadHeroPaths_Click"
+                                        ToolTip.Tip="Use your own AG2 preset list (hero_paths.json format)"/>
+                                <Button x:Name="BtnDefaultHeroPaths" Grid.Column="2" Classes="utility" Height="24"
+                                        Margin="6,0,0,0"
                                         Content="default list" Click="BtnDefaultHeroPaths_Click" IsVisible="False"/>
                             </Grid>
                         </StackPanel>
