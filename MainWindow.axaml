@@ -24,7 +24,7 @@
                                     <TextBlock Text="Choose the addon and target model" Classes="field-hint"/>
                                 </StackPanel>
                                 <Button x:Name="BtnAddAddon" Grid.Column="1" Classes="primary"
-                                        Height="32" Padding="10,3" Click="BtnAddAddon_Click">
+                                        Height="32" Padding="10,3" Click="BtnAddAddon_Click" ToolTip.Tip="Export a hero or neutral from the game into a new CSDK12 addon">
                                     <StackPanel Orientation="Horizontal" Spacing="6"
                                                 HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
@@ -64,7 +64,7 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Classes="utility" Height="38" Click="Rescan_Click">
+                                <Button Grid.Column="2" Classes="utility" Height="38" Click="Rescan_Click" ToolTip.Tip="Look for addons and models in the CSDK addons folder again">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -95,7 +95,7 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Classes="utility" Height="34" Click="BrowseFile_Click">
+                                <Button Grid.Column="2" Classes="utility" Height="34" Click="BrowseFile_Click" ToolTip.Tip="Pick any .vmdl file that is not in the list">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -156,7 +156,7 @@
                                 </Button>
                                 <Button x:Name="BtnDefaultHeroPaths" Grid.Column="2" Classes="utility" Height="24"
                                         Margin="6,0,0,0"
-                                        Click="BtnDefaultHeroPaths_Click" IsVisible="False">
+                                        Click="BtnDefaultHeroPaths_Click" ToolTip.Tip="Return to the built-in AG2 preset list" IsVisible="False">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -180,7 +180,7 @@
                             <Border Height="1" Background="{StaticResource StudioBorder}"/>
 
                             <Button x:Name="BtnCompile" Classes="primary" Height="48"
-                                    HorizontalAlignment="Stretch" Click="BtnCompile_Click">
+                                    HorizontalAlignment="Stretch" Click="BtnCompile_Click" ToolTip.Tip="Inject AG2 nodes, compile in CSWin64 and deploy the model; click again while compiling to cancel">
                                 <StackPanel Orientation="Horizontal" Spacing="9"
                                             HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Viewbox Width="16" Height="16" VerticalAlignment="Center">
@@ -214,7 +214,7 @@
 
                             <Grid ColumnDefinitions="*,8,*">
                                 <Button x:Name="BtnMakeVpk" Height="36" HorizontalAlignment="Stretch"
-                                        Click="BtnMakeVpk_Click">
+                                        Click="BtnMakeVpk_Click" ToolTip.Tip="Pack the compiled addon into a .vpk after checking its AG2 references">
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="13" Height="13" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -227,7 +227,7 @@
                                 </Button>
                                 <Button x:Name="BtnLaunchGame" Grid.Column="2" Height="36"
                                         HorizontalAlignment="Stretch" Click="BtnLaunchGame_Click"
-                                        ToolTip.Tip="launch deadlock (-allowmultiple)">
+                                        ToolTip.Tip="Start Deadlock with this addon loaded (-addon, -allowmultiple)">
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="14" Height="14" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -243,7 +243,7 @@
                             <TextBlock Text="manual tools" Classes="field-hint"/>
                             <Grid ColumnDefinitions="*,8,*">
                                 <Button x:Name="BtnSanitizeModelDoc" Classes="utility" Height="32"
-                                        HorizontalAlignment="Stretch" Click="BtnSanitizeModelDoc_Click">
+                                        HorizontalAlignment="Stretch" Click="BtnSanitizeModelDoc_Click" ToolTip.Tip="Remove AG2 nodes from the .vmdl so CSDK12 ModelDoc can open it">
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -255,7 +255,7 @@
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="BtnExportCsWin" Grid.Column="2" Classes="utility" Height="32"
-                                        HorizontalAlignment="Stretch" Click="BtnExportCsWin_Click">
+                                        HorizontalAlignment="Stretch" Click="BtnExportCsWin_Click" ToolTip.Tip="Copy the model with AG2 nodes and its meshes to the CSWin64 addon for manual work">
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -275,7 +275,7 @@
                             <Button x:Name="BtnToggleAdvanced" Classes="subtle-toggle"
                                     Background="Transparent" BorderThickness="0" Padding="0"
                                     HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                                    Click="BtnToggleAdvanced_Click">
+                                    Click="BtnToggleAdvanced_Click" ToolTip.Tip="Paths, AG2 node options and animation handling">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Viewbox Width="13" Height="13" VerticalAlignment="Center">
@@ -320,7 +320,7 @@
                                     <TextBox x:Name="TxtCsWinPath" Height="30"
                                              TextChanged="TxtCsWinPath_TextChanged"/>
                                     <Button Grid.Column="2" Classes="utility" Height="30"
-                                            Click="BrowseCsWin_Click">
+                                            Click="BrowseCsWin_Click" ToolTip.Tip="Choose the CSWin64 folder that contains game/bin/win64/resourcecompiler.exe">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -341,7 +341,7 @@
                                     <TextBox x:Name="TxtCitadelPath" Height="30"
                                              TextChanged="TxtCitadelPath_TextChanged"/>
                                     <Button Grid.Column="2" Classes="utility" Height="30"
-                                            Click="BrowseCitadel_Click">
+                                            Click="BrowseCitadel_Click" ToolTip.Tip="Choose CSDK12 content/citadel_addons">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -420,7 +420,7 @@
                     <TextBlock Text="log console" Classes="section-title" VerticalAlignment="Center"/>
                     <Button x:Name="BtnClearLog" Grid.Column="1" Classes="utility" Height="25"
                             Padding="7,1" Margin="0,0,6,0"
-                            Click="BtnClearLog_Click">
+                            Click="BtnClearLog_Click" ToolTip.Tip="Clear the log console">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -432,7 +432,7 @@
                                 </Button>
                     <Button x:Name="BtnCopyLog" Grid.Column="2" Classes="utility" Height="25"
                             Padding="7,1" Margin="0,0,10,0"
-                            Click="BtnCopyLog_Click">
+                            Click="BtnCopyLog_Click" ToolTip.Tip="Copy the whole log to the clipboard">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">

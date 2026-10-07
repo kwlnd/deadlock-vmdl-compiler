@@ -113,9 +113,9 @@
             <Border Height="1" Background="{StaticResource StudioBorder}"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button x:Name="BtnCancel" Content="cancel" MinWidth="86" Height="34"
-                        Click="BtnCancel_Click"/>
+                        Click="BtnCancel_Click" ToolTip.Tip="Close without creating an addon; stops a running export and removes its files"/>
                 <Button x:Name="BtnCreate" Content="create addon" Classes="primary"
-                        MinWidth="110" Height="34" Click="BtnCreate_Click"/>
+                        MinWidth="110" Height="34" Click="BtnCreate_Click" ToolTip.Tip="Export the chosen model with its animations, materials and cloth into the new addon"/>
             </StackPanel>
         </StackPanel>
     </Border>
