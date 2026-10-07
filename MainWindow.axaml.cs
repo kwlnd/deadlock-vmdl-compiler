@@ -364,10 +364,11 @@ public partial class MainWindow : Window
     private void BtnToggleAdvanced_Click(object? sender, RoutedEventArgs e)
     {
         PanelAdvancedContent.IsVisible = !PanelAdvancedContent.IsVisible;
-        IconAdvancedChevron.Data = PanelAdvancedContent.IsVisible
-            ? Geometry.Parse("M7.41 15.41L12 10.83L16.59 15.41L18 14L12 8L6 14L7.41 15.41Z")
-            : Geometry.Parse("M7.41 8.59L12 13.17L16.59 8.59L18 10L12 16L6 10L7.41 8.59Z");
+        IconAdvancedChevron.Data = (Geometry)this.FindResource(
+            PanelAdvancedContent.IsVisible ? "IconChevronUp" : "IconChevronDown")!;
     }
+
+    private void BtnResetView_Click(object? sender, RoutedEventArgs e) => ModelViewport.ResetView();
 
     private async Task PromptFirstTimeSetupAsync(bool needCsWin, bool needCitadel)
     {

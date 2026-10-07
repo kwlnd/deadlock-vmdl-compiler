@@ -29,8 +29,7 @@
                                                 HorizontalAlignment="Center" VerticalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M12 5V19 M5 12H19" Stroke="#FFFFFF"
-                                                      StrokeThickness="2" StrokeLineCap="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconPlus}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock Text="add addon" FontSize="11" VerticalAlignment="Center"/>
@@ -53,9 +52,7 @@
                                                 <Viewbox Width="16" Height="16" Margin="0,0,7,0"
                                                          VerticalAlignment="Center">
                                                     <Canvas Width="24" Height="24">
-                                                        <Path Data="M3 7H9L11 9H21V19H3Z M3 7V5H9L11 7"
-                                                              Stroke="#60A5FA" StrokeThickness="2"
-                                                              StrokeLineCap="Round" StrokeJoin="Round"/>
+                                                        <Path Classes="icon" Data="{StaticResource IconFolder}"/>
                                                     </Canvas>
                                                 </Viewbox>
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
@@ -71,8 +68,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M20 7V3L17 6 M20 7H16 M20 7A8 8 0 1 0 20 17"
-                                                      Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconRefresh}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock Text="rescan" FontSize="11" VerticalAlignment="Center"/>
@@ -89,8 +85,7 @@
                                             <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                                                 <Viewbox Width="13" Height="13" VerticalAlignment="Center">
                                                     <Canvas Width="24" Height="24">
-                                                        <Path Data="M12 2L2 7L12 12L22 7L12 2ZM2 17L12 22L22 17M2 12L12 17L22 12"
-                                                              Stroke="#60A5FA" StrokeThickness="2"/>
+                                                        <Path Classes="icon" Data="{StaticResource IconBox}"/>
                                                     </Canvas>
                                                 </Viewbox>
                                                 <TextBlock Text="{Binding Display}" FontSize="11.5"
@@ -104,9 +99,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M3 7H9L11 9H21V19H3Z M3 7V5H9L11 7"
-                                                      Stroke="#60A5FA" StrokeThickness="2"
-                                                      StrokeLineCap="Round" StrokeJoin="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconFolderOpen}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock Text="browse" FontSize="11" VerticalAlignment="Center"/>
@@ -150,11 +143,29 @@
                                 <TextBlock x:Name="LblHeroPathsSource" Text="built-in presets" Classes="field-hint"
                                            TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                 <Button x:Name="BtnLoadHeroPaths" Grid.Column="1" Classes="utility" Height="24"
-                                        Content="load list..." Click="BtnLoadHeroPaths_Click"
-                                        ToolTip.Tip="Use your own AG2 preset list (hero_paths.json format)"/>
+                                        Click="BtnLoadHeroPaths_Click"
+                                        ToolTip.Tip="Use your own AG2 preset list (hero_paths.json format)">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconList}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="load list..." FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                                 <Button x:Name="BtnDefaultHeroPaths" Grid.Column="2" Classes="utility" Height="24"
                                         Margin="6,0,0,0"
-                                        Content="default list" Click="BtnDefaultHeroPaths_Click" IsVisible="False"/>
+                                        Click="BtnDefaultHeroPaths_Click" IsVisible="False">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconUndo}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="default list" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -174,8 +185,7 @@
                                             HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <Viewbox Width="16" Height="16" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
-                                            <Path Data="M7 4.5C7 3.6 8 3.1 8.8 3.6L19.8 10.6C20.5 11.1 20.5 12.1 19.8 12.6L8.8 19.6C8 20.1 7 19.6 7 18.7Z"
-                                                  Fill="#FFFFFF"/>
+                                            <Path Classes="icon" Data="{StaticResource IconPlay}" Classes.solid="True"/>
                                         </Canvas>
                                     </Viewbox>
                                     <TextBlock x:Name="TxtCompileBtn" Text="compile model" FontSize="14"
@@ -208,9 +218,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="13" Height="13" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M3 6H21V18H3Z M3 10H21 M9 14H15"
-                                                      Stroke="#60A5FA" StrokeThickness="2"
-                                                      StrokeLineCap="Round" StrokeJoin="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconArchive}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock x:Name="TxtMakeVpkBtn" Text="make vpk..." FontSize="11.5"
@@ -223,9 +231,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="14" Height="14" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M6 8H18C20 8 21 10 21 12L22 18C22.2 20 20 21 18.7 19.7L16 17H8L5.3 19.7C4 21 1.8 20 2 18L3 12C3 10 4 8 6 8Z M7 12V16 M5 14H9 M16 12H16.1 M19 14H19.1"
-                                                      Stroke="#60A5FA" StrokeThickness="2"
-                                                      StrokeLineCap="Round" StrokeJoin="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconGamepad}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock Text="launch game" FontSize="11.5" VerticalAlignment="Center"/>
@@ -241,9 +247,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M14 6L18 2L22 6L18 10Z M3 21L16 8 M3 21L7 20L4 17Z"
-                                                      Stroke="#60A5FA" StrokeThickness="2"
-                                                      StrokeLineCap="Round" StrokeJoin="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconWrench}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock x:Name="TxtSanitizeBtn" Text="fix for modeldoc"
@@ -255,8 +259,7 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M12 4V15.5M12 15.5L16 11.5M12 15.5L8 11.5M7 20H17"
-                                                      Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconUpload}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64"
@@ -277,17 +280,15 @@
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Viewbox Width="13" Height="13" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
-                                                <Path Data="M4 7H20 M4 12H20 M4 17H20 M9 4V10 M15 9V15 M9 14V20"
-                                                      Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"/>
+                                                <Path Classes="icon" Data="{StaticResource IconSliders}"/>
                                             </Canvas>
                                         </Viewbox>
                                         <TextBlock Text="COMPILER SETTINGS" Classes="section-title"/>
                                     </StackPanel>
                                     <Viewbox Grid.Column="1" Width="12" Height="12" VerticalAlignment="Center">
                                         <Canvas Width="24" Height="24">
-                                            <Path x:Name="IconAdvancedChevron"
-                                                  Data="M7.41 8.59L12 13.17L16.59 8.59L18 10L12 16L6 10L7.41 8.59Z"
-                                                  Fill="#94A3B8"/>
+                                            <Path x:Name="IconAdvancedChevron" Classes="icon muted"
+                                                  Data="{StaticResource IconChevronDown}"/>
                                         </Canvas>
                                     </Viewbox>
                                 </Grid>
@@ -319,7 +320,16 @@
                                     <TextBox x:Name="TxtCsWinPath" Height="30"
                                              TextChanged="TxtCsWinPath_TextChanged"/>
                                     <Button Grid.Column="2" Classes="utility" Height="30"
-                                            Content="browse" Click="BrowseCsWin_Click"/>
+                                            Click="BrowseCsWin_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconFolderOpen}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="browse" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                                 </Grid>
 
                                 <Grid ColumnDefinitions="*,Auto">
@@ -331,7 +341,16 @@
                                     <TextBox x:Name="TxtCitadelPath" Height="30"
                                              TextChanged="TxtCitadelPath_TextChanged"/>
                                     <Button Grid.Column="2" Classes="utility" Height="30"
-                                            Content="browse" Click="BrowseCitadel_Click"/>
+                                            Click="BrowseCitadel_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconFolderOpen}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="browse" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                                 </Grid>
 
                                 <Border Height="1" Background="{StaticResource StudioBorder}"/>
@@ -372,11 +391,23 @@
             </ScrollViewer>
 
             <Grid Grid.Column="2" RowDefinitions="Auto,6,*,12,Auto,6,176">
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid ColumnDefinitions="*,Auto,Auto">
                     <TextBlock Text="3d preview" Classes="section-title" VerticalAlignment="Center"/>
                     <TextBlock x:Name="LblMeshName" Grid.Column="1"
                                Text="mesh: no model selected" Classes="field-hint"
                                MaxWidth="400" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <Button x:Name="BtnResetView" Grid.Column="2" Classes="utility" Height="25"
+                            Padding="7,1" Margin="10,0,0,0" Click="BtnResetView_Click"
+                            ToolTip.Tip="Frame the whole model again (F or double-click in the preview)">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconFrame}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="reset view" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                 </Grid>
                 <Border Grid.Row="2" Classes="studio-card" Padding="6">
                     <Border Classes="studio-inset" Background="{StaticResource StudioViewport}"
@@ -388,11 +419,29 @@
                 <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto">
                     <TextBlock Text="log console" Classes="section-title" VerticalAlignment="Center"/>
                     <Button x:Name="BtnClearLog" Grid.Column="1" Classes="utility" Height="25"
-                            Padding="7,1" Margin="0,0,6,0" Content="clear"
-                            Click="BtnClearLog_Click"/>
+                            Padding="7,1" Margin="0,0,6,0"
+                            Click="BtnClearLog_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconTrash}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="clear" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                     <Button x:Name="BtnCopyLog" Grid.Column="2" Classes="utility" Height="25"
-                            Padding="7,1" Margin="0,0,10,0" Content="copy"
-                            Click="BtnCopyLog_Click"/>
+                            Padding="7,1" Margin="0,0,10,0"
+                            Click="BtnCopyLog_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconCopy}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="copy" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
                     <CheckBox x:Name="ChkAutoScroll" Grid.Column="3" Content="auto-scroll"
                               IsChecked="True" VerticalAlignment="Center"/>
                 </Grid>

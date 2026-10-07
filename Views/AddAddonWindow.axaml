@@ -22,8 +22,7 @@
                         BorderThickness="1" VerticalAlignment="Top">
                     <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Canvas Width="24" Height="24">
-                            <Path Data="M12 5V19 M5 12H19" Stroke="#60A5FA" StrokeThickness="2"
-                                  StrokeLineCap="Round"/>
+                            <Path Classes="icon" Data="{StaticResource IconPlus}"/>
                         </Canvas>
                     </Viewbox>
                 </Border>
@@ -39,8 +38,7 @@
                     <Grid ColumnDefinitions="16,9,*">
                         <Viewbox Width="15" Height="15" VerticalAlignment="Top" Margin="0,1,0,0">
                             <Canvas Width="24" Height="24">
-                                <Path Data="M3 3H21V21H3Z M9 3V21 M15 3V21 M3 9H21 M3 15H21"
-                                      Stroke="#60A5FA" StrokeThickness="2" StrokeLineCap="Round"/>
+                                <Path Classes="icon" Data="{StaticResource IconLayers}"/>
                             </Canvas>
                         </Viewbox>
                         <TextBlock Grid.Column="2" Classes="body-copy"
@@ -50,8 +48,7 @@
                     <Grid ColumnDefinitions="16,9,*">
                         <Viewbox Width="15" Height="15" VerticalAlignment="Top" Margin="0,1,0,0">
                             <Canvas Width="24" Height="24">
-                                <Path Data="M12 2L22 21H2Z M12 9V14 M12 17V18"
-                                      Stroke="#FBBF24" StrokeThickness="2" StrokeLineCap="Round"/>
+                                <Path Classes="icon" Data="{StaticResource IconAlert}" Classes.warning="True"/>
                             </Canvas>
                         </Viewbox>
                         <TextBlock Grid.Column="2" Classes="body-copy" Foreground="#FCD99B"

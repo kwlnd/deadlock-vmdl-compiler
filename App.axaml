@@ -24,6 +24,28 @@
         <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="#255899"/>
         <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="#306CB5"/>
         <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="#1C4578"/>
+
+        <!-- One icon set for the whole app: 24px grid, round 2px strokes. -->
+        <StreamGeometry x:Key="IconPlus">M5 12h14 M12 5v14</StreamGeometry>
+        <StreamGeometry x:Key="IconRefresh">M3 12a9 9 0 0 1 9 -9a9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1 -9 9a9.75 9.75 0 0 1 -6.74 -2.74L3 16 M8 16H3v5</StreamGeometry>
+        <StreamGeometry x:Key="IconFolder">M20 20a2 2 0 0 0 2 -2V8a2 2 0 0 0 -2 -2h-7.9a2 2 0 0 1 -1.69 -0.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0 -2 2v13a2 2 0 0 0 2 2Z</StreamGeometry>
+        <StreamGeometry x:Key="IconFolderOpen">M6 14l1.5 -2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1 -1.95 1.5H4a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h3.9a2 2 0 0 1 1.69 0.9l0.81 1.2a2 2 0 0 0 1.67 0.9H18a2 2 0 0 1 2 2v2</StreamGeometry>
+        <StreamGeometry x:Key="IconBox">M21 8a2 2 0 0 0 -1 -1.73l-7 -4a2 2 0 0 0 -2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7 -4A2 2 0 0 0 21 16Z M3.3 7L12 12l8.7 -5 M12 22V12</StreamGeometry>
+        <StreamGeometry x:Key="IconPlay">M6 4.5v15a1 1 0 0 0 1.54 0.84l11.5 -7.5a1 1 0 0 0 0 -1.68L7.54 3.66A1 1 0 0 0 6 4.5Z</StreamGeometry>
+        <StreamGeometry x:Key="IconArchive">M3 4h18a1 1 0 0 1 1 1v2a1 1 0 0 1 -1 1H3a1 1 0 0 1 -1 -1V5a1 1 0 0 1 1 -1Z M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2V8 M10 12h4</StreamGeometry>
+        <StreamGeometry x:Key="IconGamepad">M6 11h4 M8 9v4 M15 12h0.01 M18 10h0.01 M17.32 5H6.68a4 4 0 0 0 -3.978 3.59c-0.006 0.052 -0.01 0.101 -0.017 0.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5 -0.5 2 -1l1.414 -1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414 0.586L17 18c0.5 0.5 1 1 2 1a3 3 0 0 0 3 -3c0 -1.545 -0.604 -6.584 -0.685 -7.258c-0.007 -0.05 -0.011 -0.1 -0.017 -0.151A4 4 0 0 0 17.32 5Z</StreamGeometry>
+        <StreamGeometry x:Key="IconWrench">M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77 -3.77a6 6 0 0 1 -7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1 -3 -3l6.91 -6.91a6 6 0 0 1 7.94 -7.94l-3.76 3.76Z</StreamGeometry>
+        <StreamGeometry x:Key="IconUpload">M21 15v4a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2v-4 M17 8l-5 -5l-5 5 M12 3v12</StreamGeometry>
+        <StreamGeometry x:Key="IconSliders">M21 4h-7 M10 4H3 M21 12h-9 M8 12H3 M21 20h-5 M12 20H3 M14 2v4 M8 10v4 M16 18v4</StreamGeometry>
+        <StreamGeometry x:Key="IconChevronDown">M6 9l6 6l6 -6</StreamGeometry>
+        <StreamGeometry x:Key="IconChevronUp">M18 15l-6 -6l-6 6</StreamGeometry>
+        <StreamGeometry x:Key="IconTrash">M3 6h18 M19 6v14a2 2 0 0 1 -2 2H7a2 2 0 0 1 -2 -2V6 M8 6V4a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2 M10 11v6 M14 11v6</StreamGeometry>
+        <StreamGeometry x:Key="IconCopy">M10 8h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2H10a2 2 0 0 1 -2 -2V10a2 2 0 0 1 2 -2Z M4 16a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2</StreamGeometry>
+        <StreamGeometry x:Key="IconList">M8 6h13 M8 12h13 M8 18h13 M3 6h0.01 M3 12h0.01 M3 18h0.01</StreamGeometry>
+        <StreamGeometry x:Key="IconUndo">M3 12a9 9 0 1 0 9 -9a9.75 9.75 0 0 0 -6.74 2.74L3 8 M3 3v5h5</StreamGeometry>
+        <StreamGeometry x:Key="IconFrame">M8 3H5a2 2 0 0 0 -2 2v3 M21 8V5a2 2 0 0 0 -2 -2h-3 M3 16v3a2 2 0 0 0 2 2h3 M16 21h3a2 2 0 0 0 2 -2v-3</StreamGeometry>
+        <StreamGeometry x:Key="IconAlert">M21.73 18l-8 -14a2 2 0 0 0 -3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73 -3Z M12 9v4 M12 17h0.01</StreamGeometry>
+        <StreamGeometry x:Key="IconLayers">M12.83 2.18a2 2 0 0 0 -1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58 -3.9a1 1 0 0 0 0 -1.83Z M2 12a1 1 0 0 0 0.58 0.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58 -3.9A1 1 0 0 0 22 12 M2 17a1 1 0 0 0 0.58 0.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58 -3.9A1 1 0 0 0 22 17</StreamGeometry>
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
@@ -60,6 +82,32 @@
             <Setter Property="FontSize" Value="11.5"/>
             <Setter Property="Foreground" Value="{StaticResource StudioTextSoft}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- Icons take the accent colour, white on primary buttons, and dim with a disabled button. -->
+        <Style Selector="Path.icon">
+            <Setter Property="Stroke" Value="{StaticResource StudioAccent}"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="StrokeLineCap" Value="Round"/>
+            <Setter Property="StrokeJoin" Value="Round"/>
+        </Style>
+        <Style Selector="Path.icon.muted">
+            <Setter Property="Stroke" Value="{StaticResource StudioTextMuted}"/>
+        </Style>
+        <Style Selector="Path.icon.warning">
+            <Setter Property="Stroke" Value="#FBBF24"/>
+        </Style>
+        <Style Selector="Button.primary Path.icon">
+            <Setter Property="Stroke" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="Path.icon.solid">
+            <Setter Property="Fill" Value="#FFFFFF"/>
+        </Style>
+        <Style Selector="Button:disabled Path.icon">
+            <Setter Property="Stroke" Value="#555E6D"/>
+        </Style>
+        <Style Selector="Button:disabled Path.icon.solid">
+            <Setter Property="Fill" Value="#555E6D"/>
         </Style>
 
         <!-- Global Studio Styling -->

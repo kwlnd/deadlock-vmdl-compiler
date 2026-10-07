@@ -48,7 +48,7 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 - **auto-detect animations**: Keeps available animation sources active and disables only missing clips in the temporary CSWin64 model. Existing per-clip mute flags are preserved. Sources are resolved at their authored paths, including model-relative paths; referenced animations outside the model folder are copied to the matching CSWin64 addon paths. Turn this option off to compile all configured clips without automatic filtering. Both settings are saved, including settings from older versions.
 
 ### Visuals
-- **3D preview**: Interactive real-time 3D viewport with mesh rendering and camera controls.
+- **3D preview**: Textured model preview at real scale on a half-metre ground grid. Drag to orbit, right or middle drag (or Shift+drag) to pan, wheel to zoom, double-click, F or **reset view** to frame the model again. Materials missing from the addon (for example the original hero's weapons) are shown in flat grey.
 - **log console**: Real-time output log tracking all compiler steps and status.
 
 ### Custom preset format

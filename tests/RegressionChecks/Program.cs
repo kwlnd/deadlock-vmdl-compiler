@@ -162,6 +162,27 @@ if (!string.IsNullOrWhiteSpace(realAnimationVmdl))
     Console.WriteLine($"Real ModelDoc animation check passed ({originalClipCount} AnimFile nodes).");
 }
 
+var previewMesh = new SimpleMesh3D();
+previewMesh.Vertices.AddRange([new(0, 0.5f, -0.5f), new(0, 0.5f, 0.5f), new(0, 1.5f, 0)]);
+previewMesh.Normals.AddRange([System.Numerics.Vector3.UnitX, System.Numerics.Vector3.UnitX, System.Numerics.Vector3.UnitX]);
+previewMesh.Indices.AddRange([0, 1, 2]);
+previewMesh.TriangleMaterialIds.Add(0);
+previewMesh.Materials.Add(new MeshTexture { Width = 1, Height = 1, Pixels = [unchecked((int)0xFFFF0000)] });
+previewMesh.RecalculateBounds();
+var previewRenderer = new DeadlockVmdlCompiler.Controls.SoftwareMeshRenderer();
+var previewPixels = new int[160 * 120];
+var previewDepth = new float[160 * 120];
+var previewData = DeadlockVmdlCompiler.Controls.PreparedMesh.From(previewMesh)!;
+var previewCamera = DeadlockVmdlCompiler.Controls.OrbitCamera.Frame(previewData.Center, previewData.Radius, 160f / 120f);
+previewRenderer.Render(previewData, previewCamera, 160, 120, previewPixels, previewDepth);
+var centrePixel = previewPixels[60 * 160 + 80];
+Check(((centrePixel >> 16) & 0xFF) > 100 && (centrePixel & 0xFF) < 40 && previewDepth[60 * 160 + 80] > 0,
+    "The preview did not draw a framed, textured triangle at the centre of the view.");
+previewCamera.Distance = 0.01f;
+previewRenderer.Render(previewData, previewCamera, 160, 120, previewPixels, previewDepth);
+previewRenderer.Render(null, previewCamera, 160, 120, previewPixels, previewDepth);
+Check(previewDepth.All(value => value == 0), "An empty preview still contains geometry.");
+
 HeroDatabase.UseBuiltInDatabase();
 var root = Path.Combine(Path.GetTempPath(), "deadlock-regression-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);

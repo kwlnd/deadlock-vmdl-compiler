@@ -12,6 +12,9 @@ public class MeshTexture
     public int[] Pixels { get; set; } = Array.Empty<int>();
     public int FallbackColor { get; set; } = unchecked((int)0xFF94A3B8);
 
+    /// <summary>Additive effect surfaces such as lenses and glows; the opaque preview leaves them out.</summary>
+    public bool IsAdditive { get; set; }
+
     public int Sample(float u, float v)
     {
         if (Pixels.Length == 0 || Width <= 0 || Height <= 0) return FallbackColor;

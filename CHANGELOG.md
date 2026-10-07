@@ -13,6 +13,9 @@
 - VPK archives are written to a temporary file and swapped in on success; files that change during packaging are rejected; non-ASCII paths verify correctly.
 - Injected nodes keep CRLF line endings and are no longer separated by a comma inside a trailing comment.
 - A missing material no longer aborts add addon. A configured folder on a disconnected drive is kept in settings.
+- 3D preview: materials written by the Material Editor (unquoted keys) now load their textures, Blender `.001` material duplicates resolve to the base material, the first UV set is always used, and additive effect surfaces are left out. Textures are sampled at up to 1024 px with perspective-correct mapping.
+- 3D preview controls: drag orbits with the model following the cursor, right or middle drag (or Shift+drag) pans, the wheel zooms proportionally, double-click, F or **reset view** frames the model. The model is shown at real scale on a half-metre ground grid, lit from the camera, rendered on all cores and at half resolution while a heavy model is dragged.
+- New consistent icon set across the main window and dialogs.
 - Removed unused code: the placeholder mesh statistics, the old launcher, the unused cloth chain generator and VPK preset scanner, and unused settings.
 
 ## 1.3.7

@@ -195,7 +195,10 @@ public static class DmxModelLoader
         var key = NormalizeMaterialKey(name);
         if (materialDb.TryGetValue(key, out var material)) return material;
         if (materialDb.TryGetValue(Path.GetFileName(key), out material)) return material;
-        return materialDb.TryGetValue(Path.GetFileNameWithoutExtension(key), out material) ? material : null;
+        if (materialDb.TryGetValue(Path.GetFileNameWithoutExtension(key), out material)) return material;
+        // Blender duplicates such as "gun.001" still mean the "gun" material.
+        var duplicate = Regex.Match(Path.GetFileName(key), @"^(.+)\.\d{3}$");
+        return duplicate.Success && materialDb.TryGetValue(duplicate.Groups[1].Value, out material) ? material : null;
     }
 
     private static MeshTexture? LoadMeshTextureFromVmat(string vmatPath, string vmdlDir, string? addonRoot)
@@ -204,9 +207,9 @@ public static class DmxModelLoader
         {
             var text = File.ReadAllText(vmatPath);
             string? texFile = null;
-            var colorReferences = Regex.Matches(text, @"""TextureColor\d*""\s*""([^""]+)""", RegexOptions.IgnoreCase)
-                .Cast<Match>()
-                .Concat(Regex.Matches(text, @"""g_tColor\d*""\s*""([^""]+)""", RegexOptions.IgnoreCase).Cast<Match>());
+            // Material Editor writes keys bare; decompiled materials quote them.
+            var colorReferences = Regex.Matches(text, @"^\s*""?(?:TextureColor|g_tColor)\d*""?\s+""([^""]+)""",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline).Cast<Match>();
             foreach (var colorReference in colorReferences)
             {
                 var reference = colorReference.Groups[1].Value;
@@ -245,12 +248,15 @@ public static class DmxModelLoader
             }
 
             int fallbackCol = GetFallbackColorFromStem(Path.GetFileNameWithoutExtension(vmatPath));
+            var additive = Regex.IsMatch(text, @"^\s*""?F_ADDITIVE_BLEND""?\s+""?1", RegexOptions.IgnoreCase | RegexOptions.Multiline);
 
-            var baseColor = Regex.Match(text, @"""TextureColor\d*""\s*""\[([^\]]+)\]""", RegexOptions.IgnoreCase);
+            var baseColor = Regex.Match(text, @"^\s*""?TextureColor\d*""?\s+""\[([^\]]+)\]""",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
             if (TryParseColorVector(baseColor, out var baseR, out var baseG, out var baseB))
                 fallbackCol = PackColor(baseR, baseG, baseB);
 
-            var colorTint = Regex.Match(text, @"""g_vColorTint\d*""\s*""\[([^\]]+)\]""", RegexOptions.IgnoreCase);
+            var colorTint = Regex.Match(text, @"^\s*""?g_vColorTint\d*""?\s+""\[([^\]]+)\]""",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
             if (TryParseColorVector(colorTint, out var tintR, out var tintG, out var tintB))
             {
                 fallbackCol = PackColor(
@@ -268,7 +274,7 @@ public static class DmxModelLoader
                     int w = bmp.PixelSize.Width;
                     int h = bmp.PixelSize.Height;
 
-                    const int maxDim = 512;
+                    const int maxDim = 1024;
                     var scale = Math.Min(1f, maxDim / (float)Math.Max(w, h));
                     int targetW = Math.Max(1, (int)MathF.Round(w * scale));
                     stream.Position = 0;
@@ -290,7 +296,8 @@ public static class DmxModelLoader
                             Width = targetW,
                             Height = targetH,
                             Pixels = pixels,
-                            FallbackColor = fallbackCol
+                            FallbackColor = fallbackCol,
+                            IsAdditive = additive
                         };
                     }
                 }
@@ -303,7 +310,8 @@ public static class DmxModelLoader
             return new MeshTexture
             {
                 Name = Path.GetFileNameWithoutExtension(vmatPath),
-                FallbackColor = fallbackCol
+                FallbackColor = fallbackCol,
+                IsAdditive = additive
             };
         }
         catch
@@ -604,15 +612,20 @@ public static class DmxModelLoader
                         Vector2[]? uvs = null;
                         int[]? uvIndices = null;
 
-                        foreach (var kv in vd.Attrs)
+                        // A mesh can carry several UV sets; the material uses the first one.
+                        (T[]? Data, int[]? Indices) Stream<T>(string semantic)
                         {
-                            if (kv.Key.StartsWith("position") && kv.Value is Vector3[] pts) positions = pts;
-                            if (kv.Key.StartsWith("position") && kv.Key.EndsWith("Indices") && kv.Value is int[] pIdxs) posIndices = pIdxs;
-                            if (kv.Key.StartsWith("normal") && kv.Value is Vector3[] nrms) normals = nrms;
-                            if (kv.Key.StartsWith("normal") && kv.Key.EndsWith("Indices") && kv.Value is int[] nIdxs) normIndices = nIdxs;
-                            if (kv.Key.StartsWith("texcoord") && kv.Value is Vector2[] uvsArr) uvs = uvsArr;
-                            if (kv.Key.StartsWith("texcoord") && kv.Key.EndsWith("Indices") && kv.Value is int[] uIdxs) uvIndices = uIdxs;
+                            var key = vd.Attrs.Keys
+                                .Where(name => name.StartsWith(semantic, StringComparison.OrdinalIgnoreCase) &&
+                                               !name.EndsWith("Indices", StringComparison.OrdinalIgnoreCase) &&
+                                               vd.Attrs[name] is T[])
+                                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
+                            if (key == null) return (null, null);
+                            return ((T[])vd.Attrs[key], vd.Attrs.TryGetValue(key + "Indices", out var found) ? found as int[] : null);
                         }
+                        (positions, posIndices) = Stream<Vector3>("position");
+                        (normals, normIndices) = Stream<Vector3>("normal");
+                        (uvs, uvIndices) = Stream<Vector2>("texcoord");
 
                         if (positions != null && positions.Length > 0)
                         {
