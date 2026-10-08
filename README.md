@@ -128,7 +128,6 @@ MIT License
 ## Credits & Inspiration
 
 - Original concept idea by **Qusai** from the Deadlock Modding Discord server.
-- Automatic animation source detection contributed by **Qusai0**, integrated with manual controls in v1.3.5.
 - Icons and resource parsing powered by [ValveResourceFormat (Source 2 Viewer)](https://github.com/SteamDatabase/ValveResourceFormat) by SteamDatabase.
 
 ---
