@@ -79,6 +79,7 @@ dotnet run --project tests/RegressionChecks/RegressionChecks.csproj -c Release
 
 - **Qusai** ([@Qusai0](https://github.com/Qusai0)) from the Deadlock Modding Discord server: the original idea, and co-maintainer with commit access who builds features and publishes releases.
 - Model and resource parsing by [ValveResourceFormat (Source 2 Viewer)](https://github.com/ValveResourceFormat/ValveResourceFormat).
+- UI icons from [Lucide](https://lucide.dev) (ISC License).
 
 MIT License.
 
