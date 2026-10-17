@@ -75,6 +75,38 @@ public class VpkAndProtectionTests : IDisposable
     }
 
     [Fact]
+    public async Task VerifiesMixedCaseAddonPathsAfterPacking()
+    {
+        // VpkBuilder writes lowercase paths; the addon keeps its own casing on disk.
+        var addon = _temp["MixedCase"];
+        var modelDir = Path.Combine(addon, "Models", "Heroes", "Demo");
+        Directory.CreateDirectory(modelDir);
+        var deployed = Path.Combine(modelDir, "Demo.vmdl_c");
+        File.WriteAllBytes(deployed, CompiledBytes);
+        var vpk = _temp["mixed_dir.vpk"];
+        Check((await VpkBuilder.PackAddonToVpkAsync(addon, vpk)).Success, "Packing a mixed-case addon failed.");
+        using var registry = new ProtectedModelRegistry(_ => { });
+        Check(registry.VerifyPacked(vpk, addon, deployed) == null &&
+              VpkArchive.ReadFile(vpk, "Models/Heroes/Demo/Demo.vmdl_c")?.SequenceEqual(CompiledBytes) == true,
+            "A packed model was not found under the addon's own path casing.");
+    }
+
+    [Fact]
+    public async Task ReleasesArchivesSoTheSameVpkCanBeRepacked()
+    {
+        var vpk = _temp["repack_dir.vpk"];
+        Check((await VpkBuilder.PackAddonToVpkAsync(_gameDir, vpk)).Success, "The first pack failed.");
+        // Scanning or reading a VPK must not keep it locked.
+        await VpkHeroScanner.ScanVpkForNpcsAsync(vpk);
+        VpkArchive.ReadFile(vpk, "models/heroes_staging/demo/protected.vmdl_c");
+        Check((await VpkBuilder.PackAddonToVpkAsync(_gameDir, vpk)).Success,
+            "A VPK that was scanned or read could not be replaced afterwards.");
+        var replacement = _temp["replacement_dir.vpk"];
+        File.Copy(vpk, replacement);
+        File.Move(replacement, vpk, overwrite: true);
+    }
+
+    [Fact]
     public void CompileExpectationsFallBackToDefaults()
     {
         var defaults = Ag2Expectation.ForCompile("models/x.vmdl", " ", "", "ui.vnmgraph", addSkel: true, addGraph: true,

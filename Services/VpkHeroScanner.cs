@@ -23,7 +23,7 @@ public static class VpkHeroScanner
             {
                 if (File.Exists(resolvedPath) && resolvedPath.EndsWith(".vpk", StringComparison.OrdinalIgnoreCase))
                 {
-                    var archive = VpkArchive.Game(resolvedPath);
+                    using var archive = VpkArchive.Open(resolvedPath);
                     var targetPaths = archive.FindFiles("vmdl_c", directory =>
                         directory.StartsWith("models/heroes", StringComparison.OrdinalIgnoreCase) ||
                         directory.StartsWith("models/characters", StringComparison.OrdinalIgnoreCase));
@@ -145,7 +145,7 @@ public static class VpkHeroScanner
                     !resolvedPath.EndsWith(".vpk", StringComparison.OrdinalIgnoreCase))
                     return (false, $"File or folder not found: {resolvedPath}", new List<NpcPreset>());
 
-                var archive = VpkArchive.Game(resolvedPath);
+                using var archive = VpkArchive.Open(resolvedPath);
                 var modelPaths = archive.FindFiles("vmdl_c", directory =>
                     directory.StartsWith("models/npc/", StringComparison.OrdinalIgnoreCase));
                 if (modelPaths.Count == 0)

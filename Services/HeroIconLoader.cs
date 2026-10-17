@@ -12,7 +12,7 @@ public static class HeroIconLoader
         var wanted = heroes.Where(hero => hero.IconVpkPath != null).ToDictionary(hero => hero.IconVpkPath!,
             hero => hero.HeroKey, StringComparer.OrdinalIgnoreCase);
         var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        var archive = VpkArchive.Game(pak01VpkPath);
+        using var archive = VpkArchive.Open(pak01VpkPath);
 
         foreach (var (entryPath, heroKey) in wanted)
         {

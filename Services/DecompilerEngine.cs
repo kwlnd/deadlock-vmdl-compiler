@@ -81,6 +81,7 @@ public static class DecompilerEngine
             try
             {
                 GameFileLoader? fileLoader = null;
+                VpkArchive? archive = null;
                 Resource? resource = null;
 
                 try
@@ -109,7 +110,7 @@ public static class DecompilerEngine
                         }
 
                         onLog?.Invoke($"[vpk] opening archive: {Path.GetFileName(cleanInput)}");
-                        var archive = VpkArchive.Game(cleanInput);
+                        archive = VpkArchive.Open(cleanInput);
 
                         onLog?.Invoke("[vpk] mounting search paths & addons...");
                         fileLoader = new GameFileLoader(archive.Package, cleanInput);
@@ -310,6 +311,7 @@ public static class DecompilerEngine
                 {
                     resource?.Dispose();
                     fileLoader?.Dispose();
+                    archive?.Dispose();
                 }
 
                 stopwatch.Stop();

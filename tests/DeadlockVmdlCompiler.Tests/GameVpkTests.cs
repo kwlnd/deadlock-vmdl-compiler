@@ -17,7 +17,7 @@ public class GameVpkTests : IDisposable
     public void EveryHeroModelAndPortraitIsInTheGame()
     {
         var vpk = RequireGameVpk();
-        var archive = VpkArchive.Game(vpk);
+        using var archive = VpkArchive.Open(vpk);
         var heroes = DeadlockHeroCatalog.GetHeroes();
         foreach (var hero in heroes)
         {
@@ -60,7 +60,7 @@ public class GameVpkTests : IDisposable
     public void NewHeroPresetsMatchTheGame()
     {
         var vpk = RequireGameVpk();
-        var archive = VpkArchive.Game(vpk);
+        using var archive = VpkArchive.Open(vpk);
         foreach (var (heroKey, presetKey) in PresetTests.NewHeroPresets)
         {
             var hero = DeadlockHeroCatalog.GetHeroes().Single(candidate => candidate.HeroKey == heroKey);
@@ -78,7 +78,7 @@ public class GameVpkTests : IDisposable
     public void NeutralPresetsMatchTheGame()
     {
         var vpk = RequireGameVpk();
-        var archive = VpkArchive.Game(vpk);
+        using var archive = VpkArchive.Open(vpk);
         var presets = HeroDatabase.GetVisiblePresets();
         foreach (var (key, modelPath) in NeutralModels())
         {

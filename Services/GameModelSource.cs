@@ -21,8 +21,14 @@ public static class GameModelSource
     /// <summary>Decompiles the game model to ModelDoc text, or returns null when the VPK lacks it.</summary>
     public static string? LoadVmdl(string pak01VpkPath, IEnumerable<string?> vpkPaths, out string? usedPath)
     {
+        using var archive = VpkArchive.Open(pak01VpkPath);
+        return LoadVmdl(archive, vpkPaths, out usedPath);
+    }
+
+    /// <summary>Decompiles the game model from an open archive, for callers that read several models.</summary>
+    public static string? LoadVmdl(VpkArchive archive, IEnumerable<string?> vpkPaths, out string? usedPath)
+    {
         usedPath = null;
-        var archive = VpkArchive.Game(pak01VpkPath);
         // The loader searches pak01 before any mounted addon, so installed mods cannot shadow the game model.
         var loader = archive.Loader;
         foreach (var path in vpkPaths.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!.Replace('\\', '/')))

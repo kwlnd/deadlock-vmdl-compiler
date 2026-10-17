@@ -29,13 +29,19 @@ public static class GameSync
         var synced = 0;
         var unchanged = 0;
         var failed = new List<string>();
+        if (options.NeedsGameModel && (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath)))
+        {
+            onLog?.Invoke("[sync from game] Deadlock's pak01_dir.vpk was not found.");
+            return new BatchSyncResult(0, 0, models.Select(entry => $"{entry.Addon}/{Path.GetFileName(entry.Model.FullPath)}").ToList());
+        }
+        using var archive = options.NeedsGameModel ? VpkArchive.Open(pak01VpkPath!) : null;
         foreach (var (addon, model) in models)
         {
             var name = $"{addon}/{Path.GetFileName(model.FullPath)}";
             try
             {
                 var (success, message, changed) = await SyncFromGameAsync(
-                    model.FullPath, options, pak01VpkPath, FallbackGamePath(model.Hero));
+                    model.FullPath, options, archive, FallbackGamePath(model.Hero), createBackup: true, onLog: null);
                 onLog?.Invoke($"[sync from game] {name}: {message}");
                 if (!success) failed.Add(name);
                 else if (changed) synced++;
@@ -84,6 +90,20 @@ public static class GameSync
         bool createBackup = true,
         Action<string>? onLog = null)
     {
+        if (options.NeedsGameModel && (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath)))
+            return OperationResult.Fail("Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.");
+        using var archive = options.NeedsGameModel ? VpkArchive.Open(pak01VpkPath!) : null;
+        return await SyncFromGameAsync(vmdlPath, options, archive, fallbackVpkPath, createBackup, onLog);
+    }
+
+    private static async Task<OperationResult> SyncFromGameAsync(
+        string vmdlPath,
+        GameSyncOptions options,
+        VpkArchive? archive,
+        string? fallbackVpkPath,
+        bool createBackup,
+        Action<string>? onLog)
+    {
         vmdlPath = Path.GetFullPath(vmdlPath);
         if (!File.Exists(vmdlPath))
             return OperationResult.Fail($"File not found: {vmdlPath}");
@@ -102,9 +122,9 @@ public static class GameSync
 
         if (options.NeedsGameModel)
         {
-            if (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath))
+            if (archive == null)
                 return OperationResult.Fail("Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.");
-            var gameText = await Task.Run(() => GameModelSource.LoadVmdl(pak01VpkPath,
+            var gameText = await Task.Run(() => GameModelSource.LoadVmdl(archive,
                 [GameModelSource.GetVpkPath(vmdlPath), fallbackVpkPath], out var usedPath)
                 is { } text ? (text, usedPath) : default);
             if (gameText.text is null)
