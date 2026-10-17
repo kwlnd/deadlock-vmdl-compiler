@@ -1,11 +1,15 @@
 # Changelog
 
-## Unreleased
+## 1.5.2
 
 - The log colours errors, warnings and successes.
 - The window size is remembered.
 - Drop a .vmdl file or an addon folder on the window to select it.
 - The preview explains what to do when no model is selected or its render mesh is missing.
+- Fixed: a second compile could start during the pre-compile camera sync, and a failing sync could crash the app.
+- Fixed: sync could corrupt compact one-line attachment nodes and missed vectors with a trailing comma or comment.
+- Fixed: batch sync stopped at the first failing model and could not resolve variant models such as fencer.
+- Fixed: selecting a listed model after opening a file manually left the model list empty.
 
 ## 1.5.1
 
