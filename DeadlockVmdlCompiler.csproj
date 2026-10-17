@@ -18,9 +18,9 @@
     <Product>Deadlock AG2 Compiler</Product>
     <AssemblyTitle>Deadlock AG2 Compiler</AssemblyTitle>
     <Description>Deadlock AnimGraph2 nodes injection and compilation tool</Description>
-    <Version>1.4.0</Version>
-    <AssemblyVersion>1.4.0</AssemblyVersion>
-    <FileVersion>1.4.0</FileVersion>
+    <Version>1.4.3</Version>
+    <AssemblyVersion>1.4.3</AssemblyVersion>
+    <FileVersion>1.4.3</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -58,3 +58,4 @@
   </Target>
 
 </Project>
+

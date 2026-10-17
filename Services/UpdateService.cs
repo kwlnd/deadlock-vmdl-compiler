@@ -26,8 +26,28 @@ public static class UpdateService
     private const string PendingUpdateName = "DeadlockVmdlCompiler.update.exe";
     private static readonly HttpClient Http = CreateHttpClient();
 
-    public static Version CurrentVersion => NormalizeVersion(
-        Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0));
+    public static Version CurrentVersion
+    {
+        get
+        {
+            // Prefer the version stamped into the actual executable. This
+            // prevents a release built with a newer FileVersion from being
+            // reported as the older assembly version.
+            try
+            {
+                var fileVersion = FileVersionInfo.GetVersionInfo(CurrentExecutablePath).FileVersion;
+                var parsed = ParseVersion(fileVersion);
+                if (parsed != null) return parsed;
+            }
+            catch
+            {
+                // Fall back to the assembly metadata below.
+            }
+
+            return NormalizeVersion(
+                Assembly.GetExecutingAssembly().GetName().Version ?? new Version(1, 0, 0));
+        }
+    }
 
     public static string CurrentExecutablePath
     {
