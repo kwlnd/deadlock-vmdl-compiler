@@ -47,6 +47,14 @@ internal static class ModelDocAg2Editor
         return (content, found, missing);
     }
 
+    /// <summary>Mesh files of the model's RenderMeshFile nodes, in document order.</summary>
+    internal static IEnumerable<string> GetRenderMeshFiles(string content) =>
+        EnumerateAllNodes(content)
+            .Where(node => node.ClassName.Equals("RenderMeshFile", StringComparison.OrdinalIgnoreCase))
+            .OrderBy(node => node.Start)
+            .Select(node => FieldValue(content, node, "filename"))
+            .Where(path => path.Length > 0);
+
     private static bool IsNodeDisabled(string content, Node node) =>
         DirectFieldMatches(content, node, "disabled", @"true\b").Any();
 

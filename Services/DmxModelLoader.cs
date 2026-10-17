@@ -423,73 +423,53 @@ public static class DmxModelLoader
                 addonRoot = cleanDir.Substring(0, mIdx).Replace('/', Path.DirectorySeparatorChar);
             }
 
-            var lines = vmdlContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            bool inRenderMeshList = false;
-
-            foreach (var line in lines)
+            foreach (var raw in ModelDocAg2Editor.GetRenderMeshFiles(vmdlContent))
             {
-                var trimmed = line.Trim();
-                if (trimmed.Contains("RenderMeshList") || trimmed.Contains("RenderMeshFile"))
-                    inRenderMeshList = true;
-                if (trimmed.Contains("AnimationList") || trimmed.Contains("AnimFile") ||
-                    trimmed.Contains("ClothProxyMesh") || trimmed.Contains("Physics") ||
-                    trimmed.Contains("Hitbox") || trimmed.Contains("AttachmentList"))
-                    inRenderMeshList = false;
+                var fn = Path.GetFileName(raw).ToLowerInvariant();
 
-                if (inRenderMeshList && trimmed.StartsWith("filename ="))
+                if (fn.Contains("_lod") || fn.Contains("lod1") || fn.Contains("lod2") || fn.Contains("lod3") || fn.Contains("lod4"))
+                    continue;
+
+                var rel = raw.Replace('/', Path.DirectorySeparatorChar);
+                var fnOnly = Path.GetFileName(rel);
+
+                var candidates = new List<string>
                 {
-                    var q1 = trimmed.IndexOf('\"');
-                    var q2 = trimmed.LastIndexOf('\"');
-                    if (q1 >= 0 && q2 > q1)
+                    Path.Combine(vmdlDir, fnOnly),
+                    Path.Combine(vmdlDir, "mesh", fnOnly),
+                    Path.Combine(vmdlDir, rel)
+                };
+
+                if (!string.IsNullOrEmpty(addonRoot))
+                {
+                    candidates.Add(Path.Combine(addonRoot, rel));
+                    candidates.Add(Path.Combine(addonRoot, "models", rel));
+                    candidates.Add(Path.Combine(addonRoot, fnOnly));
+                }
+
+                if (!string.IsNullOrEmpty(citadelDir))
+                {
+                    candidates.Add(Path.Combine(citadelDir, rel));
+                    candidates.Add(Path.Combine(citadelDir, "models", rel));
+                }
+
+                var cur = vmdlDir;
+                for (int i = 0; i < 5; i++)
+                {
+                    var parent = Directory.GetParent(cur)?.FullName;
+                    if (string.IsNullOrEmpty(parent)) break;
+                    candidates.Add(Path.Combine(parent, rel));
+                    candidates.Add(Path.Combine(parent, fnOnly));
+                    candidates.Add(Path.Combine(parent, "mesh", fnOnly));
+                    cur = parent;
+                }
+
+                foreach (var cand in candidates)
+                {
+                    if (File.Exists(cand) && !result.Contains(cand))
                     {
-                        var raw = trimmed.Substring(q1 + 1, q2 - q1 - 1);
-                        var fn = Path.GetFileName(raw).ToLowerInvariant();
-
-                        if (fn.Contains("_lod") || fn.Contains("lod1") || fn.Contains("lod2") || fn.Contains("lod3") || fn.Contains("lod4"))
-                            continue;
-
-                        var rel = raw.Replace('/', Path.DirectorySeparatorChar);
-                        var fnOnly = Path.GetFileName(rel);
-
-                        var candidates = new List<string>
-                        {
-                            Path.Combine(vmdlDir, fnOnly),
-                            Path.Combine(vmdlDir, "mesh", fnOnly),
-                            Path.Combine(vmdlDir, rel)
-                        };
-
-                        if (!string.IsNullOrEmpty(addonRoot))
-                        {
-                            candidates.Add(Path.Combine(addonRoot, rel));
-                            candidates.Add(Path.Combine(addonRoot, "models", rel));
-                            candidates.Add(Path.Combine(addonRoot, fnOnly));
-                        }
-
-                        if (!string.IsNullOrEmpty(citadelDir))
-                        {
-                            candidates.Add(Path.Combine(citadelDir, rel));
-                            candidates.Add(Path.Combine(citadelDir, "models", rel));
-                        }
-
-                        var cur = vmdlDir;
-                        for (int i = 0; i < 5; i++)
-                        {
-                            var parent = Directory.GetParent(cur)?.FullName;
-                            if (string.IsNullOrEmpty(parent)) break;
-                            candidates.Add(Path.Combine(parent, rel));
-                            candidates.Add(Path.Combine(parent, fnOnly));
-                            candidates.Add(Path.Combine(parent, "mesh", fnOnly));
-                            cur = parent;
-                        }
-
-                        foreach (var cand in candidates)
-                        {
-                            if (File.Exists(cand) && !result.Contains(cand))
-                            {
-                                result.Add(cand);
-                                break;
-                            }
-                        }
+                        result.Add(cand);
+                        break;
                     }
                 }
             }
