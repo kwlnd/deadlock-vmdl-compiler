@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The log colours errors, warnings and successes.
+- The window size is remembered.
+- Drop a .vmdl file or an addon folder on the window to select it.
+- The preview explains what to do when no model is selected or its render mesh is missing.
+
 ## 1.5.1
 
 - Selecting a model made before the October 2026 update shows a notice with a shortcut to **sync from game**.

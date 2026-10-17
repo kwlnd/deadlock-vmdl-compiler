@@ -60,7 +60,8 @@ Deadlock uses AnimGraph 2 (AG2) animation structures. Standard CSDK12 tooling ca
 
 ### Visuals
 - **3D preview**: Textured model preview at real scale on a half-metre ground grid. Drag to orbit, right or middle drag (or Shift+drag) to pan, wheel to zoom, double-click, F or **reset view** to frame the model again. Materials missing from the addon (for example the original hero's weapons) are shown in flat grey.
-- **log console**: Real-time output log tracking all compiler steps and status.
+- **log console**: Real-time output log tracking all compiler steps and status. Errors, warnings and successes are coloured. The window size is remembered.
+- **drag and drop**: Drop a `.vmdl` file or an addon folder on the window to select it.
 
 ### Custom preset format
 

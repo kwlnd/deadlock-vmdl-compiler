@@ -45,4 +45,13 @@ public class AppConfig
 
     [JsonPropertyName("update_dismissed_version")]
     public string? UpdateDismissedVersion { get; set; }
+
+    [JsonPropertyName("window_width")]
+    public double? WindowWidth { get; set; }
+
+    [JsonPropertyName("window_height")]
+    public double? WindowHeight { get; set; }
+
+    [JsonPropertyName("window_maximized")]
+    public bool WindowMaximized { get; set; }
 }

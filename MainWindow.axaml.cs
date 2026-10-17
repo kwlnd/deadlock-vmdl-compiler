@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -30,6 +33,9 @@ public partial class MainWindow : Window
     private int _previewRequest;
     private CancellationTokenSource? _compileCancellation;
     private readonly System.Text.StringBuilder _logBuffer = new();
+    private readonly List<string> _pendingLogLines = new();
+    private readonly Queue<int> _logLineInlines = new();
+    private const int MaxLogLines = 3000;
     private sealed record ProtectedModelState(
         CompiledModelProtection Guard, string? Skel, string? Graph, string? UiGraph,
         IReadOnlyDictionary<string, string>? NamedGraphs);
@@ -41,17 +47,115 @@ public partial class MainWindow : Window
     private static readonly IBrush BrushWarn = new SolidColorBrush(Color.FromRgb(0xBA, 0xBE, 0xC4));
     private static readonly IBrush BrushErr = new SolidColorBrush(Color.FromRgb(0xDF, 0x70, 0x70));
     private static readonly IBrush BrushMuted = new SolidColorBrush(Color.FromRgb(0x82, 0x86, 0x8E));
+    private static readonly IBrush LogTime = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
+    private static readonly IBrush LogText = new SolidColorBrush(Color.FromRgb(0xE2, 0xE8, 0xF0));
+    private static readonly IBrush LogError = new SolidColorBrush(Color.FromRgb(0xFC, 0xA5, 0xA5));
+    private static readonly IBrush LogWarning = new SolidColorBrush(Color.FromRgb(0xFC, 0xD9, 0x9B));
+    private static readonly IBrush LogSuccess = new SolidColorBrush(Color.FromRgb(0x86, 0xEF, 0xAC));
 
     public MainWindow()
     {
         InitializeComponent();
+        RestoreWindowLayout(ConfigManager.LoadConfig());
+        AddHandler(DragDrop.DragOverEvent, Window_DragOver);
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => BorderDropOverlay.IsVisible = false);
+        AddHandler(DragDrop.DropEvent, Window_Drop);
         Loaded += MainWindow_Loaded;
+        Closing += (_, _) => SaveWindowLayout();
         Closed += (_, _) =>
         {
             ReleaseAllModelProtections();
             foreach (var portrait in _presetPortraits.Values)
                 portrait.Dispose();
         };
+    }
+
+    // -----------------------------------------------------------------
+    // WINDOW LAYOUT AND DRAG & DROP
+    // -----------------------------------------------------------------
+    private void RestoreWindowLayout(AppConfig config)
+    {
+        if (config.WindowWidth is >= 960 and <= 8000 && config.WindowHeight is >= 620 and <= 8000)
+        {
+            Width = config.WindowWidth.Value;
+            Height = config.WindowHeight.Value;
+        }
+        if (config.WindowMaximized) WindowState = WindowState.Maximized;
+    }
+
+    private void SaveWindowLayout()
+    {
+        if (_isInitializing) return;
+        _config.WindowMaximized = WindowState == WindowState.Maximized;
+        if (WindowState == WindowState.Normal)
+        {
+            _config.WindowWidth = Math.Round(Bounds.Width);
+            _config.WindowHeight = Math.Round(Bounds.Height);
+        }
+        ConfigManager.SaveConfig(_config);
+    }
+
+    private static string? DroppedPath(DragEventArgs e) =>
+        e.DataTransfer.TryGetFiles()?.Select(item => item.TryGetLocalPath()).FirstOrDefault(path => path != null);
+
+    private void Window_DragOver(object? sender, DragEventArgs e)
+    {
+        var path = DroppedPath(e);
+        var usable = path != null && !_isProcessing &&
+                     (Directory.Exists(path) || path.EndsWith(".vmdl", StringComparison.OrdinalIgnoreCase));
+        e.DragEffects = usable ? DragDropEffects.Copy : DragDropEffects.None;
+        BorderDropOverlay.IsVisible = usable;
+    }
+
+    private void Window_Drop(object? sender, DragEventArgs e)
+    {
+        BorderDropOverlay.IsVisible = false;
+        var path = DroppedPath(e);
+        if (path == null || _isProcessing) return;
+        if (path.EndsWith(".vmdl", StringComparison.OrdinalIgnoreCase) && File.Exists(path))
+        {
+            SelectModelFile(path);
+            return;
+        }
+        if (!Directory.Exists(path)) return;
+
+        var full = Path.GetFullPath(path).TrimEnd('\\', '/');
+        var addon = _discoveredAddons.FirstOrDefault(candidate =>
+            full.Equals(Path.GetFullPath(candidate.FullPath).TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase) ||
+            full.StartsWith(Path.GetFullPath(candidate.FullPath).TrimEnd('\\', '/') + Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase));
+        if (addon != null)
+        {
+            CmbDiscovered.SelectedItem = addon;
+            Log($"[drop] selected addon {addon.Name}");
+            return;
+        }
+        // A folder outside the addons list: open its first hero model.
+        var model = VmdlScanner.ScanHeroModels(path).FirstOrDefault();
+        if (model != null) SelectModelFile(model.FullPath);
+        else Log($"[drop] no hero model found in {path}");
+    }
+
+    /// <summary>Selects a model through its addon when it is listed, otherwise loads it on its own.</summary>
+    private void SelectModelFile(string fullPath)
+    {
+        foreach (var addon in _discoveredAddons)
+        {
+            var listed = addon.HeroModels.FirstOrDefault(model =>
+                model.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase));
+            if (listed == null) continue;
+            CmbDiscovered.SelectedItem = addon;
+            CmbTargetVmdl.SelectedItem = listed;
+            Log($"selected model: {addon.Name}/{Path.GetFileName(fullPath)}");
+            return;
+        }
+
+        var manual = new DiscoveredModel { FullPath = fullPath, Display = Path.GetFileName(fullPath) };
+        CmbTargetVmdl.ItemsSource = new List<DiscoveredModel> { manual };
+        CmbTargetVmdl.SelectedIndex = 0;
+        UpdateHeroDetailsFromPath(fullPath);
+        _ = Init3DSceneAsync(fullPath);
+        Log($"manually loaded model: {Path.GetFileName(fullPath)}");
     }
 
     private void PopulateHeroPresets()
@@ -559,7 +663,9 @@ public partial class MainWindow : Window
     private void BtnClearLog_Click(object? sender, RoutedEventArgs e)
     {
         _logBuffer.Clear();
-        TxtLog.Text = string.Empty;
+        _pendingLogLines.Clear();
+        TxtLog.Inlines?.Clear();
+        _logLineInlines.Clear();
     }
 
     private async void BtnCopyLog_Click(object? sender, RoutedEventArgs e)
@@ -582,6 +688,7 @@ public partial class MainWindow : Window
         Dispatcher.UIThread.Post(() =>
         {
             _logBuffer.AppendLine(line);
+            _pendingLogLines.Add(line);
 
             // Truncate buffer if exceedingly large (keep latest ~150k chars) to preserve UI responsiveness
             if (_logBuffer.Length > 200_000)
@@ -601,11 +708,45 @@ public partial class MainWindow : Window
             Dispatcher.UIThread.Post(() =>
             {
                 _logFlushPending = false;
-                TxtLog.Text = _logBuffer.ToString();
+                FlushLogLines();
                 if (ChkAutoScroll?.IsChecked == true)
                     ScrollLog?.ScrollToEnd();
             }, DispatcherPriority.Background);
         });
+    }
+
+    private void FlushLogLines()
+    {
+        var inlines = TxtLog.Inlines ??= new InlineCollection();
+        foreach (var line in _pendingLogLines)
+        {
+            // "[HH:mm:ss] " is dimmed; the message takes the colour of its outcome.
+            var split = line.StartsWith('[') && line.Length > 11 && line[9] == ']' ? 11 : 0;
+            if (split > 0) inlines.Add(new Run(line[..split]) { Foreground = LogTime });
+            inlines.Add(new Run(line[split..]) { Foreground = LogBrush(line[split..]) });
+            inlines.Add(new LineBreak());
+            _logLineInlines.Enqueue(split > 0 ? 3 : 2);
+        }
+        _pendingLogLines.Clear();
+        // Keep the console responsive: drop the oldest lines past the limit.
+        while (_logLineInlines.Count > MaxLogLines)
+        {
+            var count = _logLineInlines.Dequeue();
+            inlines.RemoveRange(0, Math.Min(count, inlines.Count));
+        }
+    }
+
+    private static IBrush LogBrush(string message)
+    {
+        static bool Has(string text, params string[] words) =>
+            words.Any(word => text.Contains(word, StringComparison.OrdinalIgnoreCase));
+        if (Has(message, "error", "failed", "fatal", "exception", "refus", "invalid", "not found", "missing:"))
+            return LogError;
+        if (Has(message, "warn", "skipped", "missing", "cancel", "outdated", "not detected"))
+            return LogWarning;
+        if (Has(message, "success", "passed", "ready", "synced", "applied", "verified", "created", "copied", "complete", "done"))
+            return LogSuccess;
+        return LogText;
     }
 
     // -----------------------------------------------------------------
@@ -623,6 +764,7 @@ public partial class MainWindow : Window
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
                 LblMeshName.Text = "mesh: loading preview...";
+                ShowPreviewMessage("loading preview...", null);
                 var mesh = await DmxModelLoader.LoadModelFromVmdlAsync(path, citadelDir);
                 // A newer selection owns the viewport now.
                 if (request != _previewRequest) return;
@@ -631,19 +773,32 @@ public partial class MainWindow : Window
                 if (mesh != null && mesh.Vertices.Count > 0)
                 {
                     LblMeshName.Text = $"mesh: {mesh.MeshName} ({mesh.Vertices.Count:N0} verts, {mesh.Indices.Count / 3:N0} tris)";
+                    PanelPreviewEmpty.IsVisible = false;
                 }
                 else
                 {
                     LblMeshName.Text = $"mesh: {Path.GetFileName(path)} (render mesh not found)";
+                    ShowPreviewMessage("no render mesh found",
+                        "the model's .dmx render meshes were not found next to it or in the addon.");
                 }
             }
             else
             {
                 ModelViewport.CurrentMesh = null;
                 LblMeshName.Text = "mesh: no model selected";
+                ShowPreviewMessage("no model selected",
+                    "pick an addon and a target vmdl on the left, or drop a .vmdl file or an addon folder on this window.");
             }
         }
         catch { }
+    }
+
+    private void ShowPreviewMessage(string title, string? hint)
+    {
+        PanelPreviewEmpty.IsVisible = true;
+        TxtPreviewEmpty.Text = title;
+        TxtPreviewEmptyHint.Text = hint ?? string.Empty;
+        TxtPreviewEmptyHint.IsVisible = hint != null;
     }
 
     private async Task UpdateLegacyFrameNoticeAsync(string? path, int request)
@@ -1058,19 +1213,7 @@ public partial class MainWindow : Window
         });
 
         if (files.Count > 0)
-        {
-            var fullPath = files[0].Path.LocalPath;
-            var model = new DiscoveredModel
-            {
-                FullPath = fullPath,
-                Display = Path.GetFileName(fullPath)
-            };
-            CmbTargetVmdl.ItemsSource = new List<DiscoveredModel> { model };
-            CmbTargetVmdl.SelectedIndex = 0;
-            UpdateHeroDetailsFromPath(fullPath);
-            _ = Init3DSceneAsync(fullPath);
-            Log($"manually loaded model: {Path.GetFileName(fullPath)}");
-        }
+            SelectModelFile(files[0].Path.LocalPath);
     }
 
     private void Rescan_Click(object? sender, RoutedEventArgs e)

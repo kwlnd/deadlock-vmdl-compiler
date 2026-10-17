@@ -7,8 +7,10 @@
         Icon="avares://DeadlockVmdlCompiler/AppIcon.ico"
         Width="1100" Height="740" MinWidth="960" MinHeight="620"
         Background="{StaticResource StudioWindow}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        DragDrop.AllowDrop="True">
 
+    <Grid>
     <Grid Margin="14">
         <Grid ColumnDefinitions="430,12,*">
             <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto"
@@ -492,7 +494,23 @@
                 <Border Grid.Row="2" Classes="studio-card" Padding="6">
                     <Border Classes="studio-inset" Background="{StaticResource StudioViewport}"
                             ClipToBounds="True">
-                        <controls:Model3DViewportControl x:Name="ModelViewport"/>
+                        <Grid>
+                            <controls:Model3DViewportControl x:Name="ModelViewport"/>
+                            <StackPanel x:Name="PanelPreviewEmpty" Spacing="8" IsHitTestVisible="False"
+                                        HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Viewbox Width="28" Height="28" HorizontalAlignment="Center">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Classes="icon muted" Data="{StaticResource IconBox}"/>
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="TxtPreviewEmpty" Text="no model selected" FontSize="13"
+                                           FontWeight="SemiBold" Foreground="{StaticResource StudioTextSoft}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock x:Name="TxtPreviewEmptyHint" Classes="field-hint" TextAlignment="Center"
+                                           HorizontalAlignment="Center" MaxWidth="300" TextWrapping="Wrap"
+                                           Text="pick an addon and a target vmdl on the left, or drop a .vmdl file or an addon folder on this window."/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Border>
 
@@ -535,15 +553,29 @@
                 <Border Grid.Row="6" Classes="studio-card" Padding="5">
                     <Border Classes="studio-inset" Background="{StaticResource StudioViewport}">
                         <ScrollViewer x:Name="ScrollLog">
-                            <TextBox x:Name="TxtLog" Background="Transparent" BorderThickness="0"
-                                     Foreground="{StaticResource StudioText}"
-                                     FontFamily="Consolas,Cascadia Code,Monospace" FontSize="11.5"
-                                     IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-                                     Padding="6,4"/>
+                            <SelectableTextBlock x:Name="TxtLog" Foreground="{StaticResource StudioText}"
+                                                 FontFamily="Consolas,Cascadia Code,Monospace" FontSize="11.5"
+                                                 TextWrapping="Wrap" Padding="8,6" LineHeight="17"/>
                         </ScrollViewer>
                     </Border>
                 </Border>
             </Grid>
         </Grid>
+    </Grid>
+
+        <!-- Shown while a file or folder is dragged over the window. -->
+        <Border x:Name="BorderDropOverlay" IsVisible="False" IsHitTestVisible="False"
+                Background="#CC0E1219" BorderBrush="{StaticResource StudioAccent}" BorderThickness="2"
+                CornerRadius="8" Margin="8">
+            <StackPanel Spacing="8" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Viewbox Width="32" Height="32" HorizontalAlignment="Center">
+                    <Canvas Width="24" Height="24">
+                        <Path Classes="icon" Data="{StaticResource IconFolderOpen}"/>
+                    </Canvas>
+                </Viewbox>
+                <TextBlock Text="drop a .vmdl or an addon folder" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{StaticResource StudioText}" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
