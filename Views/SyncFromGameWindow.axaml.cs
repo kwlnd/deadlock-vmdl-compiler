@@ -6,7 +6,7 @@ namespace DeadlockVmdlCompiler.Views;
 
 public partial class SyncFromGameWindow : Window
 {
-    public VmdlPipeline.GameSyncOptions? Result { get; private set; }
+    public GameSync.GameSyncOptions? Result { get; private set; }
     public bool AllModels { get; private set; }
 
     public SyncFromGameWindow()
@@ -29,7 +29,7 @@ public partial class SyncFromGameWindow : Window
         }
     }
 
-    private VmdlPipeline.GameSyncOptions Options() => new(
+    private GameSync.GameSyncOptions Options() => new(
         ChkFixFrame.IsChecked == true,
         ChkAttachments.IsChecked == true,
         ChkGameData.IsChecked == true);

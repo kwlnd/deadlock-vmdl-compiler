@@ -71,7 +71,7 @@ public static class VmdlScanner
                 if (string.IsNullOrEmpty(hero))
                     continue;
 
-                var (_, _, subpath) = VmdlPipeline.ParseCsdkPath(fullPath, searchPath);
+                var (_, _, subpath) = CsdkPaths.ParseCsdkPath(fullPath, searchPath);
 
                 // Clean display without any bracket prefixes
                 results.Add(new DiscoveredModel

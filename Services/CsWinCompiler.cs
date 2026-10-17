@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
-using DeadlockVmdlCompiler.Models;
 using ValveResourceFormat;
 
 namespace DeadlockVmdlCompiler.Services;
 
-public static class VmdlPipeline
+/// <summary>Compiles a ModelDoc model with CSWin64: AG2 injection, resourcecompiler, verification and deployment.</summary>
+public static class CsWinCompiler
 {
     public const string ModelDoc41Header = "<!-- kv3 encoding:text:version{e21c7f3c-8a33-41c5-9977-a76d3a32aa0d} format:modeldoc41:version{12fc9d44-453a-4ae4-b4d9-7e2ac0bbd4e0} -->";
     public const string DefaultCsWinDir = @"A:\modding\CSWin64";
@@ -121,136 +121,6 @@ public static class VmdlPipeline
 
     public static bool IsValidCsWinDir(string? path) => ResolveCsWinLayout(path) != null;
 
-    public static string? DetectHeroFromPath(string filepath)
-    {
-        var db = HeroDatabase.GetDatabase();
-        var clean = filepath.Replace('\\', '/').ToLowerInvariant();
-        var parts = clean.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0)
-            return null;
-
-        // Variant models can share a parent folder and skeleton with the base model.
-        var filename = Path.GetFileNameWithoutExtension(filepath).ToLowerInvariant();
-        if (db.ContainsKey(filename)) return filename;
-
-        // Older game folders and local databases can use names removed from the
-        // curated preset menu. Resolve them to the remaining preset first.
-        var renamedFolders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["deadman_danny"] = "deadpack",
-            ["familiar"] = "familiar_wip",
-            ["ghost"] = "geist",
-            ["gigawatt_prisoner"] = "seven",
-            ["hornet"] = "vindicta",
-            ["inferno"] = "infernus",
-            ["lady_geist"] = "geist",
-            ["nano"] = "calico",
-            ["nurse_harrow"] = "nurse",
-            ["rat_king"] = "ratking",
-            ["solomon"] = "chessmaster",
-            ["synth"] = "pocket",
-            ["tengu"] = "ivy",
-            ["violet"] = "artist"
-        };
-
-        // Check parent folder names from closest upwards
-        for (int i = parts.Length - 2; i >= 0; i--)
-        {
-            var folder = parts[i];
-            var renamed = renamedFolders
-                .Where(pair => folder.Equals(pair.Key, StringComparison.OrdinalIgnoreCase) ||
-                               folder.StartsWith(pair.Key + "_", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(pair => pair.Key.Length)
-                .FirstOrDefault();
-            if (renamed.Value != null && db.ContainsKey(renamed.Value))
-                return renamed.Value;
-            if (db.ContainsKey(folder))
-                return folder;
-            var versionedMatch = db.Keys
-                .Where(key => folder.StartsWith(key + "_", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(key => key.Length)
-                .FirstOrDefault();
-            if (versionedMatch != null)
-                return versionedMatch;
-        }
-
-        return null;
-    }
-
-    public static (string Container, string AddonName, string Subpath) ParseCsdkPath(string csdkPath, string? citadelAddonsDir = null)
-    {
-        var clean = csdkPath.Replace('\\', '/');
-
-        // 1. Standard pattern: .../content/(citadel_addons|citadel_community_addons|citadel)/<addon_name>/<subpath>
-        var m = Regex.Match(clean, @"content/(citadel_addons|citadel_community_addons|citadel)/([^/]+)/(.+)$", RegexOptions.IgnoreCase);
-        if (m.Success)
-            return (m.Groups[1].Value, m.Groups[2].Value, m.Groups[3].Value);
-
-        // 2. General content subfolder pattern: .../content/<addon_name>/<subpath>
-        var m2 = Regex.Match(clean, @"content/([^/]+)/(.+)$", RegexOptions.IgnoreCase);
-        if (m2.Success)
-            return ("citadel_addons", m2.Groups[1].Value, m2.Groups[2].Value);
-
-        // 3. Relative to configured citadelAddonsDir
-        if (!string.IsNullOrWhiteSpace(citadelAddonsDir))
-        {
-            var cleanAddons = citadelAddonsDir.Replace('\\', '/').TrimEnd('/');
-            if (clean.StartsWith(cleanAddons + "/", StringComparison.OrdinalIgnoreCase))
-            {
-                var rel = clean[(cleanAddons.Length + 1)..];
-                var parts = rel.Split('/', 2);
-                if (parts.Length == 2)
-                    return ("citadel_addons", parts[0], parts[1]);
-                return ("citadel_addons", "addon", parts[0]);
-            }
-        }
-
-        return ("citadel_addons", "addon", Path.GetFileName(clean));
-    }
-
-    private static string? FindCsdkRoot(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path)) return null;
-        var clean = path.Replace('\\', '/');
-        var standard = Regex.Match(clean, @"^(.*?)/content/(citadel_addons|citadel_community_addons|citadel)(/|$)",
-            RegexOptions.IgnoreCase);
-        if (standard.Success) return standard.Groups[1].Value;
-        var index = clean.IndexOf("/content/", StringComparison.OrdinalIgnoreCase);
-        return index >= 0 ? clean[..index] : null;
-    }
-
-    /// <summary>The one place that decides where an addon's compiled files live; deploy and packaging share it.</summary>
-    public static string ResolveGameAddonDir(string targetVmdlPath, string? citadelAddonsDir, string addonName)
-    {
-        var (container, _, _) = ParseCsdkPath(targetVmdlPath, citadelAddonsDir);
-        var root = FindCsdkRoot(targetVmdlPath) ?? FindCsdkRoot(citadelAddonsDir);
-        if (root != null)
-            return Path.Combine(root.Replace('/', Path.DirectorySeparatorChar), "game", container, addonName);
-
-        if (!string.IsNullOrWhiteSpace(citadelAddonsDir))
-        {
-            var parent = Directory.GetParent(citadelAddonsDir)?.FullName;
-            if (!string.IsNullOrEmpty(parent))
-                return Path.Combine(parent, "game", "citadel_addons", addonName);
-        }
-
-        return Path.Combine(Path.GetDirectoryName(targetVmdlPath) ?? string.Empty, "game", addonName);
-    }
-
-    public static (string Skel, string Graph, string UiGraph) DeriveDefaultPaths(string vmdlPath)
-    {
-        var db = HeroDatabase.GetDatabase();
-        var hero = DetectHeroFromPath(vmdlPath);
-
-        if (hero != null && db.TryGetValue(hero, out var preset))
-        {
-            return (preset.Skel, preset.Graph, preset.UiGraph);
-        }
-
-        // There is no reliable way to infer compiled Deadlock references from a custom VMDL path.
-        return (string.Empty, string.Empty, string.Empty);
-    }
-
     public static ModelDocEdit UpgradeVmdlContent(
         string content,
         string skelPath,
@@ -269,6 +139,9 @@ public static class VmdlPipeline
         string Stage,
         string Detail
     );
+
+    // CSWin64 has no Deadlock shaders, so every synced .vmat fails to compile there.
+    // The model only stores the material path, so this block is expected and harmless.
 
     // CSWin64 has no Deadlock shaders, so every synced .vmat fails to compile there.
     // The model only stores the material path, so this block is expected and harmless.
@@ -398,7 +271,7 @@ public static class VmdlPipeline
         }
         using var materialGuard = gameInfoGuard;
 
-        var (_, addonName, subpath) = ParseCsdkPath(csdk12VmdlPath, useCitadelDir);
+        var (_, addonName, subpath) = CsdkPaths.ParseCsdkPath(csdk12VmdlPath, useCitadelDir);
 
         var csWinAddonRoot = Path.Combine(layout.ContentRoot, "csgo_addons", addonName);
         var csWinVmdlPath = Path.Combine(csWinAddonRoot, subpath);
@@ -463,7 +336,7 @@ public static class VmdlPipeline
         {
             try
             {
-                SynchronizeAnimationSourceFiles(upgradedVmdlContent,
+                AnimationNodes.SynchronizeAnimationSourceFiles(upgradedVmdlContent,
                     csdkVmdlDir ?? string.Empty, csdkAddonRoot, csWinAddonRoot, onLog);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -474,7 +347,7 @@ public static class VmdlPipeline
 
         // 2. Keep the manual override and the contributor's automatic mode.
         progress?.Report(new CompileProgress(50, "[3/5] preparing modeldoc", "temporary definition..."));
-        var csWinContent = PrepareAnimationNodesForCompilation(upgradedVmdlContent,
+        var csWinContent = AnimationNodes.PrepareAnimationNodesForCompilation(upgradedVmdlContent,
             disableAnimationList, autoDetectAnims, csdkVmdlDir ?? string.Empty, csWinVmdlDir,
             csdkAddonRoot, csWinAddonRoot, onLog);
 
@@ -587,7 +460,7 @@ public static class VmdlPipeline
         progress?.Report(new CompileProgress(90, "[5/5] deploying model", Path.GetFileName(csWinCompiledVmdlc)));
 
         var csdk12GameVmdlc = Path.GetFullPath(Path.Combine(
-            ResolveGameAddonDir(csdk12VmdlPath, useCitadelDir, addonName), subpath + "_c"));
+            CsdkPaths.ResolveGameAddonDir(csdk12VmdlPath, useCitadelDir, addonName), subpath + "_c"));
 
         Directory.CreateDirectory(Path.GetDirectoryName(csdk12GameVmdlc)!);
         beforeDeploy?.Invoke(csdk12GameVmdlc);
@@ -656,36 +529,12 @@ public static class VmdlPipeline
         }
     }
 
-    private static bool NeedsCopy(string source, string destination)
+    internal static bool NeedsCopy(string source, string destination)
     {
         var from = new FileInfo(source);
         var to = new FileInfo(destination);
         // File.Copy keeps the timestamp, so any difference means the source was replaced.
         return !to.Exists || from.Length != to.Length || from.LastWriteTimeUtc != to.LastWriteTimeUtc;
-    }
-
-    private static string CreateUniqueBackup(string sourcePath)
-    {
-        var basePath = sourcePath + ".bak";
-        var content = File.ReadAllBytes(sourcePath);
-        for (var number = 0; ; number++)
-        {
-            var destination = number == 0 ? basePath : basePath + "." + number;
-            try
-            {
-                if (File.Exists(destination))
-                {
-                    // Preserve every previous backup, but do not pile up identical copies.
-                    if (File.ReadAllBytes(destination).AsSpan().SequenceEqual(content)) return destination;
-                    continue;
-                }
-                File.Copy(sourcePath, destination, overwrite: false);
-                return destination;
-            }
-            catch (IOException) when (File.Exists(destination))
-            {
-            }
-        }
     }
 
     public static string BuildResourceCompilerArguments(string vmdlPath, string gamePath,
@@ -726,7 +575,7 @@ public static class VmdlPipeline
 
         progress?.Report(new CompileProgress(10, "[1/5] preparing source", Path.GetFileName(filepath)));
 
-        var (defSkel, defGraph, defUiGraph) = DeriveDefaultPaths(filepath);
+        var (defSkel, defGraph, defUiGraph) = CsdkPaths.DeriveDefaultPaths(filepath);
         var useSkel = !string.IsNullOrWhiteSpace(skelPath) ? skelPath : defSkel;
         var useGraph = !string.IsNullOrWhiteSpace(graphPath) ? graphPath :
             (namedGraphs is { Count: > 0 } ? string.Empty : defGraph);
@@ -797,7 +646,7 @@ public static class VmdlPipeline
             // The source only needs a backup when it is about to be rewritten.
             if (createBackup && upgradedContent != origContent)
             {
-                var bakFile = CreateUniqueBackup(filepath);
+                var bakFile = ModelDocTools.CreateUniqueBackup(filepath);
                 onLog?.Invoke($"[backup] created backup: {Path.GetFileName(bakFile)}");
             }
             await File.WriteAllTextAsync(filepath, upgradedContent);
@@ -834,9 +683,9 @@ public static class VmdlPipeline
         if (layout == null)
             return (false, $"CSWin64 resourcecompiler.exe was not found in: {useCsWinDir}", 0);
 
-        var (container, addonName, subpath) = ParseCsdkPath(filepath, useCitadelDir);
+        var (container, addonName, subpath) = CsdkPaths.ParseCsdkPath(filepath, useCitadelDir);
 
-        var (defSkel, defGraph, defUiGraph) = DeriveDefaultPaths(filepath);
+        var (defSkel, defGraph, defUiGraph) = CsdkPaths.DeriveDefaultPaths(filepath);
         var useSkel = !string.IsNullOrWhiteSpace(skelPath) ? skelPath : defSkel;
         var useGraph = !string.IsNullOrWhiteSpace(graphPath) ? graphPath :
             (namedGraphs is { Count: > 0 } ? string.Empty : defGraph);
@@ -917,159 +766,5 @@ public static class VmdlPipeline
 
         var destVmdlPath = Path.Combine(contentAddonDir, subpath);
         return (true, $"Exported model & {filesCopied} asset(s) to CSWin64 addon: {destVmdlPath}", filesCopied);
-    }
-
-    public static string DisableAnimationNodesForCompilation(string content, bool disableAnimationList = true)
-    {
-        // Decompiled CSDK12 sources may already contain disabled = true. The checkbox
-        // must override that source state in both directions for the CSWin64 copy.
-        content = ModelDocAg2Editor.SetNodeDisabled(content, "AnimationList", disableAnimationList);
-        content = DisableNodeByClass(content, "EmptyAnimGraph");
-        content = DisableNodeByClass(content, "AnimGraph");
-        return content;
-    }
-
-    public static string PrepareAnimationNodesForCompilation(string content,
-        bool disableAnimationList, bool autoDetectAnims, string csdkVmdlDir,
-        string csWinVmdlDir, string csdkAddonRoot, string csWinAddonRoot, Action<string>? onLog = null)
-    {
-        if (disableAnimationList || !autoDetectAnims)
-        {
-            onLog?.Invoke($"[animations] AnimationList {(disableAnimationList ? "disabled by manual override" : "enabled; automatic detection off")}");
-            return DisableAnimationNodesForCompilation(content, disableAnimationList);
-        }
-        var result = AutoDisableAnimationNodesForCompilation(content,
-            csdkVmdlDir, csWinVmdlDir, csdkAddonRoot, csWinAddonRoot);
-        onLog?.Invoke($"[animations] {result.FoundCount} clip source(s) found" +
-                      (result.MissingCount > 0 ? $", {result.MissingCount} missing and disabled for this compile" : string.Empty));
-        return result.Content;
-    }
-
-    public static int SynchronizeAnimationSourceFiles(string content, string csdkVmdlDir,
-        string csdkAddonRoot, string csWinAddonRoot, Action<string>? onLog = null)
-    {
-        var copied = 0;
-        foreach (var filename in ModelDocAg2Editor.GetAnimationSourcePaths(content))
-        {
-            var source = AnimationSourceResolver.Resolve(filename, csdkAddonRoot, csdkVmdlDir);
-            if (source == null) continue;
-            var destination = Path.GetFullPath(Path.Combine(csWinAddonRoot,
-                Path.GetRelativePath(csdkAddonRoot, source)));
-            if (!destination.StartsWith(Path.TrimEndingDirectorySeparator(Path.GetFullPath(csWinAddonRoot)) +
-                    Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                throw new IOException($"Animation path leaves the CSWin64 addon: {filename}");
-            if (NeedsCopy(source, destination))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                File.Copy(source, destination, overwrite: true);
-                copied++;
-            }
-        }
-        if (copied > 0) onLog?.Invoke($"[sync] copied {copied} animation source(s) from outside the model folder");
-        return copied;
-    }
-
-    /// <summary>Preserves available clips and disables missing sources at their exact authored paths.</summary>
-    public static (string Content, int FoundCount, int MissingCount) AutoDisableAnimationNodesForCompilation(
-        string content, string csdkVmdlDir, string csWinVmdlDir, string csdkAddonRoot, string csWinAddonRoot)
-    {
-        content = DisableAnimationNodesForCompilation(content, disableAnimationList: false);
-        return ModelDocAg2Editor.ApplyAnimationFileAvailability(content, filename =>
-            AnimationSourceResolver.Resolve(filename, csdkAddonRoot, csdkVmdlDir) != null ||
-            AnimationSourceResolver.Resolve(filename, csWinAddonRoot, csWinVmdlDir) != null);
-    }
-
-    private static string DisableNodeByClass(string content, string className) =>
-        ModelDocAg2Editor.SetNodeDisabled(content, className, disabled: true);
-
-    public static async Task<OperationResult> SanitizeVmdlForModelDocAsync(
-        string vmdlPath,
-        bool createBackup = true,
-        bool disableAnimationList = true)
-    {
-        vmdlPath = Path.GetFullPath(vmdlPath);
-        if (!File.Exists(vmdlPath))
-            return OperationResult.Fail($"File not found: {vmdlPath}");
-
-        var content = await File.ReadAllTextAsync(vmdlPath);
-        var (clean, changes) = Ag2Sanitizer.SanitizeVmdlContent(content, disableAnimationList);
-        if (clean == content)
-            return OperationResult.Ok("VMDL is already clean and ModelDoc compatible; nothing was changed", changed: false);
-
-        if (createBackup)
-            CreateUniqueBackup(vmdlPath);
-        await File.WriteAllTextAsync(vmdlPath, clean);
-        return OperationResult.Ok($"ModelDoc Fix Applied: {string.Join(", ", changes)}", changed: true);
-    }
-
-    public sealed record GameSyncOptions(bool FixAttachmentFrame, bool AddAttachments, bool GameData)
-    {
-        public bool NeedsGameModel => AddAttachments || GameData;
-    }
-
-    public static async Task<bool> UsesLegacyCameraFrameAsync(string vmdlPath)
-    {
-        if (!File.Exists(vmdlPath)) return false;
-        var content = await File.ReadAllTextAsync(vmdlPath);
-        return ModelDocAg2Editor.UsesLegacyRootFrame(content);
-    }
-
-    public static ModelDocEdit SyncFromGameContent(
-        string content, string gameContent, GameSyncOptions options) =>
-        ModelDocAg2Editor.SyncFromGame(content, gameContent, options.AddAttachments, options.GameData);
-
-    /// <summary>
-    /// Brings an authored .vmdl up to date with the installed game: converts old-frame root
-    /// attachments and copies the selected parts of the current game model into it.
-    /// </summary>
-    public static async Task<OperationResult> SyncFromGameAsync(
-        string vmdlPath,
-        GameSyncOptions options,
-        string? pak01VpkPath,
-        string? fallbackVpkPath,
-        bool createBackup = true,
-        Action<string>? onLog = null)
-    {
-        vmdlPath = Path.GetFullPath(vmdlPath);
-        if (!File.Exists(vmdlPath))
-            return OperationResult.Fail($"File not found: {vmdlPath}");
-
-        var original = await File.ReadAllTextAsync(vmdlPath);
-        var content = original;
-        var changes = new List<string>();
-        if (options.FixAttachmentFrame)
-        {
-            var migration = ModelDocAg2Editor.MigrateRootAttachments(content);
-            if (migration.Error != null)
-                return OperationResult.Fail(migration.Error);
-            content = migration.Content;
-            changes.AddRange(migration.Changes);
-        }
-
-        if (options.NeedsGameModel)
-        {
-            if (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath))
-                return OperationResult.Fail("Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.");
-            var gameText = await Task.Run(() => GameModelSource.LoadVmdl(pak01VpkPath,
-                [GameModelSource.GetVpkPath(vmdlPath), fallbackVpkPath], out var usedPath)
-                is { } text ? (text, usedPath) : default);
-            if (gameText.text is null)
-                return OperationResult.Fail("The game has no model at this addon path, and the hero preset does not name one.");
-            onLog?.Invoke($"[sync from game] read {gameText.usedPath}");
-
-            var sync = SyncFromGameContent(content, gameText.text, options);
-            if (sync.Error != null)
-                return OperationResult.Fail(sync.Error);
-            content = sync.Content;
-            changes.AddRange(sync.Changes);
-        }
-
-        if (content == original)
-            return OperationResult.Ok("The model already matches the game; nothing was changed", changed: false);
-
-        if (createBackup)
-            CreateUniqueBackup(vmdlPath);
-        await File.WriteAllTextAsync(vmdlPath, content);
-        return OperationResult.Ok("Synced from game: " + string.Join("; ", changes), changed: true);
     }
 }

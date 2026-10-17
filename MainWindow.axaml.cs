@@ -431,8 +431,8 @@ public partial class MainWindow : Window
 
     private async Task OfferProtectionReleaseAfterFailedPackAsync(string targetPath, string? citadelDir)
     {
-        var (_, addonName, _) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
-        var gameAddonDir = VmdlPipeline.ResolveGameAddonDir(targetPath, citadelDir, addonName);
+        var (_, addonName, _) = CsdkPaths.ParseCsdkPath(targetPath, citadelDir);
+        var gameAddonDir = CsdkPaths.ResolveGameAddonDir(targetPath, citadelDir, addonName);
         if (!_protectedModels.Values.Any(protection =>
                 IsModelInAddon(protection.Guard.ModelPath, gameAddonDir)))
             return;
@@ -535,7 +535,7 @@ public partial class MainWindow : Window
             Log("environment verified. ready.");
 
             // First-time setup wizard
-            var csValid = VmdlPipeline.IsValidCsWinDir(TxtCsWinPath.Text?.Trim());
+            var csValid = CsWinCompiler.IsValidCsWinDir(TxtCsWinPath.Text?.Trim());
             var citValid = !string.IsNullOrWhiteSpace(TxtCitadelPath.Text?.Trim()) && Directory.Exists(TxtCitadelPath.Text?.Trim());
 
             if (!csValid || !citValid)
@@ -828,7 +828,7 @@ public partial class MainWindow : Window
         try
         {
             if (!string.IsNullOrEmpty(path))
-                legacy = await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(path));
+                legacy = await Task.Run(() => GameSync.UsesLegacyCameraFrameAsync(path));
         }
         catch
         {
@@ -847,7 +847,7 @@ public partial class MainWindow : Window
         try
         {
             var csWinDir = TxtCsWinPath.Text?.Trim() ?? string.Empty;
-            var isValidCsWin = VmdlPipeline.IsValidCsWinDir(csWinDir);
+            var isValidCsWin = CsWinCompiler.IsValidCsWinDir(csWinDir);
 
             if (isValidCsWin)
             {
@@ -902,7 +902,7 @@ public partial class MainWindow : Window
         var csWinDir = TxtCsWinPath.Text?.Trim();
 
         bool citadelValid = !string.IsNullOrWhiteSpace(citadelDir) && Directory.Exists(citadelDir);
-        bool csWinValid = VmdlPipeline.IsValidCsWinDir(csWinDir);
+        bool csWinValid = CsWinCompiler.IsValidCsWinDir(csWinDir);
 
         if (!citadelValid || !csWinValid)
         {
@@ -997,7 +997,7 @@ public partial class MainWindow : Window
             if (TrySelectNpcPresetForPath(vmdlPath))
                 return;
 
-            var heroName = VmdlPipeline.DetectHeroFromPath(vmdlPath);
+            var heroName = CsdkPaths.DetectHeroFromPath(vmdlPath);
             var db = HeroDatabase.GetDatabase();
             if (string.IsNullOrEmpty(heroName) || !db.TryGetValue(heroName, out var preset))
             {
@@ -1031,7 +1031,7 @@ public partial class MainWindow : Window
     {
         if (_npcPresetChoices.Count == 0) return false;
 
-        var detectedKey = VmdlPipeline.DetectHeroFromPath(vmdlPath);
+        var detectedKey = CsdkPaths.DetectHeroFromPath(vmdlPath);
         var match = !string.IsNullOrWhiteSpace(detectedKey)
             ? _npcPresetChoices.FirstOrDefault(choice =>
                 choice.Key.Equals(detectedKey, StringComparison.OrdinalIgnoreCase))
@@ -1039,7 +1039,7 @@ public partial class MainWindow : Window
 
         if (match == null)
         {
-            var (_, _, subpath) = VmdlPipeline.ParseCsdkPath(
+            var (_, _, subpath) = CsdkPaths.ParseCsdkPath(
                 vmdlPath, TxtCitadelPath.Text?.Trim());
             var sourcePath = subpath.Replace('\\', '/');
             if (sourcePath.EndsWith(".vmdl", StringComparison.OrdinalIgnoreCase))
@@ -1266,7 +1266,7 @@ public partial class MainWindow : Window
         {
             _isProcessing = true;
             var disableAnimationList = ChkDisableAnimList.IsChecked == true;
-            var (success, msg, changed) = await Task.Run(() => VmdlPipeline.SanitizeVmdlForModelDocAsync(
+            var (success, msg, changed) = await Task.Run(() => ModelDocTools.SanitizeVmdlForModelDocAsync(
                 targetPath,
                 disableAnimationList: disableAnimationList
             ));
@@ -1318,7 +1318,7 @@ public partial class MainWindow : Window
             {
                 var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
                 var (success, msg, changed) = await Task.Run(() =>
-                    VmdlPipeline.SyncFromGameAsync(targetPath, options, pak01, fallback, onLog: Log));
+                    GameSync.SyncFromGameAsync(targetPath, options, pak01, fallback, onLog: Log));
                 Log(msg);
                 if (success)
                 {
@@ -1344,7 +1344,7 @@ public partial class MainWindow : Window
                     try
                     {
                         var (success, msg, changed) = await Task.Run(() =>
-                            VmdlPipeline.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
+                            GameSync.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
                         Log($"[sync from game] {name}: {msg}");
                         if (!success) failed.Add(name);
                         else if (changed) synced++;
@@ -1396,8 +1396,8 @@ public partial class MainWindow : Window
 
         try
         {
-            var (_, addonName, subpath) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
-            var gameAddonDir = VmdlPipeline.ResolveGameAddonDir(targetPath, citadelDir, addonName);
+            var (_, addonName, subpath) = CsdkPaths.ParseCsdkPath(targetPath, citadelDir);
+            var gameAddonDir = CsdkPaths.ResolveGameAddonDir(targetPath, citadelDir, addonName);
 
             if (!Directory.Exists(gameAddonDir))
             {
@@ -1425,7 +1425,7 @@ public partial class MainWindow : Window
                 : protectedState.UiGraph;
             var expectedNamedGraphs = protectedState is null
                 ? (ChkGraph.IsChecked == true ? _selectedNamedGraphs : null) : protectedState.NamedGraphs;
-            var verificationError = VmdlPipeline.VerifyCompiledAg2References(
+            var verificationError = CsWinCompiler.VerifyCompiledAg2References(
                 compiledPath,
                 expectedSkel, expectedGraph, expectedUiGraph, expectedNamedGraphs);
             if (verificationError != null)
@@ -1595,7 +1595,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!VmdlPipeline.IsValidCsWinDir(csWinDir))
+        if (!CsWinCompiler.IsValidCsWinDir(csWinDir))
         {
             Log("[export] cswin64 directory is invalid or resourcecompiler.exe is missing.");
             await DialogService.ShowErrorAsync(this, "compiler missing", "cswin64 directory is invalid or missing resourcecompiler.exe.");
@@ -1612,7 +1612,7 @@ public partial class MainWindow : Window
             var addGraph = ChkGraph.IsChecked == true;
             var addUiGraph = ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true;
             var namedGraphs = _selectedNamedGraphs;
-            var (success, msg, filesCopied) = await Task.Run(() => VmdlPipeline.ExportToCsWinAddonAsync(
+            var (success, msg, filesCopied) = await Task.Run(() => CsWinCompiler.ExportToCsWinAddonAsync(
                 targetPath,
                 skelPath: skel,
                 graphPath: graph,
@@ -1662,7 +1662,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (!await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(targetPath)))
+            if (!await Task.Run(() => GameSync.UsesLegacyCameraFrameAsync(targetPath)))
                 return true;
             var choice = await DialogService.ShowChoiceAsync(this, "old camera attachments",
                 "this model was made before the october 2026 update. compiled as it is, its cameras will be misplaced in game.\n\n" +
@@ -1672,8 +1672,8 @@ public partial class MainWindow : Window
             if (choice == DialogService.Choice.Alternative) return true;
 
             var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
-            var (synced, syncMessage, _) = await Task.Run(() => VmdlPipeline.SyncFromGameAsync(targetPath,
-                new VmdlPipeline.GameSyncOptions(true, true, true),
+            var (synced, syncMessage, _) = await Task.Run(() => GameSync.SyncFromGameAsync(targetPath,
+                new GameSync.GameSyncOptions(true, true, true),
                 deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null, heroFallback, onLog: Log));
             Log(syncMessage);
             _ = UpdateLegacyFrameNoticeAsync(targetPath, _previewRequest);
@@ -1712,7 +1712,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!VmdlPipeline.IsValidCsWinDir(csWinDir))
+        if (!CsWinCompiler.IsValidCsWinDir(csWinDir))
         {
             Log("[compile error] cswin64 compiler path is invalid or missing resourcecompiler.exe.");
             await DialogService.ShowErrorAsync(this, "compiler missing", "cswin64 compiler path is invalid or missing resourcecompiler.exe.");
@@ -1726,7 +1726,7 @@ public partial class MainWindow : Window
         var addGraph = ChkGraph.IsChecked == true;
         var addUiGraph = ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true;
         var namedGraphs = addGraph ? _selectedNamedGraphs : null;
-        var (defaultSkel, defaultGraph, defaultUiGraph) = VmdlPipeline.DeriveDefaultPaths(targetPath);
+        var (defaultSkel, defaultGraph, defaultUiGraph) = CsdkPaths.DeriveDefaultPaths(targetPath);
         var expectedSkel = addSkel ? (string.IsNullOrWhiteSpace(requestedSkel) ? defaultSkel : requestedSkel) : null;
         var expectedGraph = addGraph ? (string.IsNullOrWhiteSpace(requestedGraph)
             ? (namedGraphs is { Count: > 0 } ? null : defaultGraph) : requestedGraph) : null;
@@ -1762,7 +1762,7 @@ public partial class MainWindow : Window
 
             Log($"[compile] starting compilation for: {Path.GetFileName(targetPath)}");
 
-            var progress = new Progress<VmdlPipeline.CompileProgress>(p =>
+            var progress = new Progress<CsWinCompiler.CompileProgress>(p =>
             {
                 Dispatcher.UIThread.Post(() =>
                 {
@@ -1776,7 +1776,7 @@ public partial class MainWindow : Window
             var compilerErrors = new List<string>();
             // Parsing, asset sync and the compiler all stay off the UI thread;
             // the deploy callbacks touch window state, so they hop back.
-            var (success, msg) = await Task.Run(() => VmdlPipeline.ProcessVmdlFileAsync(
+            var (success, msg) = await Task.Run(() => CsWinCompiler.ProcessVmdlFileAsync(
                 targetPath,
                 skelPath: requestedSkel,
                 graphPath: requestedGraph,
@@ -1892,7 +1892,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var (_, addonName, _) = VmdlPipeline.ParseCsdkPath(targetPath, citadelDir);
+            var (_, addonName, _) = CsdkPaths.ParseCsdkPath(targetPath, citadelDir);
 
             var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
             if (!deadlockInfo.IsValid || !File.Exists(deadlockInfo.DeadlockExePath))
