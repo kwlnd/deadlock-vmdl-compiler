@@ -1,22 +1,25 @@
 # Bundled ValveResourceFormat package
 
-`ValveResourceFormat.20.0.7151-vcs72.1.nupkg` preserves the experimental cloth
-exporter used by the working `deadlock-model-decompiler` project and adds VCS 72
-shader support required by the September 2026 Deadlock update. The local version
-distinguishes it from official NuGet releases. Upstream MIT licenses and notices
-are retained.
+`ValveResourceFormat.20.2.0-master.aab066c.nupkg` is built from upstream
+ValveResourceFormat `master` at commit
+[`aab066c`](https://github.com/ValveResourceFormat/ValveResourceFormat/commit/aab066c),
+because no NuGet release contains everything Deadlock needs yet:
 
-Source:
+- the cloth exporter (`ValveResourceFormat/IO/Extract/Cloth`), which rebuilds cloth
+  chains, proxy meshes and collision shapes from the FeModel;
+- VCS 72 shader support;
+- the binary KV3 types used by models since the October 2026 update. The 20.0 and
+  20.1 releases fail on them with `Unknown KVType ... 26`.
 
-- Original cloth-enabled merge commit: [`8232238a10ba67bfbce8b2c5086b0d7d3e18b8ae`](https://github.com/ValveResourceFormat/ValveResourceFormat/commit/8232238a10ba67bfbce8b2c5086b0d7d3e18b8ae).
-- VCS 72 support: [`cbca49a0bcf56633825b5efbe0e6cd4599dd156c`](https://github.com/ValveResourceFormat/ValveResourceFormat/commit/cbca49a0bcf56633825b5efbe0e6cd4599dd156c).
-- `ValveResourceFormat-vcs72.patch` contains the shader library changes applied to the original source. Model and cloth export source is unchanged.
+The prerelease version label distinguishes it from official NuGet releases. Upstream
+MIT licenses and notices are retained.
 
-To rebuild, check out the original merge commit, apply the included patch from
-the VRF repository root, and run:
+To rebuild, check out that commit in the VRF repository and run:
 
 ```powershell
-dotnet pack ValveResourceFormat/ValveResourceFormat.csproj -c Release -p:PackageVersion=20.0.7151-vcs72.1 -p:TreatWarningsAsErrors=false
+dotnet pack ValveResourceFormat/ValveResourceFormat.csproj -c Release -p:PackageVersion=20.2.0-master.aab066c -p:TreatWarningsAsErrors=false
 ```
 
-SHA256: `D141534CB6BF0892918D34AB9BEE950171803F976ED0C74E690A1F1DA9DEBC14`
+SHA256: `0FB3364F143A83D95723833413C1AC4ED70CA0841586F4C52242DC76FC800DD8`
+
+`valvepak.6.0.0.182.nupkg` is the ValvePak version this VRF build references.

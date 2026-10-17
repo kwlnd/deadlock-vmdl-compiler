@@ -1103,6 +1103,50 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void BtnSyncFromGame_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_isProcessing) return;
+        var targetPath = GetResolvedTargetPath();
+        if (string.IsNullOrEmpty(targetPath) || !File.Exists(targetPath))
+        {
+            Log("[sync from game] please select a target .vmdl file first.");
+            await DialogService.ShowErrorAsync(this, "selection required", "please select a target .vmdl model file first.");
+            return;
+        }
+
+        var dialog = new SyncFromGameWindow(targetPath);
+        await dialog.ShowDialog(this);
+        if (dialog.Result is not { } options) return;
+
+        try
+        {
+            _isProcessing = true;
+            var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
+            var pak01 = deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null;
+            var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
+            var (success, msg, changed) = await Task.Run(() =>
+                VmdlPipeline.SyncFromGameAsync(targetPath, options, pak01, fallback, onLog: Log));
+            Log(msg);
+            if (success)
+            {
+                await DialogService.ShowInfoAsync(this, changed ? "model synced" : "nothing to sync", msg);
+            }
+            else
+            {
+                await DialogService.ShowErrorAsync(this, "sync from game failed", msg);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"[sync from game error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "sync from game error", ex.Message);
+        }
+        finally
+        {
+            _isProcessing = false;
+        }
+    }
+
     private async Task<bool> MakeVpkAsync(
         bool suppressSuccessDialog = false,
         string? targetPathOverride = null,

@@ -62,16 +62,19 @@ internal static class ModelDocAg2Editor
         }
 
         foreach (var node in outermost.AsEnumerable().Reverse())
-        {
-            var end = node.End;
-            while (end < content.Length && content[end] is ' ' or '\t') end++;
-            if (end < content.Length && content[end] == ',') end++;
-            while (end < content.Length && content[end] is '\r' or '\n') end++;
-            var start = node.Start;
-            while (start > 0 && content[start - 1] is ' ' or '\t') start--;
-            content = content.Remove(start, end - start);
-        }
+            content = RemoveNode(content, node);
         return content;
+    }
+
+    private static string RemoveNode(string content, Node node)
+    {
+        var end = node.End;
+        while (end < content.Length && content[end] is ' ' or '\t') end++;
+        if (end < content.Length && content[end] == ',') end++;
+        while (end < content.Length && content[end] is '\r' or '\n') end++;
+        var start = node.Start;
+        while (start > 0 && content[start - 1] is ' ' or '\t') start--;
+        return content.Remove(start, end - start);
     }
 
     private static IEnumerable<Node> EnumerateAllNodes(string content)
@@ -332,6 +335,294 @@ internal static class ModelDocAg2Editor
         }
 
         return (content, changes);
+    }
+
+    // Deadlock's October 2026 update moved every root_motion attachment from a Y-up
+    // frame (standing_pivot at angles -90 -90 0) into the bone's own Z-up frame.
+    private static readonly string[] CameraPivots = ["standing_pivot", "crouching_pivot"];
+    private static readonly double[] LegacyRootFrame = AnglesToQuaternion(-90, -90, 0);
+    private static readonly double[] IdentityFrame = [0, 0, 0, 1];
+
+    /// <summary>
+    /// Converts root_motion attachments authored in the old frame. Offsets [x,y,z] become
+    /// [z,x,y] and rotations lose the old basis, so authored adjustments survive the move.
+    /// </summary>
+    internal static (string Content, List<string> Changes) MigrateRootAttachments(string content)
+    {
+        var changes = new List<string>();
+        var nodes = EnumerateAllNodes(content)
+            .Where(node => node.ClassName.Equals("Attachment", StringComparison.OrdinalIgnoreCase) &&
+                           FieldValue(content, node, "parent_bone").Equals("root_motion", StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(node => node.Start).ToList();
+        var pivots = nodes.Where(node => CameraPivots.Contains(FieldValue(content, node, "name"),
+            StringComparer.OrdinalIgnoreCase)).ToList();
+        if (pivots.Count == 0)
+        {
+            changes.Add("Error: No standing_pivot or crouching_pivot attachment on root_motion was found.");
+            return (content, changes);
+        }
+
+        var frames = pivots.Select(node => ReadVector(content, node, "relative_angles") is { Length: 3 } angles
+            ? AnglesToQuaternion(angles[0], angles[1], angles[2]) : IdentityFrame).ToList();
+        if (frames.All(frame => SameRotation(frame, IdentityFrame)))
+            return (content, changes);
+        if (!frames.All(frame => SameRotation(frame, LegacyRootFrame)))
+        {
+            changes.Add("Error: Camera pivots use mixed or custom rotations; attachments were left unchanged.");
+            return (content, changes);
+        }
+
+        var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+        var names = new List<string>();
+        foreach (var node in nodes)
+        {
+            var origin = ReadVector(content, node, "relative_origin") ?? [0, 0, 0];
+            var angles = ReadVector(content, node, "relative_angles") ?? [0, 0, 0];
+            if (origin.Length != 3 || angles.Length != 3)
+            {
+                changes.Add($"Error: Attachment '{FieldValue(content, node, "name")}' has an unreadable transform.");
+                return (content, changes);
+            }
+
+            var q = AnglesToQuaternion(angles[0], angles[1], angles[2]);
+            var (x, y, z, w) = (q[0], q[1], q[2], q[3]);
+            var migrated = QuaternionToAngles(
+                (x + w + z - y) * 0.5, (y + w + x - z) * 0.5, (z + w + y - x) * 0.5, (w - x - y - z) * 0.5);
+            var block = content.Substring(node.Start, node.End - node.Start);
+            var local = node with { Start = 0, End = block.Length };
+            block = SetVector(block, local, "relative_angles", migrated, newline);
+            block = SetVector(block, local with { End = block.Length }, "relative_origin",
+                [origin[2], origin[0], origin[1]], newline);
+            content = content.Remove(node.Start, node.End - node.Start).Insert(node.Start, block);
+            names.Add(FieldValue(block, local with { End = block.Length }, "name"));
+        }
+
+        names.Reverse();
+        changes.Add($"Moved {names.Count} root_motion attachment(s) to the current frame: {string.Join(", ", names)}");
+        return (content, changes);
+    }
+
+    /// <summary>
+    /// Copies current game data into an authored model: attachments the model lacks, the
+    /// game's settings structs (GenericGameData classes ending in _t), and optionally the
+    /// hitbox sets. Nodes that exist only in the authored model are kept.
+    /// </summary>
+    internal static (string Content, List<string> Changes) SyncFromGame(
+        string content, string game, bool attachments, bool gameData, bool hitboxes)
+    {
+        var changes = new List<string>();
+        var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
+
+        if (attachments)
+        {
+            var existing = EnumerateAllNodes(content)
+                .Where(node => node.ClassName.Equals("Attachment", StringComparison.OrdinalIgnoreCase))
+                .Select(node => FieldValue(content, node, "name")).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var missing = EnumerateAllNodes(game)
+                .Where(node => node.ClassName.Equals("Attachment", StringComparison.OrdinalIgnoreCase) &&
+                               !existing.Contains(FieldValue(game, node, "name")))
+                .OrderBy(node => node.Start).ToList();
+            foreach (var node in missing)
+            {
+                if (!AppendChild(ref content, "AttachmentList", game, node, newline))
+                {
+                    changes.Add("Error: Could not locate or create the AttachmentList.");
+                    return (content, changes);
+                }
+            }
+            if (missing.Count > 0)
+                changes.Add($"Added {missing.Count} attachment(s): {string.Join(", ", missing.Select(node => FieldValue(game, node, "name")))}");
+        }
+
+        if (gameData)
+        {
+            static string Key(string text, Node node) =>
+                FieldValue(text, node, "game_class") + "\0" + FieldValue(text, node, "name");
+            var updated = new List<string>();
+            var added = new List<string>();
+            foreach (var source in EnumerateAllNodes(game)
+                         .Where(node => node.ClassName.Equals("GenericGameData", StringComparison.OrdinalIgnoreCase) &&
+                                        FieldValue(game, node, "game_class").EndsWith("_t", StringComparison.Ordinal))
+                         .OrderBy(node => node.Start).ToList())
+            {
+                var key = Key(game, source);
+                var gameClass = FieldValue(game, source, "game_class");
+                var target = EnumerateAllNodes(content).FirstOrDefault(node =>
+                    node.ClassName.Equals("GenericGameData", StringComparison.OrdinalIgnoreCase) && Key(content, node) == key);
+                if (target == default)
+                {
+                    if (!AppendChild(ref content, "GameDataList", game, source, newline))
+                    {
+                        changes.Add("Error: Could not locate or create the GameDataList.");
+                        return (content, changes);
+                    }
+                    added.Add(gameClass);
+                }
+                else if (Normalize(content[target.Start..target.End]) != Normalize(game[source.Start..source.End]))
+                {
+                    content = ReplaceNode(content, target, game, source, newline);
+                    updated.Add(gameClass);
+                }
+            }
+            // Settings structs the game no longer defines, such as the renamed CitadelTaggedSoundSettings_t.
+            var gameClasses = EnumerateAllNodes(game)
+                .Where(node => node.ClassName.Equals("GenericGameData", StringComparison.OrdinalIgnoreCase))
+                .Select(node => FieldValue(game, node, "game_class")).ToHashSet(StringComparer.Ordinal);
+            var removed = new List<string>();
+            while (EnumerateAllNodes(content).FirstOrDefault(node =>
+                       node.ClassName.Equals("GenericGameData", StringComparison.OrdinalIgnoreCase) &&
+                       FieldValue(content, node, "game_class") is var gameClass &&
+                       gameClass.EndsWith("_t", StringComparison.Ordinal) && !gameClasses.Contains(gameClass)) is var obsolete &&
+                   obsolete != default)
+            {
+                removed.Add(FieldValue(content, obsolete, "game_class"));
+                content = RemoveNode(content, obsolete);
+            }
+            if (updated.Count > 0) changes.Add($"Updated game data: {string.Join(", ", updated)}");
+            if (removed.Count > 0) changes.Add($"Removed game data the game no longer has: {string.Join(", ", removed)}");
+            if (added.Count > 0) changes.Add($"Added game data: {string.Join(", ", added)}");
+        }
+
+        if (hitboxes)
+        {
+            var source = EnumerateAllNodes(game).FirstOrDefault(node =>
+                node.ClassName.Equals("HitboxSetList", StringComparison.OrdinalIgnoreCase));
+            if (source == default)
+            {
+                changes.Add("Error: The game model has no HitboxSetList.");
+                return (content, changes);
+            }
+            var target = EnumerateAllNodes(content).FirstOrDefault(node =>
+                node.ClassName.Equals("HitboxSetList", StringComparison.OrdinalIgnoreCase));
+            if (target == default)
+            {
+                if (!TryGetRootChildren(content, out var open, out var close))
+                {
+                    changes.Add("Error: Could not locate rootNode children array.");
+                    return (content, changes);
+                }
+                content = InsertIntoArray(content, open, close, CopyNode(game, source, ChildIndent(content, open, close), newline), newline);
+                changes.Add("Added hitbox sets");
+            }
+            else if (Normalize(content[target.Start..target.End]) != Normalize(game[source.Start..source.End]))
+            {
+                content = ReplaceNode(content, target, game, source, newline);
+                changes.Add("Replaced hitbox sets");
+            }
+        }
+
+        return (content, changes);
+    }
+
+    private static string Normalize(string text) => Regex.Replace(text, @"\s+", " ");
+
+    private static bool AppendChild(ref string content, string listClass, string game, Node source, string newline)
+    {
+        var list = EnumerateAllNodes(content).Where(node => node.ClassName.Equals(listClass, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(node => node.Start).FirstOrDefault();
+        if (list == default)
+        {
+            if (!TryGetRootChildren(content, out var rootOpen, out var rootClose)) return false;
+            content = InsertIntoArray(content, rootOpen, rootClose,
+                ListNode(listClass, [CopyNode(game, source, string.Empty, newline)], newline), newline);
+            return true;
+        }
+        if (!TryGetChildren(content, list, out var open, out var close)) return false;
+        content = InsertIntoArray(content, open, close, CopyNode(game, source, ChildIndent(content, open, close), newline), newline);
+        return true;
+    }
+
+    private static string ReplaceNode(string content, Node target, string game, Node source, string newline)
+    {
+        var copy = CopyNode(game, source, LineIndent(content, target.Start), newline).TrimStart(' ', '\t');
+        return content.Remove(target.Start, target.End - target.Start).Insert(target.Start, copy);
+    }
+
+    /// <summary>Copies a node from another document, re-indented to sit at the given indentation.</summary>
+    private static string CopyNode(string source, Node node, string indent, string newline)
+    {
+        var sourceIndent = LineIndent(source, node.Start);
+        var lines = source[node.Start..node.End].Split('\n')
+            .Select((line, index) => line.TrimEnd('\r'))
+            .Select((line, index) => index > 0 && line.StartsWith(sourceIndent, StringComparison.Ordinal)
+                ? line[sourceIndent.Length..] : line);
+        return indent + string.Join(newline + indent, lines);
+    }
+
+    private static string LineIndent(string content, int position)
+    {
+        var lineStart = content.LastIndexOf('\n', Math.Max(position - 1, 0)) + 1;
+        var indent = content[lineStart..position];
+        return indent.All(c => c is ' ' or '\t') ? indent : string.Empty;
+    }
+
+    private static string ChildIndent(string content, int open, int close)
+    {
+        var first = EnumerateNodes(content, open, close).FirstOrDefault();
+        return first != default ? LineIndent(content, first.Start) : LineIndent(content, open) + "\t";
+    }
+
+    private static double[]? ReadVector(string content, Node node, string field)
+    {
+        var match = DirectFieldMatches(content, node, field, @"\[([^\]]*)\]").FirstOrDefault();
+        if (match is null) return null;
+        var parts = match.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries);
+        var values = new double[parts.Length];
+        for (var i = 0; i < parts.Length; i++)
+            if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out values[i]) || !double.IsFinite(values[i]))
+                return [];
+        return values;
+    }
+
+    private static string SetVector(string content, Node node, string field, double[] values, string newline)
+    {
+        var text = "[ " + string.Join(", ", values.Select(FormatNumber)) + " ]";
+        var match = DirectFieldMatches(content, node, field, @"\[[^\]]*\]").FirstOrDefault();
+        if (match is not null)
+        {
+            var value = match.Value.IndexOf('[');
+            return content.Remove(match.Index + value, match.Length - value).Insert(match.Index + value, text);
+        }
+        var classField = DirectFieldMatches(content, node, "_class", StringValue).First();
+        var lineStart = content.LastIndexOf('\n', classField.Index) + 1;
+        var indent = content[lineStart..classField.Index];
+        return content.Insert(classField.Index + classField.Length, newline + indent + field + " = " + text);
+    }
+
+    private static string FormatNumber(double value)
+    {
+        value = Math.Round(value, 6);
+        return Math.Abs(value) < 5e-7 ? "0.0" : value.ToString("0.0#####", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    // Source QAngle (pitch about Y, yaw about Z, roll about X) to quaternion [x, y, z, w].
+    private static double[] AnglesToQuaternion(double pitch, double yaw, double roll)
+    {
+        var (sp, cp) = Math.SinCos(pitch * Math.PI / 360);
+        var (sy, cy) = Math.SinCos(yaw * Math.PI / 360);
+        var (sr, cr) = Math.SinCos(roll * Math.PI / 360);
+        return [sr * cp * cy - cr * sp * sy, cr * sp * cy + sr * cp * sy,
+            cr * cp * sy - sr * sp * cy, cr * cp * cy + sr * sp * sy];
+    }
+
+    private static double[] QuaternionToAngles(double x, double y, double z, double w)
+    {
+        var forwardX = 1 - 2 * (y * y + z * z);
+        var forwardY = 2 * (x * y + w * z);
+        var forwardZ = 2 * (x * z - w * y);
+        var horizontal = Math.Sqrt(forwardX * forwardX + forwardY * forwardY);
+        var pitch = Math.Atan2(-forwardZ, horizontal);
+        if (horizontal < 1e-6) // Looking straight up or down: fold roll into yaw.
+            return [pitch * 180 / Math.PI, Math.Atan2(-2 * (x * y - w * z), 1 - 2 * (x * x + z * z)) * 180 / Math.PI, 0];
+        return [pitch * 180 / Math.PI, Math.Atan2(forwardY, forwardX) * 180 / Math.PI,
+            Math.Atan2(2 * (y * z + w * x), 1 - 2 * (x * x + y * y)) * 180 / Math.PI];
+    }
+
+    private static bool SameRotation(double[] a, double[] b)
+    {
+        var dot = Math.Abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3]);
+        return 2 * Math.Acos(Math.Min(dot, 1)) <= 0.01 * Math.PI / 180;
     }
 
     private static bool ValidPath(string? path) => !string.IsNullOrWhiteSpace(path) &&

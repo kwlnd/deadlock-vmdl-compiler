@@ -1,0 +1,92 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DeadlockVmdlCompiler.Views.SyncFromGameWindow"
+        Title="sync from game"
+        Icon="avares://DeadlockVmdlCompiler/AppIcon.ico"
+        Width="520" MinWidth="480"
+        SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource StudioWindow}">
+    <Window.Styles>
+        <Style Selector="CheckBox.option">
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="Padding" Value="8,0,0,0"/>
+        </Style>
+    </Window.Styles>
+
+    <Border Classes="studio-card" Margin="12" Padding="16">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="32,10,*">
+                <Border Width="32" Height="32" CornerRadius="5"
+                        Background="{StaticResource StudioPortrait}" BorderBrush="{StaticResource StudioBorderStrong}"
+                        BorderThickness="1" VerticalAlignment="Top">
+                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Classes="icon" Data="{StaticResource IconRefresh}"/>
+                        </Canvas>
+                    </Viewbox>
+                </Border>
+                <StackPanel Grid.Column="2" Spacing="2">
+                    <TextBlock Text="sync from game" FontSize="16" FontWeight="Bold" Foreground="{StaticResource StudioText}"/>
+                    <TextBlock Classes="body-copy"
+                               Text="Update this model from the installed game. Anything that exists only in your model is kept."/>
+                </StackPanel>
+            </Grid>
+
+            <Border Classes="studio-inset" Padding="10,8">
+                <Grid ColumnDefinitions="16,9,*">
+                    <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Classes="icon" Data="{StaticResource IconBox}"/>
+                        </Canvas>
+                    </Viewbox>
+                    <TextBlock x:Name="TxtModel" Grid.Column="2" Classes="body-copy"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+                </Grid>
+            </Border>
+
+            <Border Height="1" Background="{StaticResource StudioBorder}"/>
+
+            <StackPanel Spacing="10">
+                <CheckBox x:Name="ChkFixFrame" Classes="option" IsChecked="True">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="field-label" Text="move camera attachments to the new frame"/>
+                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                                   Text="Fixes misplaced cameras on models made before the October 2026 update. Your own offsets are converted, not replaced."/>
+                    </StackPanel>
+                </CheckBox>
+                <CheckBox x:Name="ChkAttachments" Classes="option" IsChecked="True">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="field-label" Text="add missing attachments"/>
+                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                                   Text="Adds attachments the game model has and yours lacks, such as healthbar or hero_attach_0."/>
+                    </StackPanel>
+                </CheckBox>
+                <CheckBox x:Name="ChkGameData" Classes="option" IsChecked="True">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="field-label" Text="update game data"/>
+                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                                   Text="Camera, unit status and hero model settings. Particle configs are kept."/>
+                    </StackPanel>
+                </CheckBox>
+                <CheckBox x:Name="ChkHitboxes" Classes="option" IsChecked="False">
+                    <StackPanel Spacing="2">
+                        <TextBlock Classes="field-label" Text="replace hitboxes"/>
+                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                                   Text="Leave off if you edited the hitboxes of this model."/>
+                    </StackPanel>
+                </CheckBox>
+            </StackPanel>
+
+            <TextBlock Classes="field-hint" Text="A backup of the .vmdl is written before any change."/>
+
+            <Border Height="1" Background="{StaticResource StudioBorder}"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="cancel" MinWidth="86" Height="34" Click="BtnCancel_Click"
+                        ToolTip.Tip="Close without changing the model"/>
+                <Button x:Name="BtnSync" Content="sync" Classes="primary" MinWidth="110" Height="34"
+                        Click="BtnSync_Click" ToolTip.Tip="Apply the selected changes to the .vmdl"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

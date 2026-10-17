@@ -26,7 +26,7 @@
                     </Viewbox>
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock x:Name="TxtTitle" Text="notification" FontSize="15" FontWeight="Bold"
+                    <TextBlock x:Name="TxtTitle" Text="notification" FontSize="16" FontWeight="Bold"
                                Foreground="{StaticResource StudioText}"/>
                 </StackPanel>
             </Grid>

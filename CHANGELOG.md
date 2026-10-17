@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
+- Restyled the main window and dialogs: consistent section headers with icons, even control heights, manual tools as tiles, and a sync dialog in the style of add addon.
+- Added **sync from game...**, which updates older `.vmdl` files from the installed game. Deadlock's October 2026 update moved every `root_motion` attachment (camera pivots, aim, zipline, portrait camera and others) into a new frame, so older skins have misplaced cameras. The sync converts these attachments in the source `.vmdl` (offset `[x,y,z]` becomes `[z,x,y]`, and the rotation is converted to match), so authored adjustments are kept, and unmodified attachments get the current game values. It can also add missing attachments, update the game's settings structs (camera, unit status, hero model settings), and replace hitboxes. A backup is written first.
+- Updated the bundled ValveResourceFormat to upstream `master` (`aab066c`), which reads the models of the October 2026 update and includes the upstream cloth exporter and VCS 72 support.
 - Added an opt-in **skip material/texture compilation** setting for newer CSWin64 builds. It passes `-skiptype vmat,vtex`, temporarily disables missing-material fatal errors in CSWin64 `gameinfo.gi`, restores that file after compilation, and preserves the original CSDK material references.
 - Added a startup update check that asks before downloading newer Windows releases from the project's GitHub releases, then offers to restart and apply the update beside the current executable.
 

@@ -1001,4 +1001,68 @@ public static class VmdlPipeline
         await File.WriteAllTextAsync(vmdlPath, clean);
         return (true, $"ModelDoc Fix Applied: {string.Join(", ", changes)}", true);
     }
+
+    public sealed record GameSyncOptions(bool FixAttachmentFrame, bool AddAttachments, bool GameData, bool Hitboxes)
+    {
+        public bool NeedsGameModel => AddAttachments || GameData || Hitboxes;
+    }
+
+    public static (string Content, List<string> Changes) SyncFromGameContent(
+        string content, string gameContent, GameSyncOptions options) =>
+        ModelDocAg2Editor.SyncFromGame(content, gameContent, options.AddAttachments, options.GameData, options.Hitboxes);
+
+    /// <summary>
+    /// Brings an authored .vmdl up to date with the installed game: converts old-frame root
+    /// attachments and copies the selected parts of the current game model into it.
+    /// </summary>
+    public static async Task<(bool Success, string Message, bool Changed)> SyncFromGameAsync(
+        string vmdlPath,
+        GameSyncOptions options,
+        string? pak01VpkPath,
+        string? fallbackVpkPath,
+        bool createBackup = true,
+        Action<string>? onLog = null)
+    {
+        vmdlPath = Path.GetFullPath(vmdlPath);
+        if (!File.Exists(vmdlPath))
+            return (false, $"File not found: {vmdlPath}", false);
+
+        var original = await File.ReadAllTextAsync(vmdlPath);
+        var content = original;
+        var changes = new List<string>();
+        if (options.FixAttachmentFrame)
+        {
+            var (migrated, migrationChanges) = ModelDocAg2Editor.MigrateRootAttachments(content);
+            if (migrationChanges.FirstOrDefault(change => change.StartsWith("Error:")) is { } error)
+                return (false, error, false);
+            content = migrated;
+            changes.AddRange(migrationChanges);
+        }
+
+        if (options.NeedsGameModel)
+        {
+            if (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath))
+                return (false, "Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.", false);
+            var gameText = await Task.Run(() => GameModelSource.LoadVmdl(pak01VpkPath,
+                [GameModelSource.GetVpkPath(vmdlPath), fallbackVpkPath], out var usedPath)
+                is { } text ? (text, usedPath) : default);
+            if (gameText.text is null)
+                return (false, "The game has no model at this addon path, and the hero preset does not name one.", false);
+            onLog?.Invoke($"[sync from game] read {gameText.usedPath}");
+
+            var (synced, syncChanges) = SyncFromGameContent(content, gameText.text, options);
+            if (syncChanges.FirstOrDefault(change => change.StartsWith("Error:")) is { } error)
+                return (false, error, false);
+            content = synced;
+            changes.AddRange(syncChanges);
+        }
+
+        if (content == original)
+            return (true, "The model already matches the game; nothing was changed", false);
+
+        if (createBackup)
+            CreateUniqueBackup(vmdlPath);
+        await File.WriteAllTextAsync(vmdlPath, content);
+        return (true, "Synced from game: " + string.Join("; ", changes), true);
+    }
 }

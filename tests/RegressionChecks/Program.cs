@@ -840,4 +840,96 @@ finally
     Directory.Delete(root, recursive: true);
 }
 
+{
+    static string AttachmentNode(string name, string bone, string origin, string angles) =>
+        "\t\t\t{\n\t\t\t\t_class = \"Attachment\"\n\t\t\t\tname = \"" + name + "\"\n\t\t\t\tparent_bone = \"" + bone +
+        "\"\n\t\t\t\trelative_origin = [ " + origin + " ]\n\t\t\t\trelative_angles = [ " + angles +
+        " ]\n\t\t\t\tweight = 1.0\n\t\t\t}";
+    // Values from a September 2026 Abrams export; the expected ones come from the October game files.
+    var legacyAttachments = header + "\n{\n\trootNode =\n\t{\n\t\t_class = \"RootNode\"\n\t\tchildren =\n\t\t[\n" +
+        "\t\t{\n\t\t_class = \"AttachmentList\"\n\t\tchildren =\n\t\t[\n" + string.Join(",\n",
+            AttachmentNode("standing_pivot", "root_motion", "0.000015, 103.679985, 0.0", "-89.999992, -89.999992, 0.0"),
+            AttachmentNode("crouching_pivot", "root_motion", "0.000015, 71.279984, 0.0", "-89.999992, -89.999992, 0.0"),
+            AttachmentNode("far_02", "root_motion", "-43.199989, 15.120007, 26.999989", "-0.0, 89.999992, 179.999878"),
+            AttachmentNode("portrait_camera", "root_motion", "-167.575317, -81.296143, 75.108002", "14.442259, 44.221588, -78.229736"),
+            AttachmentNode("ability_cast", "hand_R", "1.0, 2.0, 3.0", "-90.0, -90.0, 0.0")) +
+        "\n\t\t]\n\t\t}\n\t\t]\n\t}\n}";
+    var attachmentFile = Path.Combine(Path.GetTempPath(), "deadlock-attachments-" + Guid.NewGuid().ToString("N") + ".vmdl");
+    try
+    {
+        var frameOnly = new VmdlPipeline.GameSyncOptions(true, false, false, false);
+        File.WriteAllText(attachmentFile, legacyAttachments);
+        var migrated = await VmdlPipeline.SyncFromGameAsync(attachmentFile, frameOnly, null, null, createBackup: false);
+        var migratedText = File.ReadAllText(attachmentFile);
+        Check(migrated.Success && migrated.Changed, "Legacy root_motion attachments were not migrated.");
+        double[] Field(string name, string field) => Regex.Match(migratedText,
+                "name = \"" + name + "\"[^}]*?" + field + @" = \[([^\]]*)\]").Groups[1].Value
+            .Split(',').Select(value => double.Parse(value, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        bool Near(double[] actual, params double[] expected) =>
+            actual.Length == expected.Length && actual.Zip(expected).All(pair => Math.Abs(pair.First - pair.Second) < 0.001);
+        Check(Near(Field("standing_pivot", "relative_origin"), 0, 0, 103.679985) &&
+              Near(Field("standing_pivot", "relative_angles"), 0, 0, 0) &&
+              Near(Field("far_02", "relative_origin"), 26.999985, -43.199986, 15.12001) &&
+              Near(Field("far_02", "relative_angles"), -89.999992, 0, 0) &&
+              Near(Field("portrait_camera", "relative_origin"), 75.107979, -167.575302, -81.29615) &&
+              Near(Field("portrait_camera", "relative_angles"), -42.484917, 109.766968, -1.872607) &&
+              Near(Field("ability_cast", "relative_origin"), 1, 2, 3) &&
+              Near(Field("ability_cast", "relative_angles"), -90, -90, 0),
+            "Root attachments do not match the current game frame, or a hand attachment was changed.");
+        var repeated = await VmdlPipeline.SyncFromGameAsync(attachmentFile, frameOnly, null, null, createBackup: false);
+        Check(repeated.Success && !repeated.Changed && File.ReadAllText(attachmentFile) == migratedText,
+            "Fixing current-frame attachments is not idempotent.");
+        File.WriteAllText(attachmentFile, legacyAttachments.Replace(
+            "71.279984, 0.0 ]\n\t\t\t\trelative_angles = [ -89.999992, -89.999992, 0.0 ]",
+            "71.279984, 0.0 ]\n\t\t\t\trelative_angles = [ 0.0, 0.0, 0.0 ]"));
+        var mixed = await VmdlPipeline.SyncFromGameAsync(attachmentFile, frameOnly, null, null, createBackup: false);
+        Check(!mixed.Success && !mixed.Changed, "Mixed camera pivot frames were migrated.");
+        Console.WriteLine("Root attachment frame migration checks passed.");
+
+        static string GameData(string gameClass, string keys) =>
+            "\t\t\t{\n\t\t\t\t_class = \"GenericGameData\"\n\t\t\t\tgame_class = \"" + gameClass +
+            "\"\n\t\t\t\tgame_keys = \n\t\t\t\t{\n\t\t\t\t\t" + keys + "\n\t\t\t\t}\n\t\t\t}";
+        static string Model(string attachments, string gameData, string hitboxes) =>
+            header + "\n{\n\trootNode =\n\t{\n\t\t_class = \"RootNode\"\n\t\tchildren =\n\t\t[\n" +
+            "\t\t{\n\t\t_class = \"AttachmentList\"\n\t\tchildren =\n\t\t[\n" + attachments + "\n\t\t]\n\t\t},\n" +
+            "\t\t{\n\t\t_class = \"GameDataList\"\n\t\tchildren =\n\t\t[\n" + gameData + "\n\t\t]\n\t\t},\n" +
+            hitboxes + "\t\t]\n\t}\n}";
+        var authored = Model(
+            AttachmentNode("standing_pivot", "root_motion", "0.0, 0.0, 103.68", "0.0, 0.0, 0.0") + ",\n" +
+            AttachmentNode("ability_cast", "hand_R", "9.0, 9.0, 9.0", "0.0, 0.0, 0.0"),
+            string.Join(",\n", GameData("CitadelCameraSettings_t", "m_flCameraHeightStanding = 90.0"),
+                GameData("CitadelTaggedSoundSettings_t", "m_nOld = 1"),
+                GameData("particle_cfg", "m_custom = \"skin\"")),
+            string.Empty);
+        var game = Model(
+            AttachmentNode("standing_pivot", "root_motion", "0.0, 0.0, 103.68", "0.0, 0.0, 0.0") + ",\n" +
+            AttachmentNode("ability_cast", "hand_R", "0.0, 0.0, 0.0", "0.0, 0.0, 0.0") + ",\n" +
+            AttachmentNode("healthbar", "root_motion", "0.0, 0.0, 120.0", "0.0, 0.0, 0.0"),
+            string.Join(",\n", GameData("CitadelCameraSettings_t", "m_flCameraHeightStanding = 100.0"),
+                GameData("TaggedSoundSettings_t", "m_nNew = 1"),
+                GameData("particle_cfg", "m_custom = \"game\"")),
+            "\t\t{\n\t\t_class = \"HitboxSetList\"\n\t\tchildren =\n\t\t[\n\t\t]\n\t\t},\n");
+        var everything = new VmdlPipeline.GameSyncOptions(false, true, true, true);
+        var (synced, syncChanges) = VmdlPipeline.SyncFromGameContent(authored, game, everything);
+        Check(!syncChanges.Any(change => change.StartsWith("Error:")) &&
+              Count(synced, "name = \"healthbar\"") == 1 && synced.Contains("relative_origin = [ 9.0, 9.0, 9.0 ]") &&
+              synced.Contains("m_flCameraHeightStanding = 100.0") && !synced.Contains("m_flCameraHeightStanding = 90.0") &&
+              synced.Contains("TaggedSoundSettings_t") && !synced.Contains("CitadelTaggedSoundSettings_t") &&
+              synced.Contains("m_custom = \"skin\"") && !synced.Contains("m_custom = \"game\"") &&
+              Count(synced, "_class = \"HitboxSetList\"") == 1,
+            "Game sync did not add missing data, kept stale data, or replaced authored attachments or particle configs.");
+        Check(VmdlPipeline.SyncFromGameContent(synced, game, everything).Content == synced,
+            "Game sync is not idempotent.");
+        Check(VmdlPipeline.SyncFromGameContent(authored, game, new VmdlPipeline.GameSyncOptions(false, true, false, false))
+                  .Content is var attachmentsOnly && attachmentsOnly.Contains("m_flCameraHeightStanding = 90.0") &&
+              !attachmentsOnly.Contains("HitboxSetList") && attachmentsOnly.Contains("healthbar"),
+            "Game sync changed groups that were not selected.");
+        Console.WriteLine("Game model sync checks passed.");
+    }
+    finally
+    {
+        File.Delete(attachmentFile);
+    }
+}
+
 Console.WriteLine("Regression checks passed.");

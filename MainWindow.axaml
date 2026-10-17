@@ -20,8 +20,15 @@
                         <StackPanel Spacing="9">
                             <Grid ColumnDefinitions="*,Auto">
                                 <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="MODEL" Classes="section-title"/>
-                                    <TextBlock Text="Choose the addon and target model" Classes="field-hint"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconBox}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="MODEL" Classes="section-title"/>
+                                    </StackPanel>
+                                    <TextBlock Text="choose the addon and target model" Classes="field-hint" Margin="19,0,0,0"/>
                                 </StackPanel>
                                 <Button x:Name="BtnAddAddon" Grid.Column="1" Classes="primary"
                                         Height="32" Padding="10,3" Click="BtnAddAddon_Click" ToolTip.Tip="Export a hero or neutral from the game into a new CSDK12 addon">
@@ -44,7 +51,7 @@
                                            Text="scanning..." Classes="field-hint" VerticalAlignment="Center"/>
                             </Grid>
                             <Grid ColumnDefinitions="*,6,84">
-                                <ComboBox x:Name="CmbDiscovered" Height="38" HorizontalAlignment="Stretch"
+                                <ComboBox x:Name="CmbDiscovered" Height="40" HorizontalAlignment="Stretch"
                                           SelectionChanged="CmbDiscovered_SelectionChanged">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate DataType="models:DiscoveredAddon">
@@ -64,7 +71,7 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Classes="utility" Height="38" Click="Rescan_Click" ToolTip.Tip="Look for addons and models in the CSDK addons folder again">
+                                <Button Grid.Column="2" Classes="utility" Height="40" HorizontalAlignment="Stretch" Click="Rescan_Click" ToolTip.Tip="Look for addons and models in the CSDK addons folder again">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -76,9 +83,9 @@
                                 </Button>
                             </Grid>
 
-                            <TextBlock Text="target vmdl" Classes="field-label" Margin="0,2,0,0"/>
+                            <TextBlock Text="target vmdl" Classes="field-label" Margin="0,4,0,0"/>
                             <Grid ColumnDefinitions="*,6,84">
-                                <ComboBox x:Name="CmbTargetVmdl" Height="34" HorizontalAlignment="Stretch"
+                                <ComboBox x:Name="CmbTargetVmdl" Height="40" HorizontalAlignment="Stretch"
                                           SelectionChanged="CmbTargetVmdl_SelectionChanged">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate DataType="models:DiscoveredModel">
@@ -95,7 +102,7 @@
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
                                 </ComboBox>
-                                <Button Grid.Column="2" Classes="utility" Height="34" Click="BrowseFile_Click" ToolTip.Tip="Pick any .vmdl file that is not in the list">
+                                <Button Grid.Column="2" Classes="utility" Height="40" HorizontalAlignment="Stretch" Click="BrowseFile_Click" ToolTip.Tip="Pick any .vmdl file that is not in the list">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                                             <Canvas Width="24" Height="24">
@@ -107,12 +114,13 @@
                                 </Button>
                             </Grid>
 
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,0">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
                                 <TextBlock Text="hero preset" Classes="field-label"/>
-                                <TextBlock Grid.Column="1" Text="skeleton &amp; animgraph"
-                                           Classes="field-hint" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="LblHeroPathsSource" Grid.Column="1" Text="built-in presets"
+                                           Classes="field-hint" VerticalAlignment="Center" MaxWidth="260"
+                                           TextTrimming="CharacterEllipsis" ToolTip.Tip="Skeleton and AnimGraph 2 paths come from this preset list"/>
                             </Grid>
-                            <ComboBox x:Name="CmbHeroPreset" Height="42" HorizontalAlignment="Stretch"
+                            <ComboBox x:Name="CmbHeroPreset" Height="40" HorizontalAlignment="Stretch"
                                       SelectionChanged="CmbHeroPreset_SelectionChanged">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate DataType="models:HeroPresetChoice">
@@ -139,40 +147,9 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <CheckBox x:Name="ChkShowNpcPresets"
-                                      Margin="0,8,0,0"
-                                      Content="show npc presets"
-                                      IsChecked="False"
-                                      Click="ChkShowNpcPresets_Click"/>
-                            <StackPanel x:Name="NpcPresetPanel" IsVisible="False">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="npc preset" Classes="field-label"/>
-                                    <TextBlock x:Name="LblNpcPresetStatus" Grid.Column="1"
-                                               Text="loading..." Classes="field-hint"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                                <Grid ColumnDefinitions="*,6,84">
-                                    <ComboBox x:Name="CmbNpcPreset" Height="42"
-                                              HorizontalAlignment="Stretch"
-                                              SelectionChanged="CmbNpcPreset_SelectionChanged">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate DataType="models:NpcPresetChoice">
-                                                <StackPanel Spacing="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding DisplayName}" FontSize="11.5"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{StaticResource StudioText}"/>
-                                                    <TextBlock Text="{Binding Detail}" Classes="field-hint"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                    <Button Grid.Column="2" Classes="utility" Height="42"
-                                            Content="scan vpk" Click="BtnScanNpcPresets_Click"/>
-                                </Grid>
-                            </StackPanel>
-                            <Grid ColumnDefinitions="*,Auto">
-                                <TextBlock x:Name="LblHeroPathsSource" Text="built-in presets" Classes="field-hint"
-                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            <Grid ColumnDefinitions="*,Auto,Auto">
+                                <CheckBox x:Name="ChkShowNpcPresets" Content="show npc presets"
+                                          IsChecked="False" Click="ChkShowNpcPresets_Click"/>
                                 <Button x:Name="BtnLoadHeroPaths" Grid.Column="1" Classes="utility" Height="24"
                                         Click="BtnLoadHeroPaths_Click"
                                         ToolTip.Tip="Use your own AG2 preset list (hero_paths.json format)">
@@ -198,15 +175,48 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
+                            <StackPanel x:Name="NpcPresetPanel" IsVisible="False" Spacing="9">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="npc preset" Classes="field-label"/>
+                                    <TextBlock x:Name="LblNpcPresetStatus" Grid.Column="1"
+                                               Text="loading..." Classes="field-hint"
+                                               VerticalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,6,84">
+                                    <ComboBox x:Name="CmbNpcPreset" Height="40"
+                                              HorizontalAlignment="Stretch"
+                                              SelectionChanged="CmbNpcPreset_SelectionChanged">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate DataType="models:NpcPresetChoice">
+                                                <StackPanel Spacing="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="11.5"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource StudioText}"/>
+                                                    <TextBlock Text="{Binding Detail}" Classes="field-hint"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button Grid.Column="2" Classes="utility" Height="40" HorizontalAlignment="Stretch"
+                                            Content="scan vpk" Click="BtnScanNpcPresets_Click"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
                     <!-- Primary path: compile, package, then test in game. -->
                     <Border Classes="studio-card" Padding="12">
                         <StackPanel Spacing="9">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="BUILD" Classes="section-title"/>
-                                <TextBlock Text="Compile the model, then package the addon" Classes="field-hint"/>
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Classes="icon" Data="{StaticResource IconPlay}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <TextBlock Text="BUILD" Classes="section-title"/>
+                                </StackPanel>
+                                <TextBlock Text="compile the model, then package the addon" Classes="field-hint" Margin="19,0,0,0"/>
                             </StackPanel>
                             <Border Height="1" Background="{StaticResource StudioBorder}"/>
 
@@ -272,29 +282,38 @@
 
                             <Border Height="1" Background="{StaticResource StudioBorder}"/>
                             <TextBlock Text="manual tools" Classes="field-hint"/>
-                            <Grid ColumnDefinitions="*,8,*">
-                                <Button x:Name="BtnSanitizeModelDoc" Classes="utility" Height="32"
-                                        HorizontalAlignment="Stretch" Click="BtnSanitizeModelDoc_Click" ToolTip.Tip="Remove AG2 nodes from the .vmdl so CSDK12 ModelDoc can open it">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Grid ColumnDefinitions="*,8,*,8,*">
+                                <Button x:Name="BtnSanitizeModelDoc" Classes="utility tile" Click="BtnSanitizeModelDoc_Click"
+                                        ToolTip.Tip="Remove AG2 nodes from the .vmdl so CSDK12 ModelDoc can open it">
+                                    <StackPanel Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="14" Height="14" HorizontalAlignment="Center">
                                             <Canvas Width="24" Height="24">
                                                 <Path Classes="icon" Data="{StaticResource IconWrench}"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock x:Name="TxtSanitizeBtn" Text="fix for modeldoc"
-                                                   FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtSanitizeBtn" Text="fix for modeldoc" FontSize="11" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="BtnExportCsWin" Grid.Column="2" Classes="utility" Height="32"
-                                        HorizontalAlignment="Stretch" Click="BtnExportCsWin_Click" ToolTip.Tip="Copy the model with AG2 nodes and its meshes to the CSWin64 addon for manual work">
-                                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-                                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                <Button x:Name="BtnExportCsWin" Grid.Column="2" Classes="utility tile" Click="BtnExportCsWin_Click"
+                                        ToolTip.Tip="Copy the model with AG2 nodes and its meshes to the CSWin64 addon for manual work">
+                                    <StackPanel Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="14" Height="14" HorizontalAlignment="Center">
                                             <Canvas Width="24" Height="24">
                                                 <Path Classes="icon" Data="{StaticResource IconUpload}"/>
                                             </Canvas>
                                         </Viewbox>
-                                        <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64"
-                                                   FontSize="11" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtExportCsWinBtn" Text="export to cswin64" FontSize="11" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="BtnSyncFromGame" Grid.Column="4" Classes="utility tile" Click="BtnSyncFromGame_Click"
+                                        ToolTip.Tip="Update an older .vmdl from the installed game: move camera attachments to the October 2026 frame, add missing attachments, update game data and optionally hitboxes">
+                                    <StackPanel Spacing="5" HorizontalAlignment="Center">
+                                        <Viewbox Width="14" Height="14" HorizontalAlignment="Center">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Classes="icon" Data="{StaticResource IconRefresh}"/>
+                                            </Canvas>
+                                        </Viewbox>
+                                        <TextBlock Text="sync from game..." FontSize="11" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </Button>
                             </Grid>
@@ -348,9 +367,9 @@
                                     </StackPanel>
                                 </Grid>
                                 <Grid ColumnDefinitions="*,6,84">
-                                    <TextBox x:Name="TxtCsWinPath" Height="30"
+                                    <TextBox x:Name="TxtCsWinPath" Height="32"
                                              TextChanged="TxtCsWinPath_TextChanged"/>
-                                    <Button Grid.Column="2" Classes="utility" Height="30"
+                                    <Button Grid.Column="2" Classes="utility" Height="32" HorizontalAlignment="Stretch"
                                             Click="BrowseCsWin_Click" ToolTip.Tip="Choose the CSWin64 folder that contains game/bin/win64/resourcecompiler.exe">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
@@ -369,9 +388,9 @@
                                                Text="checking..." Classes="field-hint"/>
                                 </Grid>
                                 <Grid ColumnDefinitions="*,6,84">
-                                    <TextBox x:Name="TxtCitadelPath" Height="30"
+                                    <TextBox x:Name="TxtCitadelPath" Height="32"
                                              TextChanged="TxtCitadelPath_TextChanged"/>
-                                    <Button Grid.Column="2" Classes="utility" Height="30"
+                                    <Button Grid.Column="2" Classes="utility" Height="32" HorizontalAlignment="Stretch"
                                             Click="BrowseCitadel_Click" ToolTip.Tip="Choose CSDK12 content/citadel_addons">
                                     <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="11" Height="11" VerticalAlignment="Center">
@@ -427,7 +446,14 @@
 
             <Grid Grid.Column="2" RowDefinitions="Auto,6,*,12,Auto,6,176">
                 <Grid ColumnDefinitions="*,Auto,Auto">
-                    <TextBlock Text="3d preview" Classes="section-title" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path Classes="icon" Data="{StaticResource IconLayers}"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="PREVIEW" Classes="section-title"/>
+                    </StackPanel>
                     <TextBlock x:Name="LblMeshName" Grid.Column="1"
                                Text="mesh: no model selected" Classes="field-hint"
                                MaxWidth="400" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
@@ -452,7 +478,14 @@
                 </Border>
 
                 <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto,Auto">
-                    <TextBlock Text="log console" Classes="section-title" VerticalAlignment="Center"/>
+                    <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                        <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path Classes="icon" Data="{StaticResource IconList}"/>
+                            </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="LOG" Classes="section-title"/>
+                    </StackPanel>
                     <Button x:Name="BtnClearLog" Grid.Column="1" Classes="utility" Height="25"
                             Padding="7,1" Margin="0,0,6,0"
                             Click="BtnClearLog_Click" ToolTip.Tip="Clear the log console">
