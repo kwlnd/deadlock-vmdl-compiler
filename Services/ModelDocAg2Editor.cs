@@ -382,9 +382,10 @@ internal static class ModelDocAg2Editor
                 (x + w + z - y) * 0.5, (y + w + x - z) * 0.5, (z + w + y - x) * 0.5, (w - x - y - z) * 0.5);
             var block = content.Substring(node.Start, node.End - node.Start);
             var local = node with { Start = 0, End = block.Length };
-            block = SetVector(block, local, "relative_angles", migrated, newline);
+            var fieldIndent = LineIndent(content, node.Start) + "\t";
+            block = SetVector(block, local, "relative_angles", migrated, newline, fieldIndent);
             block = SetVector(block, local with { End = block.Length }, "relative_origin",
-                [origin[2], origin[0], origin[1]], newline);
+                [origin[2], origin[0], origin[1]], newline, fieldIndent);
             content = content.Remove(node.Start, node.End - node.Start).Insert(node.Start, block);
             names.Add(FieldValue(block, local with { End = block.Length }, "name"));
         }
@@ -548,7 +549,9 @@ internal static class ModelDocAg2Editor
     {
         var match = DirectFieldMatches(content, node, field, @"\[([^\]]*)\]").FirstOrDefault();
         if (match is null) return null;
-        var parts = match.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries);
+        // KV3 allows comments and a trailing comma inside arrays.
+        var body = Regex.Replace(match.Groups[1].Value, @"//[^\n]*|/\*.*?\*/", " ", RegexOptions.Singleline);
+        var parts = body.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var values = new double[parts.Length];
         for (var i = 0; i < parts.Length; i++)
             if (!double.TryParse(parts[i], System.Globalization.NumberStyles.Float,
@@ -557,7 +560,8 @@ internal static class ModelDocAg2Editor
         return values;
     }
 
-    private static string SetVector(string content, Node node, string field, double[] values, string newline)
+    private static string SetVector(string content, Node node, string field, double[] values, string newline,
+        string fallbackIndent)
     {
         var text = "[ " + string.Join(", ", values.Select(FormatNumber)) + " ]";
         var match = DirectFieldMatches(content, node, field, @"\[[^\]]*\]").FirstOrDefault();
@@ -567,8 +571,9 @@ internal static class ModelDocAg2Editor
             return content.Remove(match.Index + value, match.Length - value).Insert(match.Index + value, text);
         }
         var classField = DirectFieldMatches(content, node, "_class", StringValue).First();
-        var lineStart = content.LastIndexOf('\n', classField.Index) + 1;
-        var indent = content[lineStart..classField.Index];
+        // A compact node keeps "{" on the _class line; indent with whitespace only.
+        var indent = LineIndent(content, classField.Index);
+        if (indent.Length == 0) indent = fallbackIndent;
         return content.Insert(classField.Index + classField.Length, newline + indent + field + " = " + text);
     }
 

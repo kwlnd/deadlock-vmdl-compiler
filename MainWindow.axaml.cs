@@ -144,8 +144,22 @@ public partial class MainWindow : Window
             var listed = addon.HeroModels.FirstOrDefault(model =>
                 model.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase));
             if (listed == null) continue;
-            CmbDiscovered.SelectedItem = addon;
-            CmbTargetVmdl.SelectedItem = listed;
+            // Restore the addon's model list even when the addon was already selected,
+            // e.g. after a manually opened file replaced it.
+            _isUpdatingSelection = true;
+            try
+            {
+                CmbDiscovered.SelectedItem = addon;
+                CmbTargetVmdl.ItemsSource = addon.HeroModels;
+                CmbTargetVmdl.SelectedItem = listed;
+            }
+            finally
+            {
+                _isUpdatingSelection = false;
+            }
+            UpdateHeroDetailsFromPath(fullPath);
+            _ = Init3DSceneAsync(fullPath);
+            SaveConfig();
             Log($"selected model: {addon.Name}/{Path.GetFileName(fullPath)}");
             return;
         }
@@ -1307,14 +1321,25 @@ public partial class MainWindow : Window
                 foreach (var (addon, model) in allModels)
                 {
                     var name = $"{addon}/{Path.GetFileName(model.FullPath)}";
-                    var fallback = DeadlockHeroCatalog.GetExportableModels().FirstOrDefault(hero =>
-                        hero.HeroKey.Equals(model.Hero, StringComparison.OrdinalIgnoreCase))?.VpkPath;
-                    var (success, msg, changed) = await Task.Run(() =>
-                        VmdlPipeline.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
-                    Log($"[sync from game] {name}: {msg}");
-                    if (!success) failed.Add(name);
-                    else if (changed) synced++;
-                    else unchanged++;
+                    // Discovered models carry preset keys (e.g. "fencer"); the matcher maps them to the hero.
+                    HeroDatabase.GetDatabase().TryGetValue(model.Hero, out var modelPreset);
+                    var fallback = string.IsNullOrEmpty(model.Hero) ? null
+                        : HeroPresetMatcher.FindKnownHero(model.Hero, modelPreset)?.VpkPath;
+                    try
+                    {
+                        var (success, msg, changed) = await Task.Run(() =>
+                            VmdlPipeline.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
+                        Log($"[sync from game] {name}: {msg}");
+                        if (!success) failed.Add(name);
+                        else if (changed) synced++;
+                        else unchanged++;
+                    }
+                    catch (Exception ex)
+                    {
+                        // One locked or unreadable model must not stop the rest of the batch.
+                        Log($"[sync from game error] {name}: {ex.Message}");
+                        failed.Add(name);
+                    }
                 }
                 var summary = $"synced {synced} model(s), {unchanged} already current" +
                               (failed.Count > 0 ? $", {failed.Count} failed: {string.Join(", ", failed)}" : "") +
@@ -1613,6 +1638,41 @@ public partial class MainWindow : Window
         TxtCompileBtn.Text = "compile model";
     }
 
+    /// <summary>
+    /// Offers to sync a model that still uses the pre-October 2026 camera frame.
+    /// Returns false when the compile should not go ahead.
+    /// </summary>
+    private async Task<bool> PrepareCameraFrameAsync(string targetPath, string? heroFallback)
+    {
+        try
+        {
+            if (!await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(targetPath)))
+                return true;
+            var choice = await DialogService.ShowChoiceAsync(this, "old camera attachments",
+                "this model was made before the october 2026 update. compiled as it is, its cameras will be misplaced in game.\n\n" +
+                "sync and compile updates the .vmdl from the installed game first (camera frame, missing attachments, game data; a backup is written).",
+                "sync and compile", "compile anyway");
+            if (choice == DialogService.Choice.Cancel) return false;
+            if (choice == DialogService.Choice.Alternative) return true;
+
+            var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
+            var (synced, syncMessage, _) = await Task.Run(() => VmdlPipeline.SyncFromGameAsync(targetPath,
+                new VmdlPipeline.GameSyncOptions(true, true, true),
+                deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null, heroFallback, onLog: Log));
+            Log(syncMessage);
+            _ = UpdateLegacyFrameNoticeAsync(targetPath, _previewRequest);
+            if (synced) return true;
+            await DialogService.ShowErrorAsync(this, "sync from game failed", syncMessage + "\n\nthe model was not compiled.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log($"[sync from game error] {ex.Message}");
+            await DialogService.ShowErrorAsync(this, "sync from game error", ex.Message + "\n\nthe model was not compiled.");
+            return false;
+        }
+    }
+
     private async void BtnCompile_Click(object? sender, RoutedEventArgs e)
     {
         // While resourcecompiler runs, the same button stops it.
@@ -1643,30 +1703,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(targetPath)))
-        {
-            var choice = await DialogService.ShowChoiceAsync(this, "old camera attachments",
-                "this model was made before the october 2026 update. compiled as it is, its cameras will be misplaced in game.\n\n" +
-                "sync and compile updates the .vmdl from the installed game first (camera frame, missing attachments, game data; a backup is written).",
-                "sync and compile", "compile anyway");
-            if (choice == DialogService.Choice.Cancel) return;
-            if (choice == DialogService.Choice.Primary)
-            {
-                var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
-                var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
-                var (synced, syncMessage, _) = await Task.Run(() => VmdlPipeline.SyncFromGameAsync(targetPath,
-                    new VmdlPipeline.GameSyncOptions(true, true, true),
-                    deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null, fallback, onLog: Log));
-                Log(syncMessage);
-                _ = UpdateLegacyFrameNoticeAsync(targetPath, _previewRequest);
-                if (!synced)
-                {
-                    await DialogService.ShowErrorAsync(this, "sync from game failed", syncMessage + "\n\nthe model was not compiled.");
-                    return;
-                }
-            }
-        }
-
         var requestedSkel = TxtSkel.Text?.Trim();
         var requestedGraph = TxtGraph.Text?.Trim();
         var requestedUiGraph = TxtUiGraph.Text?.Trim();
@@ -1679,6 +1715,16 @@ public partial class MainWindow : Window
         var expectedGraph = addGraph ? (string.IsNullOrWhiteSpace(requestedGraph)
             ? (namedGraphs is { Count: > 0 } ? null : defaultGraph) : requestedGraph) : null;
         var expectedUiGraph = addUiGraph ? (string.IsNullOrWhiteSpace(requestedUiGraph) ? defaultUiGraph : requestedUiGraph) : null;
+        var heroFallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
+
+        // Hold the guard while the camera check and an optional sync run, so a second click
+        // cannot start another compile; every target input above is already captured.
+        _isProcessing = true;
+        if (!await PrepareCameraFrameAsync(targetPath, heroFallback))
+        {
+            _isProcessing = false;
+            return;
+        }
 
         try
         {

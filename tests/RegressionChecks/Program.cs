@@ -896,6 +896,21 @@ finally
         Check(withoutPivots.Success && !withoutPivots.Changed && File.ReadAllText(attachmentFile) == neutral &&
               !await VmdlPipeline.UsesLegacyCameraFrameAsync(attachmentFile),
             "A model without camera pivots was changed or rejected.");
+        // KV3 permits a trailing comma and comments inside arrays.
+        File.WriteAllText(attachmentFile, legacyAttachments.Replace("-89.999992, -89.999992, 0.0 ]", "-89.999992, -89.999992, 0.0, /* old */ ]"));
+        Check(await VmdlPipeline.UsesLegacyCameraFrameAsync(attachmentFile), "A legacy frame with a trailing comma was not detected.");
+        // A compact node without relative_angles gets the field on its own whitespace-indented line.
+        var compact = header + "\n{\n\trootNode =\n\t{\n\t\t_class = \"RootNode\"\n\t\tchildren =\n\t\t[\n" +
+            "\t\t\t{ _class = \"Attachment\" name = \"standing_pivot\" parent_bone = \"root_motion\" relative_origin = [ 0.0, 90.0, 0.0 ] relative_angles = [ -90.0, -90.0, 0.0 ] },\n" +
+            "\t\t\t{ _class = \"Attachment\" name = \"crouching_pivot\" parent_bone = \"root_motion\" relative_origin = [ 0.0, 60.0, 0.0 ] relative_angles = [ -90.0, -90.0, 0.0 ] },\n" +
+            "\t\t\t{ _class = \"Attachment\" name = \"aim\" parent_bone = \"root_motion\" relative_origin = [ 1.0, 2.0, 3.0 ] }\n" +
+            "\t\t]\n\t}\n}";
+        File.WriteAllText(attachmentFile, compact);
+        var compactResult = await VmdlPipeline.SyncFromGameAsync(attachmentFile, frameOnly, null, null, createBackup: false);
+        var compactText = File.ReadAllText(attachmentFile);
+        Check(compactResult.Success && compactResult.Changed && Count(compactText, "{") == Count(compact, "{") &&
+              compactText.Contains("\n\t\t\t\trelative_angles = [ ") && compactText.Contains("relative_origin = [ 3.0, 1.0, 2.0 ]"),
+            "Migrating a compact attachment broke its braces or missed the inserted rotation.");
         Console.WriteLine("Root attachment frame migration checks passed.");
 
         static string GameData(string gameClass, string keys) =>
