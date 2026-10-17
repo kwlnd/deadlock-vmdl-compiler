@@ -466,6 +466,33 @@ try
             "Atomic replacement was allowed while the model was protected.");
     }
 
+    // The registry keeps the guard, checks packed copies, and releases by addon.
+    using (var registry = new ProtectedModelRegistry(_ => { }))
+    {
+        var changes = 0;
+        registry.Changed += () => changes++;
+        var expectation = new Ag2Expectation("a.vnmskel", null, null, null);
+        registry.Protect("source.vmdl", deployedModel, compilerOutput, expectation);
+        Check(registry.Count == 1 && registry.ExpectedFor("SOURCE.vmdl") == expectation && registry.AnyInAddon(gameDir),
+            "A protected model was not registered with its expectation.");
+        Check(IsWriteBlocked(() => File.WriteAllBytes(deployedModel, new byte[] { 0xFF })),
+            "A registered model was not protected.");
+        var registryVpk = Path.Combine(root, "registry_pak01_dir.vpk");
+        Check((await VpkBuilder.PackAddonToVpkAsync(gameDir, registryVpk)).Success &&
+              registry.VerifyPacked(registryVpk, gameDir, deployedModel) == null,
+            "A correctly packed protected model failed verification.");
+        registry.ReleaseForAddon(gameDir);
+        Check(registry.Count == 0 && changes == 2 && !IsWriteBlocked(() =>
+        {
+            using var stream = new FileStream(deployedModel, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+        }), "Releasing an addon did not free its protected models.");
+    }
+    var defaults = Ag2Expectation.ForCompile("models/x.vmdl", " ", "", "ui.vnmgraph", addSkel: true, addGraph: true,
+        addUiGraph: false, namedGraphs: new Dictionary<string, string> { ["Neutrals"] = "n.vnmgraph" });
+    Check(defaults.Skel == "" && defaults.Graph == null && defaults.UiGraph == null && defaults.NamedGraphs!.Count == 1,
+        "Compile expectations did not fall back to defaults or let named graphs replace the default graph.");
+    Console.WriteLine("Protected model registry checks passed.");
+
     using (var writable = new FileStream(deployedModel, FileMode.Open, FileAccess.Write, FileShare.ReadWrite))
         writable.WriteByte(0x55);
 
@@ -908,6 +935,35 @@ finally
         Check(compactResult.Success && compactResult.Changed && Count(compactText, "{") == Count(compact, "{") &&
               compactText.Contains("\n\t\t\t\trelative_angles = [ ") && compactText.Contains("relative_origin = [ 3.0, 1.0, 2.0 ]"),
             "Migrating a compact attachment broke its braces or missed the inserted rotation.");
+        // Batch sync: an unreadable model is recorded and the rest still run.
+        var batchDir = Path.Combine(Path.GetTempPath(), "deadlock-batch-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(batchDir);
+        try
+        {
+            var legacyModel = Path.Combine(batchDir, "legacy.vmdl");
+            var lockedModel = Path.Combine(batchDir, "locked.vmdl");
+            var currentModel = Path.Combine(batchDir, "current.vmdl");
+            File.WriteAllText(legacyModel, legacyAttachments);
+            File.WriteAllText(lockedModel, legacyAttachments);
+            File.WriteAllText(currentModel, migratedText);
+            GameSync.BatchSyncResult batch;
+            using (new FileStream(lockedModel, FileMode.Open, FileAccess.Read, FileShare.None))
+                batch = await GameSync.SyncAllAsync(new[]
+                {
+                    ("a", new DiscoveredModel { FullPath = lockedModel }),
+                    ("a", new DiscoveredModel { FullPath = legacyModel }),
+                    ("b", new DiscoveredModel { FullPath = currentModel })
+                }, frameOnly, null);
+            Check(batch.Synced == 1 && batch.Unchanged == 1 && batch.Failed.SequenceEqual(new[] { "a/locked.vmdl" }) &&
+                  !GameSync.UsesLegacyCameraFrameAsync(legacyModel).Result,
+                "Batch sync stopped at a failing model or miscounted its results.");
+            Check(GameSync.FallbackGamePath("fencer") == "models/heroes_wip/fencer/fencer.vmdl_c",
+                "A preset key that differs from its hero key did not resolve to the game model.");
+        }
+        finally
+        {
+            Directory.Delete(batchDir, recursive: true);
+        }
         Console.WriteLine("Root attachment frame migration checks passed.");
 
         static string GameData(string gameClass, string keys) =>

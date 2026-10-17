@@ -36,12 +36,7 @@ public partial class MainWindow : Window
     private readonly List<string> _pendingLogLines = new();
     private readonly Queue<int> _logLineInlines = new();
     private const int MaxLogLines = 3000;
-    private sealed record ProtectedModelState(
-        CompiledModelProtection Guard, string? Skel, string? Graph, string? UiGraph,
-        IReadOnlyDictionary<string, string>? NamedGraphs);
-
-    private readonly Dictionary<string, ProtectedModelState> _protectedModels =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly ProtectedModelRegistry _protected;
 
     private static readonly IBrush BrushOk = new SolidColorBrush(Color.FromRgb(0xDF, 0xE2, 0xE6));
     private static readonly IBrush BrushWarn = new SolidColorBrush(Color.FromRgb(0xBA, 0xBE, 0xC4));
@@ -56,6 +51,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _protected = new ProtectedModelRegistry(Log);
+        _protected.Changed += UpdateProtectionStatus;
         RestoreWindowLayout(ConfigManager.LoadConfig());
         AddHandler(DragDrop.DragOverEvent, Window_DragOver);
         AddHandler(DragDrop.DragLeaveEvent, (_, _) => BorderDropOverlay.IsVisible = false);
@@ -66,7 +63,7 @@ public partial class MainWindow : Window
         Closing += (_, _) => SaveWindowLayout();
         Closed += (_, _) =>
         {
-            ReleaseAllModelProtections();
+            _protected.Dispose();
             foreach (var portrait in _presetPortraits.Values)
                 portrait.Dispose();
         };
@@ -384,96 +381,31 @@ public partial class MainWindow : Window
 
     private void UpdateProtectionStatus()
     {
-        TxtMakeVpkBtn.Text = _protectedModels.Count == 0
+        TxtMakeVpkBtn.Text = _protected.Count == 0
             ? "make vpk..."
-            : $"make vpk... ({_protectedModels.Count} protected)";
+            : $"make vpk... ({_protected.Count} protected)";
     }
 
-    private void ReleaseProtectionForOutput(string deployedPath)
-    {
-        foreach (var sourcePath in _protectedModels
-                     .Where(pair => string.Equals(pair.Value.Guard.ModelPath, deployedPath, StringComparison.OrdinalIgnoreCase))
-                     .Select(pair => pair.Key).ToList())
-        {
-            _protectedModels[sourcePath].Guard.Dispose();
-            _protectedModels.Remove(sourcePath);
-            Log($"[protect] released: {Path.GetFileName(deployedPath)}");
-        }
-        UpdateProtectionStatus();
-    }
-
-    private void ReleaseProtectionForSource(string sourcePath)
-    {
-        if (_protectedModels.Remove(sourcePath, out var protection))
-        {
-            protection.Guard.Dispose();
-            Log($"[protect] released: {Path.GetFileName(protection.Guard.ModelPath)}");
-            UpdateProtectionStatus();
-        }
-    }
-
-    private void ReleaseProtectionsForAddon(string gameAddonDir)
-    {
-        var fullAddonDir = Path.GetFullPath(gameAddonDir);
-        foreach (var pair in _protectedModels.ToList())
-        {
-            if (IsModelInAddon(pair.Value.Guard.ModelPath, fullAddonDir))
-                ReleaseProtectionForSource(pair.Key);
-        }
-    }
-
-    private void ReleaseAllModelProtections()
-    {
-        foreach (var protection in _protectedModels.Values)
-            protection.Guard.Dispose();
-        _protectedModels.Clear();
-    }
+    /// <summary>The AG2 references the current settings would inject into this model.</summary>
+    private Ag2Expectation ReadAg2Expectation(string targetPath) => Ag2Expectation.ForCompile(targetPath,
+        TxtSkel.Text?.Trim(), TxtGraph.Text?.Trim(), TxtUiGraph.Text?.Trim(),
+        ChkSkel.IsChecked == true, ChkGraph.IsChecked == true, ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true,
+        _selectedNamedGraphs);
 
     private async Task OfferProtectionReleaseAfterFailedPackAsync(string targetPath, string? citadelDir)
     {
         var (_, addonName, _) = CsdkPaths.ParseCsdkPath(targetPath, citadelDir);
         var gameAddonDir = CsdkPaths.ResolveGameAddonDir(targetPath, citadelDir, addonName);
-        if (!_protectedModels.Values.Any(protection =>
-                IsModelInAddon(protection.Guard.ModelPath, gameAddonDir)))
+        if (!_protected.AnyInAddon(gameAddonDir))
             return;
 
         var keepProtected = await DialogService.ShowConfirmAsync(this,
             "VPK was not created",
             "Keep the compiled model protected while you retry packaging?\n\nChoose No to release the protection.");
         if (!keepProtected)
-            ReleaseProtectionsForAddon(gameAddonDir);
+            _protected.ReleaseForAddon(gameAddonDir);
     }
 
-    private static bool IsModelInAddon(string modelPath, string gameAddonDir)
-    {
-        var relative = Path.GetRelativePath(Path.GetFullPath(gameAddonDir), modelPath);
-        return !Path.IsPathRooted(relative) && relative != ".." &&
-               !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
-    }
-
-    private string? VerifyModelsInVpk(string vpkPath, string gameAddonDir, string selectedCompiledPath)
-    {
-        var modelPaths = _protectedModels.Values
-            .Select(state => state.Guard.ModelPath)
-            .Where(path => IsModelInAddon(path, gameAddonDir))
-            .Append(selectedCompiledPath)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var modelPath in modelPaths)
-        {
-            var relativePath = Path.GetRelativePath(gameAddonDir, modelPath).Replace('\\', '/');
-            var packedBytes = VpkArchive.ReadFile(vpkPath, relativePath);
-            if (packedBytes is null)
-                return $"The VPK does not contain the compiled model: {relativePath}";
-
-            using var deployed = File.OpenRead(modelPath);
-            if (packedBytes.LongLength != deployed.Length ||
-                !SHA256.HashData(packedBytes).AsSpan().SequenceEqual(SHA256.HashData(deployed)))
-                return $"The VPK contains a different version of the compiled model: {relativePath}";
-        }
-
-        return null;
-    }
 
     private async void MainWindow_Loaded(object? sender, RoutedEventArgs e)
     {
@@ -1331,37 +1263,10 @@ public partial class MainWindow : Window
             }
             else
             {
-                var synced = 0;
-                var unchanged = 0;
-                var failed = new List<string>();
-                foreach (var (addon, model) in allModels)
-                {
-                    var name = $"{addon}/{Path.GetFileName(model.FullPath)}";
-                    // Discovered models carry preset keys (e.g. "fencer"); the matcher maps them to the hero.
-                    HeroDatabase.GetDatabase().TryGetValue(model.Hero, out var modelPreset);
-                    var fallback = string.IsNullOrEmpty(model.Hero) ? null
-                        : HeroPresetMatcher.FindKnownHero(model.Hero, modelPreset)?.VpkPath;
-                    try
-                    {
-                        var (success, msg, changed) = await Task.Run(() =>
-                            GameSync.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
-                        Log($"[sync from game] {name}: {msg}");
-                        if (!success) failed.Add(name);
-                        else if (changed) synced++;
-                        else unchanged++;
-                    }
-                    catch (Exception ex)
-                    {
-                        // One locked or unreadable model must not stop the rest of the batch.
-                        Log($"[sync from game error] {name}: {ex.Message}");
-                        failed.Add(name);
-                    }
-                }
-                var summary = $"synced {synced} model(s), {unchanged} already current" +
-                              (failed.Count > 0 ? $", {failed.Count} failed: {string.Join(", ", failed)}" : "") +
-                              ". details are in the log.";
+                var batch = await Task.Run(() => GameSync.SyncAllAsync(allModels, options, pak01, Log));
+                var summary = batch.Summary;
                 Log($"[sync from game] {summary}");
-                if (failed.Count > 0)
+                if (batch.Failed.Count > 0)
                     await DialogService.ShowErrorAsync(this, "sync finished with errors", summary);
                 else
                     await DialogService.ShowInfoAsync(this, "all models synced", summary);
@@ -1412,22 +1317,9 @@ public partial class MainWindow : Window
                 return false;
             }
 
-            _protectedModels.TryGetValue(targetPath, out var protectedState);
-            var expectedSkel = protectedState is null
-                ? (ChkSkel.IsChecked == true ? TxtSkel.Text?.Trim() ?? string.Empty : null)
-                : protectedState.Skel;
-            var expectedGraph = protectedState is null
-                ? (ChkGraph.IsChecked == true && !(string.IsNullOrWhiteSpace(TxtGraph.Text) && _selectedNamedGraphs is { Count: > 0 })
-                    ? TxtGraph.Text?.Trim() ?? string.Empty : null)
-                : protectedState.Graph;
-            var expectedUiGraph = protectedState is null
-                ? (ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true ? TxtUiGraph.Text?.Trim() ?? string.Empty : null)
-                : protectedState.UiGraph;
-            var expectedNamedGraphs = protectedState is null
-                ? (ChkGraph.IsChecked == true ? _selectedNamedGraphs : null) : protectedState.NamedGraphs;
-            var verificationError = CsWinCompiler.VerifyCompiledAg2References(
-                compiledPath,
-                expectedSkel, expectedGraph, expectedUiGraph, expectedNamedGraphs);
+            // A protected model is checked against what it was compiled with, not the current settings.
+            var expected = _protected.ExpectedFor(targetPath) ?? ReadAg2Expectation(targetPath);
+            var verificationError = expected.VerifyCompiled(compiledPath);
             if (verificationError != null)
             {
                 await DialogService.ShowErrorAsync(this, "compiled model missing AG2 references", verificationError);
@@ -1460,7 +1352,7 @@ public partial class MainWindow : Window
             if (saveFile == null)
             {
                 Log("[make vpk] packaging cancelled by user.");
-                ReleaseProtectionsForAddon(gameAddonDir);
+                _protected.ReleaseForAddon(gameAddonDir);
                 return false;
             }
 
@@ -1469,7 +1361,7 @@ public partial class MainWindow : Window
             var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
             if (res.Success)
             {
-                var packedModelError = VerifyModelsInVpk(outputVpk, gameAddonDir, compiledPath);
+                var packedModelError = _protected.VerifyPacked(outputVpk, gameAddonDir, compiledPath);
                 if (packedModelError != null)
                 {
                     Log($"[make vpk error] {packedModelError}");
@@ -1477,7 +1369,7 @@ public partial class MainWindow : Window
                     return false;
                 }
 
-                ReleaseProtectionsForAddon(gameAddonDir);
+                _protected.ReleaseForAddon(gameAddonDir);
                 Log($"[make vpk] addon packaged successfully: {res.OutputVpkPath} ({res.FileCount} files, {res.TotalBytes / 1024 / 1024:N1} mb)");
                 if (!suppressSuccessDialog)
                 {
@@ -1726,11 +1618,7 @@ public partial class MainWindow : Window
         var addGraph = ChkGraph.IsChecked == true;
         var addUiGraph = ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true;
         var namedGraphs = addGraph ? _selectedNamedGraphs : null;
-        var (defaultSkel, defaultGraph, defaultUiGraph) = CsdkPaths.DeriveDefaultPaths(targetPath);
-        var expectedSkel = addSkel ? (string.IsNullOrWhiteSpace(requestedSkel) ? defaultSkel : requestedSkel) : null;
-        var expectedGraph = addGraph ? (string.IsNullOrWhiteSpace(requestedGraph)
-            ? (namedGraphs is { Count: > 0 } ? null : defaultGraph) : requestedGraph) : null;
-        var expectedUiGraph = addUiGraph ? (string.IsNullOrWhiteSpace(requestedUiGraph) ? defaultUiGraph : requestedUiGraph) : null;
+        var expected = ReadAg2Expectation(targetPath);
         var heroFallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
 
         // Hold the guard while the camera check and an optional sync run, so a second click
@@ -1799,15 +1687,9 @@ public partial class MainWindow : Window
                 namedGraphs: namedGraphs,
                 progress: progress,
                 onLog: Log,
-                beforeDeploy: deployedPath => Dispatcher.UIThread.Invoke(() => ReleaseProtectionForOutput(deployedPath)),
+                beforeDeploy: deployedPath => Dispatcher.UIThread.Invoke(() => _protected.ReleaseForOutput(deployedPath)),
                 afterDeploy: (deployedPath, compilerOutputPath) => Dispatcher.UIThread.Invoke(() =>
-                {
-                    var protection = CompiledModelProtection.Acquire(deployedPath, compilerOutputPath);
-                    _protectedModels[targetPath] = new ProtectedModelState(
-                        protection, expectedSkel, expectedGraph, expectedUiGraph, namedGraphs);
-                    UpdateProtectionStatus();
-                    Log($"[protect] CSDK12 cannot overwrite {Path.GetFileName(deployedPath)} until packaging or refusal.");
-                }),
+                    _protected.Protect(targetPath, deployedPath, compilerOutputPath, expected)),
                 cancellationToken: cancellation,
                 compilerErrors: compilerErrors
             ), cancellation);
@@ -1846,7 +1728,7 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    ReleaseProtectionForSource(targetPath);
+                    _protected.ReleaseForSource(targetPath);
                 }
             }
             else
