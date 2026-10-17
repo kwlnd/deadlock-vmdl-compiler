@@ -70,10 +70,10 @@ Requires the .NET 10 SDK on Windows x64.
 git clone https://github.com/kwlnd/deadlock-vmdl-compiler.git
 cd deadlock-vmdl-compiler
 PowerShell -NoProfile -ExecutionPolicy Bypass -File .\publish.ps1
-dotnet run --project tests/RegressionChecks/RegressionChecks.csproj -c Release
+dotnet test --project tests/DeadlockVmdlCompiler.Tests
 ```
 
-`publish.ps1` builds a single self-contained `.exe` in `publish/`. The bundled ValveResourceFormat package is described in [`third_party/README.md`](third_party/README.md).
+`publish.ps1` builds a single self-contained `.exe` in `publish/`. Checks against the installed game are skipped unless you set `DEADLOCK_TEST_VPK` to its `pak01_dir.vpk`; add `DEADLOCK_TEST_EXPORT=1` for the slow addon exports and `DEADLOCK_TEST_STEAM=1` for live Steam detection. The bundled ValveResourceFormat package is described in [`third_party/README.md`](third_party/README.md).
 
 ## Credits
 
