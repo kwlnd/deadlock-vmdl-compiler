@@ -466,7 +466,7 @@
             </ScrollViewer>
 
             <Grid Grid.Column="2" RowDefinitions="Auto,6,*,12,Auto,6,176">
-                <Grid ColumnDefinitions="*,Auto,Auto">
+                <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
                         <Viewbox Width="12" Height="12" VerticalAlignment="Center">
                             <Canvas Width="24" Height="24">
@@ -478,18 +478,6 @@
                     <TextBlock x:Name="LblMeshName" Grid.Column="1"
                                Text="mesh: no model selected" Classes="field-hint"
                                MaxWidth="400" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                    <Button x:Name="BtnResetView" Grid.Column="2" Classes="utility" Height="25"
-                            Padding="7,1" Margin="10,0,0,0" Click="BtnResetView_Click"
-                            ToolTip.Tip="Frame the whole model again (F or double-click in the preview)">
-                                    <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
-                                        <Viewbox Width="11" Height="11" VerticalAlignment="Center">
-                                            <Canvas Width="24" Height="24">
-                                                <Path Classes="icon" Data="{StaticResource IconFrame}"/>
-                                            </Canvas>
-                                        </Viewbox>
-                                        <TextBlock Text="reset view" FontSize="11" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </Button>
                 </Grid>
                 <Border Grid.Row="2" Classes="studio-card" Padding="6">
                     <Border Classes="studio-inset" Background="{StaticResource StudioViewport}"

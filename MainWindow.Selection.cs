@@ -293,6 +293,4 @@ public partial class MainWindow
         if (request == _previewRequest)
             BorderLegacyFrame.IsVisible = legacy;
     }
-
-    private void BtnResetView_Click(object? sender, RoutedEventArgs e) => ModelViewport.ResetView();
 }
