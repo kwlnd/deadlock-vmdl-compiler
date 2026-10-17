@@ -73,6 +73,9 @@ public static class DecompilerEngine
             var clothFiles = new List<string>();
             var materialPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             string? mainVmdl = null;
+            // The model's own source name can differ from its VPK path (a mod compiled from
+            // hero1.vmdl and renamed); the main ModelDoc is written where the game loads it.
+            string? requestedModelPath = null;
             int animCount = 0;
             var lastReportTime = DateTime.MinValue;
 
@@ -108,6 +111,7 @@ public static class DecompilerEngine
                         {
                             cleanFilter = cleanFilter[..^2];
                         }
+                        requestedModelPath = cleanFilter;
 
                         onLog?.Invoke($"[vpk] opening archive: {Path.GetFileName(cleanInput)}");
                         archive = VpkArchive.Open(cleanInput);
@@ -155,14 +159,14 @@ public static class DecompilerEngine
 
                     onLog?.Invoke("[native vrf] saving extracted assets to disk...");
 
-                    void ProcessContentFile(ContentFile cf)
+                    void ProcessContentFile(ContentFile cf, string? fileName = null)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         var baseDir = Path.GetDirectoryName(cf.FileName) ?? string.Empty;
 
                         if (cf.Data != null && cf.Data.Length > 0)
                         {
-                            var target = OutputPath(cf.FileName);
+                            var target = OutputPath(fileName ?? cf.FileName);
                             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
 
                             byte[] dataBytes = cf.Data;
@@ -258,7 +262,10 @@ public static class DecompilerEngine
                         }
                     }
 
-                    ProcessContentFile(contentFile);
+                    if (requestedModelPath != null &&
+                        !string.Equals(contentFile.FileName.Replace('\\', '/'), requestedModelPath, StringComparison.OrdinalIgnoreCase))
+                        onLog?.Invoke($"[vmdl] the model was compiled as {Path.GetFileName(contentFile.FileName)}; saving it as {Path.GetFileName(requestedModelPath)}");
+                    ProcessContentFile(contentFile, requestedModelPath);
 
                     if (isVpk)
                     {

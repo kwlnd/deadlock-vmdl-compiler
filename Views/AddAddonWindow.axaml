@@ -29,7 +29,7 @@
                 <StackPanel Grid.Column="2" Spacing="2">
                     <TextBlock Text="add addon" FontSize="16" FontWeight="Bold" Foreground="{StaticResource StudioText}"/>
                     <TextBlock Classes="body-copy"
-                               Text="Export the main hero model and its dependencies into a new CSDK12 addon."/>
+                               Text="Export a model from the game or a mod's VPK, with its dependencies, into a new CSDK12 addon."/>
                 </StackPanel>
             </Grid>
 
@@ -60,6 +60,37 @@
             <Border Height="1" Background="{StaticResource StudioBorder}"/>
 
             <StackPanel Spacing="5">
+                <TextBlock Classes="field-label" Text="source"/>
+                <Grid ColumnDefinitions="*,6,84">
+                    <TextBox x:Name="TxtSourceVpk" Height="36" IsReadOnly="True" Text="Deadlock game files"
+                             VerticalContentAlignment="Center"/>
+                    <Button x:Name="BtnSourceVpk" Grid.Column="2" Classes="utility" Height="36"
+                            HorizontalAlignment="Stretch" Click="BtnSourceVpk_Click"
+                            ToolTip.Tip="Export a model from a mod's .vpk instead of the game">
+                        <StackPanel Orientation="Horizontal" Spacing="5" HorizontalAlignment="Center">
+                            <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Classes="icon" Data="{StaticResource IconFolderOpen}"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock Text="mod vpk" FontSize="11" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+                <TextBlock x:Name="TxtSourceHint" Classes="field-hint"
+                           Text="Export from the game, or pick a mod's .vpk to export its model."/>
+                <Button x:Name="BtnUseGame" Classes="utility" Height="26" IsVisible="False"
+                        HorizontalAlignment="Left" Padding="10,2" Click="BtnUseGame_Click"
+                        Content="use game files" ToolTip.Tip="Go back to exporting a model from the game"/>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelVpkModel" Spacing="5" IsVisible="False">
+                <TextBlock Classes="field-label" Text="model"/>
+                <ComboBox x:Name="CmbVpkModel" Height="40" HorizontalAlignment="Stretch"/>
+                <TextBlock Classes="field-hint" Text="Compiled models found in the selected VPK."/>
+            </StackPanel>
+
+            <StackPanel x:Name="PanelHero" Spacing="5">
                 <TextBlock Classes="field-label" Text="character"/>
                 <AutoCompleteBox x:Name="CmbHero" Height="40" HorizontalAlignment="Stretch"
                                  Watermark="Select or type a hero"

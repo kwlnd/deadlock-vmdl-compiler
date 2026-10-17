@@ -35,12 +35,64 @@ public static class AddonCreationService
         Action<string>? onLog = null,
         CancellationToken cancellationToken = default)
     {
-        var nameError = ValidateName(name);
-        if (nameError != null) throw new ArgumentException(nameError, nameof(name));
         if (!DeadlockHeroCatalog.GetExportableModels().Contains(hero))
             throw new ArgumentException("Choose a model from the catalog.", nameof(hero));
         if (!File.Exists(pak01VpkPath))
             throw new FileNotFoundException("Deadlock pak01_dir.vpk was not found.", pak01VpkPath);
+        return await CreateCoreAsync(contentAddonsDirectory, pak01VpkPath, hero.VpkPath, GameinfoBeside(pak01VpkPath),
+            name, progress, onLog, cancellationToken);
+    }
+
+    /// <summary>
+    /// Exports a model from any VPK, such as a mod's pak01_dir.vpk. Resources the VPK lacks
+    /// (skeleton, animations, stock materials) come from the game when its pak01 is given.
+    /// </summary>
+    public static async Task<AddonCreationResult> CreateFromVpkAsync(
+        string contentAddonsDirectory,
+        string sourceVpkPath,
+        string modelVpkPath,
+        string? gamePak01VpkPath,
+        string name,
+        IProgress<DecompileProgress>? progress = null,
+        Action<string>? onLog = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(sourceVpkPath))
+            throw new FileNotFoundException("The selected VPK was not found.", sourceVpkPath);
+        if (!modelVpkPath.EndsWith(".vmdl_c", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Choose a compiled model (.vmdl_c) from the VPK.", nameof(modelVpkPath));
+        var gameinfo = gamePak01VpkPath != null && File.Exists(gamePak01VpkPath) ? GameinfoBeside(gamePak01VpkPath) : null;
+        if (gameinfo == null)
+            onLog?.Invoke("[add addon] Deadlock was not found; only resources inside the selected VPK are exported.");
+        return await CreateCoreAsync(contentAddonsDirectory, sourceVpkPath, modelVpkPath, gameinfo,
+            name, progress, onLog, cancellationToken);
+    }
+
+    /// <summary>Compiled models in a VPK, heroes first, for picking what to export.</summary>
+    public static IReadOnlyList<string> ListModels(string vpkPath)
+    {
+        using var archive = VpkArchive.Open(vpkPath);
+        return archive.FindFiles("vmdl_c", _ => true)
+            .OrderBy(path => path.StartsWith("models/heroes", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string GameinfoBeside(string pak01VpkPath) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(pak01VpkPath))!, "gameinfo.gi");
+
+    private static async Task<AddonCreationResult> CreateCoreAsync(
+        string contentAddonsDirectory,
+        string sourceVpkPath,
+        string modelVpkPath,
+        string? gameinfoPath,
+        string name,
+        IProgress<DecompileProgress>? progress,
+        Action<string>? onLog,
+        CancellationToken cancellationToken)
+    {
+        var nameError = ValidateName(name);
+        if (nameError != null) throw new ArgumentException(nameError, nameof(name));
 
         var contentParent = Path.TrimEndingDirectorySeparator(
             Path.GetFullPath(contentAddonsDirectory.Trim().Trim('"')));
@@ -64,8 +116,8 @@ public static class AddonCreationService
 
         var stage = Path.Combine(contentParent, $".creating-{Guid.NewGuid():N}");
         var gameStage = Path.Combine(gameParent, $".creating-{Guid.NewGuid():N}");
-        var expectedRelative = hero.VpkPath.EndsWith("_c", StringComparison.OrdinalIgnoreCase)
-            ? hero.VpkPath[..^2] : hero.VpkPath;
+        var expectedRelative = modelVpkPath.EndsWith("_c", StringComparison.OrdinalIgnoreCase)
+            ? modelVpkPath[..^2] : modelVpkPath;
         var expectedModel = Path.Combine(stage,
             expectedRelative.Replace('/', Path.DirectorySeparatorChar));
         var contentMoved = false;
@@ -74,9 +126,8 @@ public static class AddonCreationService
         {
             Directory.CreateDirectory(stage);
             Directory.CreateDirectory(gameStage);
-            var gameinfo = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(pak01VpkPath))!, "gameinfo.gi");
             var result = await DecompilerEngine.DecompileModelAsync(
-                pak01VpkPath, hero.VpkPath, stage, gameinfo, progress, onLog, cancellationToken);
+                sourceVpkPath, modelVpkPath, stage, gameinfoPath, progress, onLog, cancellationToken);
             if (!result.Success)
                 throw new InvalidDataException(result.Message);
             cancellationToken.ThrowIfCancellationRequested();

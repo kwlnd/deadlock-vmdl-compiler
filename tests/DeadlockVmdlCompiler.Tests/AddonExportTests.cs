@@ -74,6 +74,35 @@ public class AddonExportTests : IDisposable
     }
 
     [Fact]
+    public async Task ExportsAModelFromAModVpk()
+    {
+        var vpk = RequireGameVpk();
+        RequireFlag("DEADLOCK_TEST_EXPORT");
+        var (contentAddons, _) = CreateCsdk("mod_vpk_csdk12");
+        // A mod VPK holding only the compiled model, renamed as mods sometimes are; its meshes and
+        // animations resolve from the game, and the ModelDoc keeps the VPK name, not the compiled one.
+        const string modelPath = "models/heroes_wip/wraith/wraith_mod.vmdl_c";
+        var modDir = _temp["mod"];
+        var modModel = Path.Combine(modDir, modelPath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(modModel)!);
+        File.WriteAllBytes(modModel, VpkArchive.ReadFile(vpk, "models/heroes_wip/wraith/wraith.vmdl_c")!);
+        var modVpk = _temp["mod_dir.vpk"];
+        Check((await VpkBuilder.PackAddonToVpkAsync(modDir, modVpk)).Success, "The test mod VPK could not be packed.");
+
+        var models = AddonCreationService.ListModels(modVpk);
+        Check(models.SequenceEqual([modelPath]), "The mod VPK's models were not listed.");
+        var addon = await AddonCreationService.CreateFromVpkAsync(contentAddons, modVpk, models[0], vpk, "mod_vpk_export_test");
+        Check(File.Exists(addon.MainVmdlPath) &&
+              Path.GetRelativePath(addon.ContentDirectory, addon.MainVmdlPath).Replace('\\', '/') == modelPath[..^2],
+            "The model exported from a mod VPK is missing or lost its VPK-relative path.");
+        Check(Directory.EnumerateFiles(addon.ContentDirectory, "*model.dmx", SearchOption.AllDirectories).Any() &&
+              addon.ClothFileCount >= 1,
+            "The export from a mod VPK is missing its mesh or cloth.");
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            AddonCreationService.CreateFromVpkAsync(contentAddons, modVpk, "materials/x.vmat_c", vpk, "not_a_model"));
+    }
+
+    [Fact]
     public async Task ExportsWraithWithClothAndRejectsDuplicatesAndCancellation()
     {
         var vpk = RequireGameVpk();
