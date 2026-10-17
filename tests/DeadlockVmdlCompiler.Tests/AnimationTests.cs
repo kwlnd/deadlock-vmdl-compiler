@@ -44,10 +44,40 @@ public class AnimationTests
         var originalModel = File.ReadAllText(realAnimationVmdl);
         var enabledModel = AnimationNodes.DisableAnimationNodesForCompilation(originalModel, disableAnimationList: false);
         var originalClipCount = Regex.Matches(originalModel, @"_class\s*=\s*""AnimFile""").Count;
-        Check(originalClipCount > 0 &&
-              Regex.IsMatch(enabledModel, @"_class\s*=\s*""AnimationList""\s+disabled\s*=\s*false\b") &&
-              Regex.Matches(enabledModel, @"_class\s*=\s*""AnimFile""").Count == originalClipCount,
-            "Real ModelDoc lost animations or kept AnimationList disabled.");
+        // Exported models keep the list's own disabled flag after its children, not next to _class.
+        Check(originalClipCount > 0 && OwnFields(enabledModel, "AnimationList").Contains("disabled = false") &&
+              !OwnFields(enabledModel, "AnimationList").Contains("disabled = true") &&
+              Regex.Matches(enabledModel, @"_class\s*=\s*""AnimFile""").Count == originalClipCount &&
+              Regex.Matches(enabledModel, @"disabled = true").Count ==
+              Regex.Matches(originalModel, @"disabled = true").Count - (OwnFields(originalModel, "AnimationList").Contains("disabled = true") ? 1 : 0),
+            "Real ModelDoc lost animations, kept AnimationList disabled, or changed a clip's own flag.");
+    }
+
+    /// <summary>The node's text with every nested node and array removed, so only its own fields remain.</summary>
+    private static string OwnFields(string model, string className)
+    {
+        var start = model.LastIndexOf('{', model.IndexOf($"_class = \"{className}\"", StringComparison.Ordinal));
+        var own = new System.Text.StringBuilder();
+        var depth = 0;
+        for (var i = start; i < model.Length; i++)
+        {
+            var c = model[i];
+            if (c == '"')
+            {
+                var end = model.IndexOf('"', i + 1);
+                if (depth == 1) own.Append(model, i, end - i + 1);
+                i = end;
+                continue;
+            }
+            if (c is '{' or '[') depth++;
+            else if (c is '}' or ']')
+            {
+                if (--depth == 0) break;
+                continue;
+            }
+            if (depth == 1) own.Append(c);
+        }
+        return Regex.Replace(own.ToString(), @"\s+", " ");
     }
 
     [Fact]
