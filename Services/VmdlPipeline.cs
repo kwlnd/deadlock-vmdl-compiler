@@ -251,7 +251,7 @@ public static class VmdlPipeline
         return (string.Empty, string.Empty, string.Empty);
     }
 
-    public static (string UpgradedContent, List<string> Changes) UpgradeVmdlContent(
+    public static ModelDocEdit UpgradeVmdlContent(
         string content,
         string skelPath,
         string graphPath,
@@ -355,7 +355,7 @@ public static class VmdlPipeline
         return false;
     }
 
-    public static async Task<(bool Success, string Message)> CompileViaCsWinAndDeployAsync(
+    public static async Task<OperationResult> CompileViaCsWinAndDeployAsync(
         string csdk12VmdlPath,
         string upgradedVmdlContent,
         string? cswinDir = null,
@@ -380,7 +380,7 @@ public static class VmdlPipeline
 
         var layout = ResolveCsWinLayout(useCsWinDir);
         if (layout == null)
-            return (false, $"CSWin64 resourcecompiler.exe not found in: {useCsWinDir}");
+            return OperationResult.Fail($"CSWin64 resourcecompiler.exe not found in: {useCsWinDir}");
         var rcExe = layout.CompilerPath;
         var csWinGameDir = Path.Combine(layout.GameRoot, "csgo");
 
@@ -393,7 +393,7 @@ public static class VmdlPipeline
             }
             catch (Exception ex)
             {
-                return (false, $"Could not temporarily disable missing-material failures in CSWin64 gameinfo: {ex.Message}");
+                return OperationResult.Fail($"Could not temporarily disable missing-material failures in CSWin64 gameinfo: {ex.Message}");
             }
         }
         using var materialGuard = gameInfoGuard;
@@ -445,7 +445,7 @@ public static class VmdlPipeline
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     // Compiling against a stale copy would silently ship the previous mesh.
-                    return (false, $"Could not sync {relFile} to CSWin64: {ex.Message}");
+                    return OperationResult.Fail($"Could not sync {relFile} to CSWin64: {ex.Message}");
                 }
                 copied++;
                 progress?.Report(new CompileProgress(25 + (int)(20.0 * copied / Math.Max(1, filesToCopy.Count)),
@@ -468,7 +468,7 @@ public static class VmdlPipeline
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return (false, $"Could not sync animation source: {ex.Message}");
+                return OperationResult.Fail($"Could not sync animation source: {ex.Message}");
             }
         }
 
@@ -571,18 +571,18 @@ public static class VmdlPipeline
             var msg = errorLines.Count > 0 
                 ? string.Join("\n", errorLines) 
                 : (outputLines.Count > 0 ? string.Join("\n", outputLines) : string.Join("\n", rawLines));
-            return (false, $"CSWin64 Compiler error (code {proc.ExitCode}): {msg.Trim()}");
+            return OperationResult.Fail($"CSWin64 Compiler error (code {proc.ExitCode}): {msg.Trim()}");
         }
 
         if (!File.Exists(csWinCompiledVmdlc))
         {
-            return (false, $"Compiler finished but .vmdl_c was not created at: {csWinCompiledVmdlc}");
+            return OperationResult.Fail($"Compiler finished but .vmdl_c was not created at: {csWinCompiledVmdlc}");
         }
 
         var verificationError = VerifyCompiledAg2References(csWinCompiledVmdlc,
             expectedSkelPath, expectedGraphPath, expectedUiGraphPath, expectedNamedGraphs);
         if (verificationError != null)
-            return (false, verificationError);
+            return OperationResult.Fail(verificationError);
 
         progress?.Report(new CompileProgress(90, "[5/5] deploying model", Path.GetFileName(csWinCompiledVmdlc)));
 
@@ -597,7 +597,7 @@ public static class VmdlPipeline
         var vmdlcSize = new FileInfo(csdk12GameVmdlc).Length;
         onLog?.Invoke($"[deploy] deployed .vmdl_c ({vmdlcSize / 1024:N0} KB) to: {csdk12GameVmdlc}");
 
-        return (true, $"Compiled via CSWin64 & deployed .vmdl_c to: {csdk12GameVmdlc}");
+        return OperationResult.Ok($"Compiled via CSWin64 & deployed .vmdl_c to: {csdk12GameVmdlc}");
     }
 
     public static string? VerifyCompiledAg2References(
@@ -695,7 +695,7 @@ public static class VmdlPipeline
         return $"-f{skipTypes} -i \"{vmdlPath}\" -game \"{gamePath}\"";
     }
 
-    public static async Task<(bool Success, string Message)> ProcessVmdlFileAsync(
+    public static async Task<OperationResult> ProcessVmdlFileAsync(
         string filepath,
         string? skelPath = null,
         string? graphPath = null,
@@ -722,7 +722,7 @@ public static class VmdlPipeline
     {
         filepath = Path.GetFullPath(filepath);
         if (!File.Exists(filepath))
-            return (false, $"File not found: {filepath}");
+            return OperationResult.Fail($"File not found: {filepath}");
 
         progress?.Report(new CompileProgress(10, "[1/5] preparing source", Path.GetFileName(filepath)));
 
@@ -735,7 +735,7 @@ public static class VmdlPipeline
 
         var origContent = await File.ReadAllTextAsync(filepath);
 
-        var (upgradedContent, changes) = UpgradeVmdlContent(
+        var upgrade = UpgradeVmdlContent(
             origContent,
             skelPath: useSkel,
             graphPath: useGraph,
@@ -747,9 +747,9 @@ public static class VmdlPipeline
             namedGraphs: useNamedGraphs
         );
 
-        var upgradeError = changes.FirstOrDefault(change => change.StartsWith("Error:", StringComparison.Ordinal));
-        if (upgradeError != null)
-            return (false, upgradeError);
+        if (upgrade.Error != null)
+            return OperationResult.Fail(upgrade.Error);
+        var (upgradedContent, changes) = (upgrade.Content, upgrade.Changes);
 
         if (changes.Count > 0)
         {
@@ -781,7 +781,7 @@ public static class VmdlPipeline
             );
 
             if (!compSuccess)
-                return (false, $"CSWin64 Compilation Failed: {compMsg}");
+                return OperationResult.Fail($"CSWin64 Compilation Failed: {compMsg}");
 
             stepLogs.Add(compMsg);
         }
@@ -807,7 +807,7 @@ public static class VmdlPipeline
 
         progress?.Report(new CompileProgress(100, "[5/5] complete", "model compiled and deployed successfully"));
 
-        return (true, string.Join(" | ", stepLogs));
+        return OperationResult.Ok(string.Join(" | ", stepLogs));
     }
 
     public static async Task<(bool Success, string Message, int FilesCopied)> ExportToCsWinAddonAsync(
@@ -844,7 +844,7 @@ public static class VmdlPipeline
 
         var origContent = await File.ReadAllTextAsync(filepath);
 
-        var (upgradedContent, changes) = UpgradeVmdlContent(
+        var upgrade = UpgradeVmdlContent(
             origContent,
             skelPath: useSkel,
             graphPath: useGraph,
@@ -856,9 +856,9 @@ public static class VmdlPipeline
             namedGraphs: namedGraphs
         );
 
-        var upgradeError = changes.FirstOrDefault(change => change.StartsWith("Error:", StringComparison.Ordinal));
-        if (upgradeError != null)
-            return (false, upgradeError, 0);
+        if (upgrade.Error != null)
+            return (false, upgrade.Error, 0);
+        var (upgradedContent, changes) = (upgrade.Content, upgrade.Changes);
 
         int filesCopied = 0;
         var srcModelDir = Path.GetDirectoryName(filepath) ?? string.Empty;
@@ -982,24 +982,24 @@ public static class VmdlPipeline
     private static string DisableNodeByClass(string content, string className) =>
         ModelDocAg2Editor.SetNodeDisabled(content, className, disabled: true);
 
-    public static async Task<(bool Success, string Message, bool Changed)> SanitizeVmdlForModelDocAsync(
+    public static async Task<OperationResult> SanitizeVmdlForModelDocAsync(
         string vmdlPath,
         bool createBackup = true,
         bool disableAnimationList = true)
     {
         vmdlPath = Path.GetFullPath(vmdlPath);
         if (!File.Exists(vmdlPath))
-            return (false, $"File not found: {vmdlPath}", false);
+            return OperationResult.Fail($"File not found: {vmdlPath}");
 
         var content = await File.ReadAllTextAsync(vmdlPath);
         var (clean, changes) = Ag2Sanitizer.SanitizeVmdlContent(content, disableAnimationList);
         if (clean == content)
-            return (true, "VMDL is already clean and ModelDoc compatible; nothing was changed", false);
+            return OperationResult.Ok("VMDL is already clean and ModelDoc compatible; nothing was changed", changed: false);
 
         if (createBackup)
             CreateUniqueBackup(vmdlPath);
         await File.WriteAllTextAsync(vmdlPath, clean);
-        return (true, $"ModelDoc Fix Applied: {string.Join(", ", changes)}", true);
+        return OperationResult.Ok($"ModelDoc Fix Applied: {string.Join(", ", changes)}", changed: true);
     }
 
     public sealed record GameSyncOptions(bool FixAttachmentFrame, bool AddAttachments, bool GameData)
@@ -1014,7 +1014,7 @@ public static class VmdlPipeline
         return ModelDocAg2Editor.UsesLegacyRootFrame(content);
     }
 
-    public static (string Content, List<string> Changes) SyncFromGameContent(
+    public static ModelDocEdit SyncFromGameContent(
         string content, string gameContent, GameSyncOptions options) =>
         ModelDocAg2Editor.SyncFromGame(content, gameContent, options.AddAttachments, options.GameData);
 
@@ -1022,7 +1022,7 @@ public static class VmdlPipeline
     /// Brings an authored .vmdl up to date with the installed game: converts old-frame root
     /// attachments and copies the selected parts of the current game model into it.
     /// </summary>
-    public static async Task<(bool Success, string Message, bool Changed)> SyncFromGameAsync(
+    public static async Task<OperationResult> SyncFromGameAsync(
         string vmdlPath,
         GameSyncOptions options,
         string? pak01VpkPath,
@@ -1032,44 +1032,44 @@ public static class VmdlPipeline
     {
         vmdlPath = Path.GetFullPath(vmdlPath);
         if (!File.Exists(vmdlPath))
-            return (false, $"File not found: {vmdlPath}", false);
+            return OperationResult.Fail($"File not found: {vmdlPath}");
 
         var original = await File.ReadAllTextAsync(vmdlPath);
         var content = original;
         var changes = new List<string>();
         if (options.FixAttachmentFrame)
         {
-            var (migrated, migrationChanges) = ModelDocAg2Editor.MigrateRootAttachments(content);
-            if (migrationChanges.FirstOrDefault(change => change.StartsWith("Error:")) is { } error)
-                return (false, error, false);
-            content = migrated;
-            changes.AddRange(migrationChanges);
+            var migration = ModelDocAg2Editor.MigrateRootAttachments(content);
+            if (migration.Error != null)
+                return OperationResult.Fail(migration.Error);
+            content = migration.Content;
+            changes.AddRange(migration.Changes);
         }
 
         if (options.NeedsGameModel)
         {
             if (string.IsNullOrEmpty(pak01VpkPath) || !File.Exists(pak01VpkPath))
-                return (false, "Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.", false);
+                return OperationResult.Fail("Deadlock's pak01_dir.vpk was not found; select it to copy data from the game.");
             var gameText = await Task.Run(() => GameModelSource.LoadVmdl(pak01VpkPath,
                 [GameModelSource.GetVpkPath(vmdlPath), fallbackVpkPath], out var usedPath)
                 is { } text ? (text, usedPath) : default);
             if (gameText.text is null)
-                return (false, "The game has no model at this addon path, and the hero preset does not name one.", false);
+                return OperationResult.Fail("The game has no model at this addon path, and the hero preset does not name one.");
             onLog?.Invoke($"[sync from game] read {gameText.usedPath}");
 
-            var (synced, syncChanges) = SyncFromGameContent(content, gameText.text, options);
-            if (syncChanges.FirstOrDefault(change => change.StartsWith("Error:")) is { } error)
-                return (false, error, false);
-            content = synced;
-            changes.AddRange(syncChanges);
+            var sync = SyncFromGameContent(content, gameText.text, options);
+            if (sync.Error != null)
+                return OperationResult.Fail(sync.Error);
+            content = sync.Content;
+            changes.AddRange(sync.Changes);
         }
 
         if (content == original)
-            return (true, "The model already matches the game; nothing was changed", false);
+            return OperationResult.Ok("The model already matches the game; nothing was changed", changed: false);
 
         if (createBackup)
             CreateUniqueBackup(vmdlPath);
         await File.WriteAllTextAsync(vmdlPath, content);
-        return (true, "Synced from game: " + string.Join("; ", changes), true);
+        return OperationResult.Ok("Synced from game: " + string.Join("; ", changes), changed: true);
     }
 }

@@ -159,7 +159,10 @@ public static class HeroDatabase
                     CorrectLegacyPresets(dict);
                     return IncludeMissingBuiltInPresets(dict);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    AppLog.Warn($"preset file {p} could not be read, using the next one: {ex.Message}");
+                }
             }
         }
 
@@ -198,7 +201,10 @@ public static class HeroDatabase
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"built-in hero presets could not be read: {ex.Message}");
+        }
 
         return new Dictionary<string, HeroPreset>(StringComparer.OrdinalIgnoreCase);
     }

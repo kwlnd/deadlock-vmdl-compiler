@@ -60,6 +60,8 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, Window_DragOver);
         AddHandler(DragDrop.DragLeaveEvent, (_, _) => BorderDropOverlay.IsVisible = false);
         AddHandler(DragDrop.DropEvent, Window_Drop);
+        AppLog.Message += Log;
+        Closed += (_, _) => AppLog.Message -= Log;
         Loaded += MainWindow_Loaded;
         Closing += (_, _) => SaveWindowLayout();
         Closed += (_, _) =>
@@ -804,7 +806,12 @@ public partial class MainWindow : Window
                     "pick an addon and a target vmdl on the left, or drop a .vmdl file or an addon folder on this window.");
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            if (request != _previewRequest) return;
+            Log($"[preview] could not load the model: {ex.Message}");
+            ShowPreviewMessage("preview failed", ex.Message);
+        }
     }
 
     private void ShowPreviewMessage(string title, string? hint)
@@ -823,7 +830,10 @@ public partial class MainWindow : Window
             if (!string.IsNullOrEmpty(path))
                 legacy = await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(path));
         }
-        catch { }
+        catch
+        {
+            // An unreadable file simply gets no notice; compile and sync report the real error.
+        }
         // A newer selection owns the notice now.
         if (request == _previewRequest)
             BorderLegacyFrame.IsVisible = legacy;
@@ -880,7 +890,10 @@ public partial class MainWindow : Window
                 LblCitadelStatus.Foreground = BrushErr;
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log($"[environment] could not check the paths: {ex.Message}");
+        }
     }
 
     private void ValidateEnvironmentOnStartup()
@@ -1008,7 +1021,10 @@ public partial class MainWindow : Window
             if (match != null && !ReferenceEquals(CmbHeroPreset.SelectedItem, match))
                 CmbHeroPreset.SelectedItem = match;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Log($"[presets] could not detect the hero for {Path.GetFileName(vmdlPath)}: {ex.Message}");
+        }
     }
 
     private bool TrySelectNpcPresetForPath(string vmdlPath)

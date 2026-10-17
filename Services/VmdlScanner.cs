@@ -82,7 +82,10 @@ public static class VmdlScanner
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"could not finish scanning models in {searchPath}: {ex.Message}");
+        }
 
         return results.OrderBy(m => m.Display).ToList();
     }
@@ -115,7 +118,10 @@ public static class VmdlScanner
                 });
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"could not finish scanning addons in {citadelAddonsDir}: {ex.Message}");
+        }
 
         return results.OrderByDescending(a => a.HasHero).ThenBy(a => a.Name).ToList();
     }

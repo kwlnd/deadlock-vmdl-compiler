@@ -163,7 +163,7 @@ internal static class ModelDocAg2Editor
         return openBraces.Count > 0 ? openBraces.Peek() : -1;
     }
 
-    public static (string Content, List<string> Changes) Upgrade(
+    public static ModelDocEdit Upgrade(
         string content, string skelPath, string graphPath, string? uiGraphPath,
         bool addSkel, bool addGraph, bool addUiGraph, bool upgradeHeader, string header,
         IReadOnlyDictionary<string, string>? namedGraphs = null)
@@ -191,17 +191,15 @@ internal static class ModelDocAg2Editor
                 pair.Key.Equals("default", StringComparison.OrdinalIgnoreCase)) == true) ||
             (addUiGraph && !ValidPath(uiGraphPath)))
         {
-            changes.Add("Error: Selected AG2 reference path is empty or invalid; select a hero preset.");
-            return (content, changes);
+            return new ModelDocEdit(content, changes, "Selected AG2 reference path is empty or invalid; select a hero preset.");
         }
 
         if (!addSkel && !addGraph && !addUiGraph)
-            return (content, changes);
+            return new ModelDocEdit(content, changes);
 
         if (!TryGetRootChildren(content, out var rootOpen, out var rootClose))
         {
-            changes.Add("Error: Could not locate rootNode children array.");
-            return (content, changes);
+            return new ModelDocEdit(content, changes, "Could not locate rootNode children array.");
         }
 
         var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -222,8 +220,7 @@ internal static class ModelDocAg2Editor
             }
             else if (!TryGetChildren(content, list.Value, out var childOpen, out var childClose))
             {
-                changes.Add("Error: NmSkeletonList has no children array.");
-                return (content, changes);
+                return new ModelDocEdit(content, changes, "NmSkeletonList has no children array.");
             }
             else
             {
@@ -245,8 +242,7 @@ internal static class ModelDocAg2Editor
         {
             if (!TryGetRootChildren(content, out rootOpen, out rootClose))
             {
-                changes.Add("Error: Could not locate rootNode children array after editing skeleton.");
-                return (content, changes);
+                return new ModelDocEdit(content, changes, "Could not locate rootNode children array after editing skeleton.");
             }
 
             content = WrapStandaloneNodes(content, rootOpen, rootClose, "AnimGraph2List",
@@ -271,8 +267,7 @@ internal static class ModelDocAg2Editor
             {
                 if (!TryGetChildren(content, list.Value, out var childOpen, out var childClose))
                 {
-                    changes.Add("Error: AnimGraph2List has no children array.");
-                    return (content, changes);
+                    return new ModelDocEdit(content, changes, "AnimGraph2List has no children array.");
                 }
 
                 if (addDefaultGraph)
@@ -296,8 +291,7 @@ internal static class ModelDocAg2Editor
                         (list = FindNode(content, rootOpen, rootClose, "AnimGraph2List")) is null ||
                         !TryGetChildren(content, list.Value, out childOpen, out childClose))
                     {
-                        changes.Add("Error: Could not reopen AnimGraph2List after editing default graph.");
-                        return (content, changes);
+                        return new ModelDocEdit(content, changes, "Could not reopen AnimGraph2List after editing default graph.");
                     }
                     var reference = EnumerateNodes(content, childOpen, childClose).FirstOrDefault(n =>
                         n.ClassName.Equals("AnimGraph2", StringComparison.OrdinalIgnoreCase) &&
@@ -321,8 +315,7 @@ internal static class ModelDocAg2Editor
                             (list = FindNode(content, rootOpen, rootClose, "AnimGraph2List")) is null ||
                             !TryGetChildren(content, list.Value, out childOpen, out childClose))
                         {
-                            changes.Add("Error: Could not reopen AnimGraph2List after editing named graphs.");
-                            return (content, changes);
+                            return new ModelDocEdit(content, changes, "Could not reopen AnimGraph2List after editing named graphs.");
                         }
                         var reference = EnumerateNodes(content, childOpen, childClose).FirstOrDefault(node =>
                             node.ClassName.Equals("AnimGraph2", StringComparison.OrdinalIgnoreCase) &&
@@ -342,7 +335,7 @@ internal static class ModelDocAg2Editor
             }
         }
 
-        return (content, changes);
+        return new ModelDocEdit(content, changes);
     }
 
     // Deadlock's October 2026 update moved every root_motion attachment from a Y-up
@@ -355,7 +348,7 @@ internal static class ModelDocAg2Editor
     /// Converts root_motion attachments authored in the old frame. Offsets [x,y,z] become
     /// [z,x,y] and rotations lose the old basis, so authored adjustments survive the move.
     /// </summary>
-    internal static (string Content, List<string> Changes) MigrateRootAttachments(string content)
+    internal static ModelDocEdit MigrateRootAttachments(string content)
     {
         var changes = new List<string>();
         var nodes = EnumerateAllNodes(content)
@@ -365,11 +358,10 @@ internal static class ModelDocAg2Editor
         var frames = PivotFrames(content, nodes);
         // Models without camera pivots (neutrals, props) have no camera frame to move.
         if (frames.Count == 0 || frames.All(frame => SameRotation(frame, IdentityFrame)))
-            return (content, changes);
+            return new ModelDocEdit(content, changes);
         if (!frames.All(frame => SameRotation(frame, LegacyRootFrame)))
         {
-            changes.Add("Error: Camera pivots use mixed or custom rotations; attachments were left unchanged.");
-            return (content, changes);
+            return new ModelDocEdit(content, changes, "Camera pivots use mixed or custom rotations; attachments were left unchanged.");
         }
 
         var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -380,8 +372,7 @@ internal static class ModelDocAg2Editor
             var angles = ReadVector(content, node, "relative_angles") ?? [0, 0, 0];
             if (origin.Length != 3 || angles.Length != 3)
             {
-                changes.Add($"Error: Attachment '{FieldValue(content, node, "name")}' has an unreadable transform.");
-                return (content, changes);
+                return new ModelDocEdit(content, changes, $"Attachment '{FieldValue(content, node, "name")}' has an unreadable transform.");
             }
 
             var q = AnglesToQuaternion(angles[0], angles[1], angles[2]);
@@ -400,7 +391,7 @@ internal static class ModelDocAg2Editor
 
         names.Reverse();
         changes.Add($"Moved {names.Count} root_motion attachment(s) to the current frame: {string.Join(", ", names)}");
-        return (content, changes);
+        return new ModelDocEdit(content, changes);
     }
 
     /// <summary>
@@ -408,7 +399,7 @@ internal static class ModelDocAg2Editor
     /// game's settings structs (GenericGameData classes ending in _t). Nodes that exist only
     /// in the authored model are kept.
     /// </summary>
-    internal static (string Content, List<string> Changes) SyncFromGame(
+    internal static ModelDocEdit SyncFromGame(
         string content, string game, bool attachments, bool gameData)
     {
         var changes = new List<string>();
@@ -427,8 +418,7 @@ internal static class ModelDocAg2Editor
             {
                 if (!AppendChild(ref content, "AttachmentList", game, node, newline))
                 {
-                    changes.Add("Error: Could not locate or create the AttachmentList.");
-                    return (content, changes);
+                    return new ModelDocEdit(content, changes, "Could not locate or create the AttachmentList.");
                 }
             }
             if (missing.Count > 0)
@@ -454,8 +444,7 @@ internal static class ModelDocAg2Editor
                 {
                     if (!AppendChild(ref content, "GameDataList", game, source, newline))
                     {
-                        changes.Add("Error: Could not locate or create the GameDataList.");
-                        return (content, changes);
+                        return new ModelDocEdit(content, changes, "Could not locate or create the GameDataList.");
                     }
                     added.Add(gameClass);
                 }
@@ -484,7 +473,7 @@ internal static class ModelDocAg2Editor
             if (added.Count > 0) changes.Add($"Added game data: {string.Join(", ", added)}");
         }
 
-        return (content, changes);
+        return new ModelDocEdit(content, changes);
     }
 
     private static string Normalize(string text) => Regex.Replace(text, @"\s+", " ");

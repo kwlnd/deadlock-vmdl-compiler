@@ -58,7 +58,10 @@ public static class VpkHeroScanner
                                 results[heroKey] = preset;
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            AppLog.Warn($"skipped {modelPath} while scanning heroes: {ex.Message}");
+                        }
                     }
                 }
                 else if (Directory.Exists(resolvedPath))
@@ -93,7 +96,10 @@ public static class VpkHeroScanner
                                 results[heroKey] = preset;
                             }
                         }
-                        catch { }
+                        catch (Exception ex)
+                        {
+                            AppLog.Warn($"skipped {filePath} while scanning heroes: {ex.Message}");
+                        }
                     }
                 }
                 else
@@ -178,7 +184,10 @@ public static class VpkHeroScanner
                             preset,
                             preset.NamedGraphs.ContainsKey("Neutrals"));
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        AppLog.Warn($"skipped {modelPath} while scanning NPCs: {ex.Message}");
+                    }
                 }
 
                 var list = results.Values

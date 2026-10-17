@@ -193,7 +193,10 @@ public static class DmxModelLoader
                 }
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"preview materials could not be read: {ex.Message}");
+        }
 
         return matDb;
     }
@@ -485,7 +488,10 @@ public static class DmxModelLoader
                 result.AddRange(allDmx);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            AppLog.Warn($"preview meshes could not be listed: {ex.Message}");
+        }
 
         return result;
     }

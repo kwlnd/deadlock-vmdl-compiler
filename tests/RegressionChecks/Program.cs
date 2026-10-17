@@ -56,38 +56,38 @@ var paths = (Skel: "models/heroes_staging/hornet_v3/hornet.vnmskel",
     Ui: "animgraphs/animgraph2/hero/hero_ui.vnmgraph+vindicta.vnmgraph");
 
 var initial = VmdlPipeline.UpgradeVmdlContent(bareModel, paths.Skel, paths.Graph, paths.Ui);
-Check(!initial.Changes.Any(c => c.StartsWith("Error:")), "Injection rejected a RootNode without model_archetype.");
-Check(Count(initial.UpgradedContent, "_class = \"NmSkeletonList\"") == 1, "Missing or duplicate skeleton list.");
-Check(Count(initial.UpgradedContent, "_class = \"AnimGraph2List\"") == 1, "Missing or duplicate graph list.");
-Check(initial.UpgradedContent.Contains(paths.Ui), "Missing ui graph path.");
+Check(initial.Error == null, "Injection rejected a RootNode without model_archetype.");
+Check(Count(initial.Content, "_class = \"NmSkeletonList\"") == 1, "Missing or duplicate skeleton list.");
+Check(Count(initial.Content, "_class = \"AnimGraph2List\"") == 1, "Missing or duplicate graph list.");
+Check(initial.Content.Contains(paths.Ui), "Missing ui graph path.");
 
-var repeat = VmdlPipeline.UpgradeVmdlContent(initial.UpgradedContent, paths.Skel, paths.Graph, paths.Ui);
-Check(repeat.UpgradedContent == initial.UpgradedContent, "Repeated injection is not idempotent.");
+var repeat = VmdlPipeline.UpgradeVmdlContent(initial.Content, paths.Skel, paths.Graph, paths.Ui);
+Check(repeat.Content == initial.Content, "Repeated injection is not idempotent.");
 
-var changed = VmdlPipeline.UpgradeVmdlContent(initial.UpgradedContent,
+var changed = VmdlPipeline.UpgradeVmdlContent(initial.Content,
     "new_skeleton.vnmskel", "new_default.vnmgraph", "new_ui.vnmgraph");
-Check(changed.UpgradedContent.Contains("new_skeleton.vnmskel") &&
-      changed.UpgradedContent.Contains("new_default.vnmgraph") &&
-      changed.UpgradedContent.Contains("new_ui.vnmgraph"), "Existing AG2 references were not updated.");
-Check(!changed.UpgradedContent.Contains(paths.Graph), "Stale default graph reference remained.");
+Check(changed.Content.Contains("new_skeleton.vnmskel") &&
+      changed.Content.Contains("new_default.vnmgraph") &&
+      changed.Content.Contains("new_ui.vnmgraph"), "Existing AG2 references were not updated.");
+Check(!changed.Content.Contains(paths.Graph), "Stale default graph reference remained.");
 
 var uiOnly = VmdlPipeline.UpgradeVmdlContent(bareModel, "", "", paths.Ui,
     addSkel: false, addGraph: false, addUiGraph: true);
-Check(uiOnly.UpgradedContent.Contains("_class = \"AnimGraph2\"") &&
-      !uiOnly.UpgradedContent.Contains("_class = \"DefaultAnimGraph2\""), "Independent ui graph injection failed.");
+Check(uiOnly.Content.Contains("_class = \"AnimGraph2\"") &&
+      !uiOnly.Content.Contains("_class = \"DefaultAnimGraph2\""), "Independent ui graph injection failed.");
 
 var invalid = VmdlPipeline.UpgradeVmdlContent(bareModel, "", paths.Graph, paths.Ui);
-Check(invalid.Changes.Any(c => c.StartsWith("Error:")), "Missing skeleton preset was accepted.");
+Check(invalid.Error != null, "Missing skeleton preset was accepted.");
 
 var standaloneModel = header + "\n{ rootNode = { _class = \"RootNode\" children = [ " +
     "{ _class = \"DefaultAnimGraph2\" filename = \"old.vnmgraph\" }, " +
     "{ _class = \"AnimGraph2\" name = \"ui\" filename = \"old_ui.vnmgraph\" }, " +
     "] importer_notes = \"\"\"A note with { and ] characters\"\"\" } }";
 var wrapped = VmdlPipeline.UpgradeVmdlContent(standaloneModel, paths.Skel, paths.Graph, paths.Ui);
-Check(!wrapped.Changes.Any(c => c.StartsWith("Error:")), "Standalone AG2 nodes could not be wrapped.");
-Check(Count(wrapped.UpgradedContent, "_class = \"AnimGraph2List\"") == 1 &&
-      Count(wrapped.UpgradedContent, "_class = \"DefaultAnimGraph2\"") == 1 &&
-      !wrapped.UpgradedContent.Contains("old.vnmgraph"), "Standalone graph migration failed.");
+Check(wrapped.Error == null, "Standalone AG2 nodes could not be wrapped.");
+Check(Count(wrapped.Content, "_class = \"AnimGraph2List\"") == 1 &&
+      Count(wrapped.Content, "_class = \"DefaultAnimGraph2\"") == 1 &&
+      !wrapped.Content.Contains("old.vnmgraph"), "Standalone graph migration failed.");
 
 var commentedModel = header + "\n// rootNode = { children = [ ] }\n" +
     "{ rootNode = { _class = \"RootNode\" children = [ " +
@@ -95,18 +95,18 @@ var commentedModel = header + "\n// rootNode = { children = [ ] }\n" +
     "{ _class = \"DefaultAnimGraph2\" // filename = \"commented.vnmgraph\"\n" +
     "filename = \"old.vnmgraph\" } ] } ] } }";
 var commented = VmdlPipeline.UpgradeVmdlContent(commentedModel, paths.Skel, paths.Graph, paths.Ui);
-Check(!commented.Changes.Any(c => c.StartsWith("Error:")) &&
-      commented.UpgradedContent.Contains("filename = \"" + paths.Graph + "\"") &&
-      commented.UpgradedContent.Contains("// filename = \"commented.vnmgraph\""),
+Check(commented.Error == null &&
+      commented.Content.Contains("filename = \"" + paths.Graph + "\"") &&
+      commented.Content.Contains("// filename = \"commented.vnmgraph\""),
     "Commented ModelDoc text was treated as a live field.");
 
 var trailingComment = header + "\n{\nrootNode =\n{\n_class = \"RootNode\"\nchildren =\n[\n" +
     "{\n_class = \"MaterialGroupList\"\n} // last node\n]\n}\n}";
-var afterComment = VmdlPipeline.UpgradeVmdlContent(trailingComment, paths.Skel, paths.Graph, paths.Ui).UpgradedContent;
+var afterComment = VmdlPipeline.UpgradeVmdlContent(trailingComment, paths.Skel, paths.Graph, paths.Ui).Content;
 Check(afterComment.Contains("},\n{\n_class = \"NmSkeletonList\"") && !afterComment.Contains("// last node,"),
     "The separator for an injected node was written inside a trailing comment.");
 var windowsModel = bareModel.Replace("\n", "\r\n");
-Check(!Regex.IsMatch(VmdlPipeline.UpgradeVmdlContent(windowsModel, paths.Skel, paths.Graph, paths.Ui).UpgradedContent, "(?<!\r)\n"),
+Check(!Regex.IsMatch(VmdlPipeline.UpgradeVmdlContent(windowsModel, paths.Skel, paths.Graph, paths.Ui).Content, "(?<!\r)\n"),
     "Injected AG2 nodes mixed LF line endings into a CRLF ModelDoc file.");
 
 var looseReferences = header + "\n{ rootNode = { _class = \"RootNode\" children = [ " +
@@ -248,22 +248,22 @@ try
     var neutralGraph = new Dictionary<string, string> { ["Neutrals"] = "animgraphs/neutral_test.vnmgraph" };
     var namedOnly = VmdlPipeline.UpgradeVmdlContent(bareModel, "models/test.vnmskel", "", "",
         addUiGraph: false, namedGraphs: neutralGraph);
-    Check(!namedOnly.Changes.Any(change => change.StartsWith("Error:", StringComparison.Ordinal)) &&
-          namedOnly.UpgradedContent.Contains("name = \"Neutrals\"", StringComparison.Ordinal) &&
-          !namedOnly.UpgradedContent.Contains("DefaultAnimGraph2", StringComparison.Ordinal) &&
-          !namedOnly.UpgradedContent.Contains("name = \"ui\"", StringComparison.Ordinal),
+    Check(namedOnly.Error == null &&
+          namedOnly.Content.Contains("name = \"Neutrals\"", StringComparison.Ordinal) &&
+          !namedOnly.Content.Contains("DefaultAnimGraph2", StringComparison.Ordinal) &&
+          !namedOnly.Content.Contains("name = \"ui\"", StringComparison.Ordinal),
         "A named-only neutral graph was rejected, renamed to default, or given a nonexistent UI graph.");
-    var namedAgain = VmdlPipeline.UpgradeVmdlContent(namedOnly.UpgradedContent, "models/test.vnmskel", "", "",
+    var namedAgain = VmdlPipeline.UpgradeVmdlContent(namedOnly.Content, "models/test.vnmskel", "", "",
         addUiGraph: false, namedGraphs: neutralGraph);
-    Check(namedAgain.UpgradedContent == namedOnly.UpgradedContent, "Named graph injection is not idempotent.");
-    var namedUpdated = VmdlPipeline.UpgradeVmdlContent(namedOnly.UpgradedContent, "models/test.vnmskel", "", "",
+    Check(namedAgain.Content == namedOnly.Content, "Named graph injection is not idempotent.");
+    var namedUpdated = VmdlPipeline.UpgradeVmdlContent(namedOnly.Content, "models/test.vnmskel", "", "",
         addUiGraph: false, namedGraphs: new Dictionary<string, string> { ["Neutrals"] = "animgraphs/updated_neutral.vnmgraph" });
-    Check(Count(namedUpdated.UpgradedContent, "name = \"Neutrals\"") == 1 &&
-          namedUpdated.UpgradedContent.Contains("animgraphs/updated_neutral.vnmgraph", StringComparison.Ordinal),
+    Check(Count(namedUpdated.Content, "name = \"Neutrals\"") == 1 &&
+          namedUpdated.Content.Contains("animgraphs/updated_neutral.vnmgraph", StringComparison.Ordinal),
         "Updating a named graph duplicated its binding or left a stale path.");
     var namedDisabled = VmdlPipeline.UpgradeVmdlContent(bareModel, "models/test.vnmskel", "", "",
         addGraph: false, addUiGraph: false, namedGraphs: neutralGraph);
-    Check(!namedDisabled.UpgradedContent.Contains("AnimGraph2List", StringComparison.Ordinal),
+    Check(!namedDisabled.Content.Contains("AnimGraph2List", StringComparison.Ordinal),
         "The graph checkbox does not disable named graph injection.");
     var manualNeutralModel = Path.Combine(root, "abrams", "custom_neutral.vmdl");
     Directory.CreateDirectory(Path.GetDirectoryName(manualNeutralModel)!);
@@ -292,8 +292,8 @@ try
             $"The {key} preset has an incorrect graph binding, UI graph, or automatic detection key.");
         var preparedNeutral = VmdlPipeline.UpgradeVmdlContent(bareModel, preset.Skel, preset.Graph, preset.UiGraph,
             addUiGraph: false, namedGraphs: preset.NamedGraphs);
-        Check(!preparedNeutral.Changes.Any(change => change.StartsWith("Error:", StringComparison.Ordinal)) &&
-              preparedNeutral.UpgradedContent.Contains("name = \"Neutrals\"", StringComparison.Ordinal),
+        Check(preparedNeutral.Error == null &&
+              preparedNeutral.Content.Contains("name = \"Neutrals\"", StringComparison.Ordinal),
             $"Could not prepare the {key} AG2 preset for CSWin64.");
     }
 
@@ -490,17 +490,17 @@ try
     Check(extracted != null && extracted.SequenceEqual(original), "Embedded VPK entry did not round-trip.");
 
     var vmdl = Path.Combine(root, "sample.vmdl");
-    File.WriteAllText(vmdl, initial.UpgradedContent);
+    File.WriteAllText(vmdl, initial.Content);
     var first = await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
     Check(first.Success && !File.ReadAllText(vmdl).Contains("NmSkeletonList"), "First ModelDoc fix failed.");
     Check((await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl)).Success && !File.Exists(vmdl + ".bak.1"),
         "A ModelDoc fix that changed nothing still created a backup.");
-    File.WriteAllText(vmdl, initial.UpgradedContent + "\n// second version");
+    File.WriteAllText(vmdl, initial.Content + "\n// second version");
     var second = await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
     Check(second.Success, "Second ModelDoc fix failed.");
-    Check(File.ReadAllText(vmdl + ".bak") == initial.UpgradedContent, "Original backup was overwritten.");
+    Check(File.ReadAllText(vmdl + ".bak") == initial.Content, "Original backup was overwritten.");
     Check(File.Exists(vmdl + ".bak.1"), "Second backup was not created.");
-    File.WriteAllText(vmdl, initial.UpgradedContent + "\n// second version");
+    File.WriteAllText(vmdl, initial.Content + "\n// second version");
     await VmdlPipeline.SanitizeVmdlForModelDocAsync(vmdl);
     Check(!File.Exists(vmdl + ".bak.2"), "An identical backup was duplicated.");
     var looseFile = Path.Combine(root, "loose.vmdl");
@@ -748,10 +748,10 @@ try
                     $"Automatic detection reports missing animation sources in the {hero.DisplayName} export.");
                 var injected = VmdlPipeline.UpgradeVmdlContent(modelText, preset.Skel, preset.Graph,
                     preset.UiGraph);
-                Check(!injected.Changes.Any(change => change.StartsWith("Error:", StringComparison.Ordinal)) &&
-                      injected.UpgradedContent.Contains(preset.Skel, StringComparison.Ordinal) &&
-                      injected.UpgradedContent.Contains(preset.Graph, StringComparison.Ordinal) &&
-                      injected.UpgradedContent.Contains(preset.UiGraph, StringComparison.Ordinal),
+                Check(injected.Error == null &&
+                      injected.Content.Contains(preset.Skel, StringComparison.Ordinal) &&
+                      injected.Content.Contains(preset.Graph, StringComparison.Ordinal) &&
+                      injected.Content.Contains(preset.UiGraph, StringComparison.Ordinal),
                     $"The {hero.DisplayName} export cannot receive its AG2 nodes for CSWin64.");
                 Console.WriteLine($"{hero.DisplayName} addon export passed: {addon.FileCount} files, {addon.ClothFileCount} cloth assets.");
             }
@@ -932,8 +932,8 @@ finally
                 GameData("TaggedSoundSettings_t", "m_nNew = 1"),
                 GameData("particle_cfg", "m_custom = \"game\"")));
         var everything = new VmdlPipeline.GameSyncOptions(false, true, true);
-        var (synced, syncChanges) = VmdlPipeline.SyncFromGameContent(authored, game, everything);
-        Check(!syncChanges.Any(change => change.StartsWith("Error:")) &&
+        var (synced, syncChanges, syncError) = VmdlPipeline.SyncFromGameContent(authored, game, everything);
+        Check(syncError == null &&
               Count(synced, "name = \"healthbar\"") == 1 && synced.Contains("relative_origin = [ 9.0, 9.0, 9.0 ]") &&
               synced.Contains("m_flCameraHeightStanding = 100.0") && !synced.Contains("m_flCameraHeightStanding = 90.0") &&
               synced.Contains("TaggedSoundSettings_t") && !synced.Contains("CitadelTaggedSoundSettings_t") &&
