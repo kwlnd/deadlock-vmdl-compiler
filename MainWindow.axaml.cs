@@ -456,10 +456,22 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // Remember a user's decision for this exact release. A newer
+            // release will still be offered later.
+            var latestVersionKey = result.LatestVersion?.ToString();
+            if (!string.IsNullOrWhiteSpace(latestVersionKey) &&
+                string.Equals(_config.UpdateDismissedVersion, latestVersionKey, StringComparison.OrdinalIgnoreCase))
+            {
+                Log($"[update] version {latestVersionKey} was previously declined; skipping notification.");
+                return;
+            }
+
             if (!IsVisible || !await DialogService.ShowConfirmAsync(this, "update available",
                     $"version {result.LatestVersion} is available.\n\nWould you like to download it now?"))
             {
                 Log($"[update] version {result.LatestVersion} available; download declined.");
+                _config.UpdateDismissedVersion = latestVersionKey;
+                ConfigManager.SaveConfig(_config);
                 return;
             }
 
@@ -1564,9 +1576,32 @@ public partial class MainWindow : Window
             var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
             if (!deadlockInfo.IsValid || !File.Exists(deadlockInfo.DeadlockExePath))
             {
-                Log("[launch error] could not locate deadlock.exe automatically.");
-                await DialogService.ShowErrorAsync(this, "deadlock not found", "could not locate deadlock.exe automatically.\nplease ensure deadlock is installed in your steam library.");
-                return;
+                Log("[launch] could not locate Deadlock automatically; asking for the installation folder.");
+                var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "select your Deadlock installation folder",
+                    AllowMultiple = false
+                });
+
+                if (folders.Count == 0)
+                {
+                    Log("[launch] Deadlock location selection cancelled.");
+                    return;
+                }
+
+                var selectedRoot = folders[0].Path.LocalPath;
+                deadlockInfo = DeadlockLocator.DetectDeadlockInstallation(selectedRoot);
+                if (!deadlockInfo.IsValid || !File.Exists(deadlockInfo.DeadlockExePath))
+                {
+                    Log($"[launch error] selected folder is not a valid Deadlock installation: {selectedRoot}");
+                    await DialogService.ShowErrorAsync(
+                        this,
+                        "deadlock not found",
+                        "the selected folder does not contain a valid Deadlock installation.\n\nselect the folder containing Deadlock's game and bin folders.");
+                    return;
+                }
+
+                Log($"[launch] using Deadlock installation selected by user: {deadlockInfo.GameRootPath}");
             }
 
             // Check if the actual game instance is already running

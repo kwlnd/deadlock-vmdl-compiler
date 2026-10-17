@@ -42,4 +42,7 @@ public class AppConfig
 
     [JsonPropertyName("use_builtin_hero_paths")]
     public bool UseBuiltInHeroPaths { get; set; }
+
+    [JsonPropertyName("update_dismissed_version")]
+    public string? UpdateDismissedVersion { get; set; }
 }
