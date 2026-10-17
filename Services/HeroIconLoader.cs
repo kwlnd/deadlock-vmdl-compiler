@@ -12,19 +12,13 @@ public static class HeroIconLoader
         var wanted = heroes.Where(hero => hero.IconVpkPath != null).ToDictionary(hero => hero.IconVpkPath!,
             hero => hero.HeroKey, StringComparer.OrdinalIgnoreCase);
         var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
-        var vpkDirectory = Path.GetDirectoryName(pak01VpkPath) ?? string.Empty;
-        var vpkBaseName = Path.GetFileNameWithoutExtension(pak01VpkPath);
-        if (vpkBaseName.EndsWith("_dir", StringComparison.OrdinalIgnoreCase))
-            vpkBaseName = vpkBaseName[..^4];
+        var archive = VpkArchive.Game(pak01VpkPath);
 
-        foreach (var entry in VpkHeroScanner.ReadVpkDirectory(pak01VpkPath))
+        foreach (var (entryPath, heroKey) in wanted)
         {
-            var entryPath = $"{entry.Directory}/{entry.FileName}.{entry.Extension}";
-            if (!wanted.TryGetValue(entryPath, out var heroKey)) continue;
             try
             {
-                var bytes = VpkHeroScanner.ExtractVpkEntryBytes(
-                    entry, pak01VpkPath, vpkDirectory, vpkBaseName);
+                var bytes = archive.Read(entryPath);
                 if (bytes == null) continue;
 
                 using var resource = new Resource();

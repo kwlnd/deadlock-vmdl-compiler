@@ -460,7 +460,7 @@ public partial class MainWindow : Window
         foreach (var modelPath in modelPaths)
         {
             var relativePath = Path.GetRelativePath(gameAddonDir, modelPath).Replace('\\', '/');
-            var packedBytes = VpkHeroScanner.ExtractFileFromVpk(vpkPath, relativePath);
+            var packedBytes = VpkArchive.ReadFile(vpkPath, relativePath);
             if (packedBytes is null)
                 return $"The VPK does not contain the compiled model: {relativePath}";
 

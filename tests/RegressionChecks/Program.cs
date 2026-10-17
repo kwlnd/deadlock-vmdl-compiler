@@ -449,7 +449,7 @@ try
         var protectedVpk = Path.Combine(root, "protected_pak01_dir.vpk");
         var protectedPack = await VpkBuilder.PackAddonToVpkAsync(gameDir, protectedVpk);
         Check(protectedPack.Success, "VPK packaging could not read a protected model.");
-        var protectedBytes = VpkHeroScanner.ExtractFileFromVpk(protectedVpk,
+        var protectedBytes = VpkArchive.ReadFile(protectedVpk,
             "models/heroes_staging/demo/protected.vmdl_c");
         Check(protectedBytes != null && protectedBytes.SequenceEqual(compiledBytes),
             "Protected model changed while being packaged.");
@@ -486,7 +486,7 @@ try
     var vpkPath = Path.Combine(root, "pak01_dir.vpk");
     var packed = await VpkBuilder.PackAddonToVpkAsync(gameDir, vpkPath);
     Check(packed.Success, "VPK packing failed: " + packed.Message);
-    var extracted = VpkHeroScanner.ExtractFileFromVpk(vpkPath, "models/heroes_staging/demo/demo.vmdl_c");
+    var extracted = VpkArchive.ReadFile(vpkPath, "models/heroes_staging/demo/demo.vmdl_c");
     Check(extracted != null && extracted.SequenceEqual(original), "Embedded VPK entry did not round-trip.");
 
     var vmdl = Path.Combine(root, "sample.vmdl");
@@ -544,7 +544,7 @@ try
     var unicodeVpk = Path.Combine(root, "unicode_dir.vpk");
     File.WriteAllText(unicodeVpk, "previous archive");
     Check((await VpkBuilder.PackAddonToVpkAsync(unicodeDir, unicodeVpk)).Success &&
-          VpkHeroScanner.ExtractFileFromVpk(unicodeVpk, "models/модель/тест.vmdl_c")?.SequenceEqual(original) == true &&
+          VpkArchive.ReadFile(unicodeVpk, "models/модель/тест.vmdl_c")?.SequenceEqual(original) == true &&
           !Directory.EnumerateFiles(root, "*.tmp").Any(),
         "A non-ASCII path did not round-trip through the VPK, or a temporary archive was left behind.");
 
@@ -636,16 +636,13 @@ try
                       Environment.GetEnvironmentVariable("DEADLOCK_TEST_VPK");
     if (!string.IsNullOrWhiteSpace(deadlockVpk))
     {
-        var vpkEntries = VpkHeroScanner.ReadVpkDirectory(deadlockVpk);
-        var vpkPaths = vpkEntries.Select(entry =>
-            $"{entry.Directory}/{entry.FileName}.{entry.Extension}")
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var gameArchive = VpkArchive.Game(deadlockVpk);
         foreach (var catalogHero in catalogHeroes)
         {
-            Check(vpkPaths.Contains(catalogHero.VpkPath),
+            Check(gameArchive.Contains(catalogHero.VpkPath),
                 $"Missing model in Deadlock VPK: {catalogHero.DisplayName}.");
             if (catalogHero.IconVpkPath != null)
-                Check(vpkPaths.Contains(catalogHero.IconVpkPath),
+                Check(gameArchive.Contains(catalogHero.IconVpkPath),
                     $"Missing small portrait in Deadlock VPK: {catalogHero.DisplayName}.");
         }
         var portraits = HeroIconLoader.LoadSmallPortraits(deadlockVpk, catalogHeroes);
@@ -655,7 +652,7 @@ try
               png[0] == 0x89 && png[1] == 0x50 && png[2] == 0x4e && png[3] == 0x47),
             "A hero portrait was not decoded to PNG.");
 
-        var heroBytes = VpkHeroScanner.ExtractFileFromVpk(deadlockVpk,
+        var heroBytes = VpkArchive.ReadFile(deadlockVpk,
             "models/heroes_staging/hornet_v3/hornet.vmdl_c");
         Check(heroBytes is { Length: > 0 }, "Could not extract Vindicta model from Deadlock VPK.");
         using var heroResource = new Resource();
@@ -678,10 +675,10 @@ try
         {
             var hero = catalogHeroes.Single(candidate => candidate.HeroKey == heroKey);
             var preset = HeroDatabase.GetVisiblePresets()[presetKey];
-            Check(vpkPaths.Contains(preset.Skel + "_c") && vpkPaths.Contains(preset.UiGraph + "_c"),
+            Check(gameArchive.Contains(preset.Skel + "_c") && gameArchive.Contains(preset.UiGraph + "_c"),
                 $"Missing skeleton or UI graph in the VPK for {hero.DisplayName}.");
             var compiledFile = Path.Combine(root, presetKey + ".vmdl_c");
-            File.WriteAllBytes(compiledFile, VpkHeroScanner.ExtractFileFromVpk(deadlockVpk, hero.VpkPath)!);
+            File.WriteAllBytes(compiledFile, VpkArchive.ReadFile(deadlockVpk, hero.VpkPath)!);
             var newHeroError = VmdlPipeline.VerifyCompiledAg2References(
                 compiledFile, preset.Skel, preset.Graph, preset.UiGraph);
             Check(newHeroError == null,
@@ -691,12 +688,12 @@ try
         foreach (var (key, modelPath) in neutralModels)
         {
             var preset = neutralPresets[key];
-            Check(vpkPaths.Contains(modelPath) && vpkPaths.Contains(preset.Skel + "_c") &&
-                  preset.NamedGraphs.Values.All(graph => vpkPaths.Contains(graph + "_c")) &&
-                  (preset.Graph.Length == 0 || vpkPaths.Contains(preset.Graph + "_c")),
+            Check(gameArchive.Contains(modelPath) && gameArchive.Contains(preset.Skel + "_c") &&
+                  preset.NamedGraphs.Values.All(graph => gameArchive.Contains(graph + "_c")) &&
+                  (preset.Graph.Length == 0 || gameArchive.Contains(preset.Graph + "_c")),
                 $"A preset references an unavailable compiled AG2 resource for {key}.");
             var neutralFile = Path.Combine(root, key + ".vmdl_c");
-            File.WriteAllBytes(neutralFile, VpkHeroScanner.ExtractFileFromVpk(deadlockVpk, modelPath)!);
+            File.WriteAllBytes(neutralFile, VpkArchive.ReadFile(deadlockVpk, modelPath)!);
             var neutralError = VmdlPipeline.VerifyCompiledAg2References(neutralFile, preset.Skel,
                 preset.Graph.Length == 0 ? null : preset.Graph, null, preset.NamedGraphs);
             Check(neutralError == null, $"The {key} preset disagrees with actual compiled AG2 bindings: {neutralError}");

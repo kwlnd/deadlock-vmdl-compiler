@@ -32,6 +32,7 @@
     <AvaloniaResource Include="AppIcon.png" />
     <Compile Remove="tests/**/*.cs" />
     <Compile Remove="scratch/**/*.cs" />
+    <AvaloniaXaml Remove="tests/**;scratch/**" />
   </ItemGroup>
 
   <ItemGroup>

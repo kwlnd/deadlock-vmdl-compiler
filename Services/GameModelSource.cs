@@ -1,5 +1,4 @@
 using System.Text;
-using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.IO;
 
@@ -23,14 +22,13 @@ public static class GameModelSource
     public static string? LoadVmdl(string pak01VpkPath, IEnumerable<string?> vpkPaths, out string? usedPath)
     {
         usedPath = null;
-        using var package = new Package();
-        package.Read(pak01VpkPath);
+        var archive = VpkArchive.Game(pak01VpkPath);
         // The loader searches pak01 before any mounted addon, so installed mods cannot shadow the game model.
-        using var loader = new GameFileLoader(package, pak01VpkPath);
+        var loader = archive.Loader;
         foreach (var path in vpkPaths.Where(path => !string.IsNullOrWhiteSpace(path)).Select(path => path!.Replace('\\', '/')))
         {
             var compiled = path.EndsWith("_c", StringComparison.OrdinalIgnoreCase) ? path : path + "_c";
-            if (package.FindEntry(compiled) == null) continue;
+            if (!archive.Contains(compiled)) continue;
             using var resource = loader.LoadFile(compiled);
             if (resource == null) continue;
             using var content = new ModelExtract(resource, loader).ToContentFile();

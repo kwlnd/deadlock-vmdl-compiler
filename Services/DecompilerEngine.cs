@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
-using ValvePak;
 using ValveResourceFormat;
 using ValveResourceFormat.IO;
 
@@ -81,7 +80,6 @@ public static class DecompilerEngine
 
             try
             {
-                Package? package = null;
                 GameFileLoader? fileLoader = null;
                 Resource? resource = null;
 
@@ -111,11 +109,10 @@ public static class DecompilerEngine
                         }
 
                         onLog?.Invoke($"[vpk] opening archive: {Path.GetFileName(cleanInput)}");
-                        package = new Package();
-                        package.Read(cleanInput);
+                        var archive = VpkArchive.Game(cleanInput);
 
                         onLog?.Invoke("[vpk] mounting search paths & addons...");
-                        fileLoader = new GameFileLoader(package, cleanInput);
+                        fileLoader = new GameFileLoader(archive.Package, cleanInput);
                         if (!string.IsNullOrEmpty(gameinfoPath) && File.Exists(gameinfoPath))
                         {
                             fileLoader.FindAndLoadSearchPaths(gameinfoPath);
@@ -313,7 +310,6 @@ public static class DecompilerEngine
                 {
                     resource?.Dispose();
                     fileLoader?.Dispose();
-                    package?.Dispose();
                 }
 
                 stopwatch.Stop();
