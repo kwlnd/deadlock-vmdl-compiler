@@ -32,5 +32,9 @@ Desktop.ini
 
 config.json
 *.pdb
-*.zip
+
+# Local SDK/NuGet homes and session notes
+.dotnet/
+.nuget/
+SESSION.md
 

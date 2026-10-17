@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.3
+
+- Preview loads 2-8 times faster: only the materials the model uses are read, and textures decode in parallel. Rotating heavy models is smoother.
+- **make vpk** packs about 10 times faster and no longer freezes the window while it checks the compiled model.
+- Fixed: picking a hero in **add addon** crashed the app. Avalonia is pinned to 11.3.12, as 11.3.13 and later crash in that list; the patched `Tmds.DBus.Protocol` 0.21.3 is kept.
+- Removed the **reset view** button; double-click the preview or press F instead.
+- Internal cleanup: VPKs are read through ValvePak, the compile pipeline and main window are split into smaller files, and the checks moved to an xUnit test project.
+
 ## 1.5.2
 
 - The log colours errors, warnings and successes.
@@ -17,7 +25,7 @@
 - **sync from game** can run on every model in all addons at once.
 - **compile** warns when the model still uses the old camera frame and offers to sync it first, compile anyway, or cancel.
 - Removed hitbox replacement from **sync from game**.
-- Updated Avalonia to 11.3.22, which removes the vulnerable `Tmds.DBus.Protocol` 0.20.0 dependency.
+- Updated Avalonia to 11.3.22 (later pinned to 11.3.12, see 1.5.3), which removes the vulnerable `Tmds.DBus.Protocol` 0.20.0 dependency.
 
 ## 1.5.0
 

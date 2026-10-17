@@ -21,5 +21,3 @@ dotnet pack ValveResourceFormat/ValveResourceFormat.csproj -c Release -p:Package
 ```
 
 SHA256: `0FB3364F143A83D95723833413C1AC4ED70CA0841586F4C52242DC76FC800DD8`
-
-`valvepak.6.0.0.182.nupkg` is the ValvePak version this VRF build references.
