@@ -328,6 +328,18 @@ public static class CsWinCompiler
                 if (listFiles) onLog?.Invoke($"[sync] copied: {relFile}");
             }
             if (copied > 0) onLog?.Invoke($"[sync] copied {copied} new or changed asset(s) to cswin64");
+
+            // Materials also point at textures outside the model folder, such as
+            // materials/default/default_ao.tga; CSWin64 fails on a missing one.
+            try
+            {
+                var textures = SyncMaterialTextures(csWinVmdlDir, csWinAddonRoot, csdkAddonRoot);
+                if (textures > 0) onLog?.Invoke($"[sync] copied {textures} texture(s) the materials reference from outside the model folder");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return OperationResult.Fail($"Could not sync material textures to CSWin64: {ex.Message}");
+            }
         }
 
         // Animations can live outside the model folder. Preserve their addon-relative
@@ -441,10 +453,8 @@ public static class CsWinCompiler
 
         if (proc.ExitCode != 0)
         {
-            var msg = errorLines.Count > 0 
-                ? string.Join("\n", errorLines) 
-                : (outputLines.Count > 0 ? string.Join("\n", outputLines) : string.Join("\n", rawLines));
-            return OperationResult.Fail($"CSWin64 Compiler error (code {proc.ExitCode}): {msg.Trim()}");
+            var all = errorLines.Count > 0 ? errorLines : outputLines.Count > 0 ? outputLines : rawLines;
+            return OperationResult.Fail($"CSWin64 Compiler error (code {proc.ExitCode}): {SummarizeCompilerErrors(all)}");
         }
 
         if (!File.Exists(csWinCompiledVmdlc))
@@ -486,6 +496,57 @@ public static class CsWinCompiler
         }
 
         return OperationResult.Ok($"Compiled via CSWin64 & deployed .vmdl_c to: {csdk12GameVmdlc}");
+    }
+
+    /// <summary>
+    /// The lines of a failed compile worth showing in a dialog: errors and failures first, a few
+    /// of them; the full output is already in the log.
+    /// </summary>
+    public static string SummarizeCompilerErrors(IReadOnlyList<string> lines)
+    {
+        const int shown = 8;
+        var errors = lines.Where(line => line.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                                         line.Contains("[FAIL]", StringComparison.Ordinal)).ToList();
+        var picked = (errors.Count > 0 ? errors : lines).Distinct().ToList();
+        var summary = string.Join("\n", picked.Take(shown)).Trim();
+        return picked.Count > shown
+            ? $"{summary}\n... and {picked.Count - shown} more line(s); the log has the full compiler output."
+            : summary;
+    }
+
+    private static readonly Regex MaterialTextureReference = new(
+        @"^\s*""?Texture\w*""?\s+""([^""\[][^""]*\.(?:tga|png|jpg|jpeg|psd|tif|tiff|exr))""",
+        RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Copies textures the CSWin64 copies of the model's materials reference but CSWin64 lacks,
+    /// from the CSDK12 addon, then from CSDK12's citadel and core content. Returns how many.
+    /// </summary>
+    public static int SyncMaterialTextures(string csWinMaterialRoot, string csWinAddonRoot, string csdkAddonRoot)
+    {
+        var csdkContent = Path.GetDirectoryName(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(csdkAddonRoot)));
+        var sources = new List<string> { csdkAddonRoot };
+        if (csdkContent != null)
+            sources.AddRange([Path.Combine(csdkContent, "citadel"), Path.Combine(csdkContent, "core")]);
+
+        var copied = 0;
+        var references = Directory.EnumerateFiles(csWinMaterialRoot, "*.vmat", SearchOption.AllDirectories)
+            .SelectMany(material => MaterialTextureReference.Matches(File.ReadAllText(material)))
+            .Select(match => match.Groups[1].Value.Replace('\\', '/').TrimStart('/'))
+            .Where(path => !path.Split('/').Any(part => part is "" or "." or ".."))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var reference in references)
+        {
+            var relative = reference.Replace('/', Path.DirectorySeparatorChar);
+            var target = Path.Combine(csWinAddonRoot, relative);
+            if (File.Exists(target)) continue;
+            var source = sources.Select(root => Path.Combine(root, relative)).FirstOrDefault(File.Exists);
+            if (source == null) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(source, target);
+            copied++;
+        }
+        return copied;
     }
 
     /// <summary>

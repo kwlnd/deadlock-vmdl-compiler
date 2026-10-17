@@ -31,14 +31,15 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Message Body -->
-            <TextBlock x:Name="TxtMessage"
-                       Text="message text goes here."
-                       FontSize="12"
-                       Foreground="{StaticResource StudioTextSoft}"
-                       TextWrapping="Wrap"
-                       LineHeight="18"
-                       Margin="42,0,0,0"/>
+            <!-- Message Body: long compiler output scrolls instead of growing past the screen -->
+            <ScrollViewer MaxHeight="320" Margin="42,0,0,0" HorizontalScrollBarVisibility="Disabled">
+                <SelectableTextBlock x:Name="TxtMessage"
+                                     Text="message text goes here."
+                                     FontSize="12"
+                                     Foreground="{StaticResource StudioTextSoft}"
+                                     TextWrapping="Wrap"
+                                     LineHeight="18"/>
+            </ScrollViewer>
 
             <!-- Buttons Row -->
             <Border Height="1" Background="{StaticResource StudioBorder}"/>
