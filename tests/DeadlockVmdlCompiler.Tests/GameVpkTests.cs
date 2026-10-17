@@ -100,6 +100,63 @@ public class GameVpkTests : IDisposable
     }
 
     [Fact]
+    public void DeploysTheMaterialsAndTexturesACompiledModelUses()
+    {
+        // The game's Wraith with its materials and textures stands in for a compiler's game addon.
+        var vpk = RequireGameVpk();
+        var compiler = _temp["compiler"];
+        var deploy = _temp["deploy"];
+        const string model = "models/heroes_wip/wraith/wraith.vmdl_c";
+        string Local(string root, string path) => Path.Combine(root, path.Replace('/', Path.DirectorySeparatorChar));
+        using (var archive = VpkArchive.Open(vpk))
+        {
+            var pending = new Queue<string>([model]);
+            var seen = new HashSet<string>();
+            while (pending.TryDequeue(out var path))
+            {
+                if (!seen.Add(path) || archive.Read(path) is not { } bytes) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(Local(compiler, path))!);
+                File.WriteAllBytes(Local(compiler, path), bytes);
+                using var resource = new Resource();
+                resource.Read(new MemoryStream(bytes));
+                foreach (var reference in resource.ExternalReferences?.ResourceRefInfoList ?? [])
+                    if (reference.Name.EndsWith(".vmat") || reference.Name.EndsWith(".vtex"))
+                        pending.Enqueue(reference.Name + "_c");
+            }
+        }
+        var expected = Directory.EnumerateFiles(compiler, "*", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(compiler, file).Replace('\\', '/'))
+            .Where(path => path != model).ToHashSet();
+        Check(expected.Any(path => path.EndsWith(".vmat_c")) && expected.Any(path => path.EndsWith(".vtex_c")),
+            "The stand-in compiler output has no materials or textures.");
+
+        var copied = CsWinCompiler.DeployCompiledDependencies(Local(compiler, model), compiler, deploy);
+        var deployed = Directory.EnumerateFiles(deploy, "*", SearchOption.AllDirectories)
+            .Select(file => Path.GetRelativePath(deploy, file).Replace('\\', '/')).ToHashSet();
+        Check(copied == expected.Count && deployed.SetEquals(expected),
+            $"Deployed {deployed.Count} of the model's {expected.Count} compiled materials and textures.");
+        Check(CsWinCompiler.DeployCompiledDependencies(Local(compiler, model), compiler, deploy) == 0,
+            "Unchanged materials were copied again.");
+    }
+
+    [Fact]
+    public async Task PacksOnlyTheDefaultTexturesTheGameLacks()
+    {
+        var vpk = RequireGameVpk();
+        var addon = _temp["default_textures"];
+        var defaults = Path.Combine(addon, "materials", "default");
+        Directory.CreateDirectory(defaults);
+        File.WriteAllBytes(Path.Combine(defaults, "default_mask_tga_344101f8.vtex_c"), [1]);
+        File.WriteAllBytes(Path.Combine(defaults, "default_mask_tga_00000000.vtex_c"), [2]);
+        var packed = _temp["default_textures_dir.vpk"];
+        Check((await VpkBuilder.PackAddonToVpkAsync(addon, packed, vpk)).Success, "Packing default textures failed.");
+        using var archive = VpkArchive.Open(packed);
+        Check(!archive.Contains("materials/default/default_mask_tga_344101f8.vtex_c") &&
+              archive.Contains("materials/default/default_mask_tga_00000000.vtex_c"),
+            "The VPK should skip default textures the game has and keep the variants it lacks.");
+    }
+
+    [Fact]
     public void ReadsTheGameModelForSync()
     {
         var vpk = RequireGameVpk();

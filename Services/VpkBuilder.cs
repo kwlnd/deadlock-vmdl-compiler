@@ -18,11 +18,13 @@ public static class VpkBuilder
     /// Builds a standard Source 2 .vpk file from the compiled game addon directory.
     /// Excludes:
     /// - Any paths containing "_bakeresourcecache"
-    /// - Any paths starting with or containing "materials/default/"
+    /// - Files under "materials/default/" that the game already has (all of them when
+    ///   <paramref name="gameVpkPath"/> is not given); variants it lacks are packed
     /// - Any ".bin" cache files
     /// - ServerConfig.vdf, *.bak, *.vpk
     /// </summary>
-    public static async Task<VpkPackResult> PackAddonToVpkAsync(string sourceGameDir, string outputVpkPath)
+    public static async Task<VpkPackResult> PackAddonToVpkAsync(string sourceGameDir, string outputVpkPath,
+        string? gameVpkPath = null)
     {
         var result = new VpkPackResult();
 
@@ -45,6 +47,7 @@ public static class VpkBuilder
             try
             {
                 var normSource = Path.GetFullPath(sourceGameDir);
+                using var game = gameVpkPath != null && File.Exists(gameVpkPath) ? VpkArchive.Open(gameVpkPath) : null;
                 var allFiles = Directory.GetFiles(normSource, "*.*", SearchOption.AllDirectories);
 
                 var validFiles = new List<(string RelPath, string Ext, string Dir, string FileNameWithoutExt, string FullPath, long Length)>();
@@ -58,8 +61,10 @@ public static class VpkBuilder
                     if (lowerRel.Contains("_bakeresourcecache"))
                         continue;
 
-                    // Blacklist Filter 2: materials/default/
-                    if (lowerRel.StartsWith("materials/default/") || lowerRel.Contains("/materials/default/"))
+                    // Blacklist Filter 2: materials/default/. A compile can produce a default
+                    // texture variant the game lacks (another hash suffix); that one must ship.
+                    if ((lowerRel.StartsWith("materials/default/") || lowerRel.Contains("/materials/default/")) &&
+                        (game == null || game.Contains(relPath)))
                         continue;
 
                     // Blacklist Filter 3: all .bin files

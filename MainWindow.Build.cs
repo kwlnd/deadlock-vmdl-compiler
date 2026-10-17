@@ -311,7 +311,8 @@ public partial class MainWindow
 
             var outputVpk = saveFile.Path.LocalPath;
 
-            var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
+            var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk,
+                deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null);
             if (res.Success)
             {
                 var packedModelError = await _protected.VerifyPackedAsync(outputVpk, gameAddonDir, compiledPath);

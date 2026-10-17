@@ -470,7 +470,58 @@ public static class CsWinCompiler
         var vmdlcSize = new FileInfo(csdk12GameVmdlc).Length;
         onLog?.Invoke($"[deploy] deployed .vmdl_c ({vmdlcSize / 1024:N0} KB) to: {csdk12GameVmdlc}");
 
+        // Materials, textures and morph data the compile produced must ship with the model:
+        // the VPK is packed from the CSDK12 game addon, and a mod's own materials are not in the game.
+        try
+        {
+            var csWinGameAddon = Path.Combine(layout.GameRoot, "csgo_addons", addonName);
+            var csdkGameAddon = csdk12GameVmdlc[..^(subpath.Length + 2)];
+            var deployed = DeployCompiledDependencies(csWinCompiledVmdlc, csWinGameAddon, csdkGameAddon);
+            if (deployed > 0)
+                onLog?.Invoke($"[deploy] copied {deployed} compiled material/texture file(s) the model uses");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return OperationResult.Fail($"The model was deployed, but its compiled materials could not be copied: {ex.Message}");
+        }
+
         return OperationResult.Ok($"Compiled via CSWin64 & deployed .vmdl_c to: {csdk12GameVmdlc}");
+    }
+
+    /// <summary>
+    /// Copies the compiled resources a model references, directly or through its materials, from
+    /// the compiler's game addon to the deployed one. References the compiler did not produce
+    /// (stock game files) are skipped. Returns how many files were copied.
+    /// </summary>
+    public static int DeployCompiledDependencies(string compiledModel, string compilerGameAddon, string deployGameAddon)
+    {
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pending = new Queue<string>(ExternalReferences(compiledModel));
+        var copied = 0;
+        while (pending.TryDequeue(out var reference))
+        {
+            var relative = reference.Replace('\\', '/').TrimStart('/') + "_c";
+            if (!visited.Add(relative) || relative.Split('/').Any(part => part is "" or "." or "..")) continue;
+            var source = Path.Combine(compilerGameAddon, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(source)) continue;
+            var target = Path.Combine(deployGameAddon, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (NeedsCopy(source, target))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                File.Copy(source, target, overwrite: true);
+                copied++;
+            }
+            foreach (var next in ExternalReferences(source))
+                pending.Enqueue(next);
+        }
+        return copied;
+    }
+
+    private static IEnumerable<string> ExternalReferences(string compiledPath)
+    {
+        using var resource = new Resource();
+        resource.Read(compiledPath);
+        return resource.ExternalReferences?.ResourceRefInfoList.Select(info => info.Name).ToList() ?? [];
     }
 
     public static string? VerifyCompiledAg2References(
