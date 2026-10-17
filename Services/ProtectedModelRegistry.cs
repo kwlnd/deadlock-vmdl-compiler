@@ -84,14 +84,20 @@ public sealed class ProtectedModelRegistry : IDisposable
     /// Checks that the VPK holds byte-identical copies of the selected model and of every protected
     /// model in the addon. Returns an error message, or null when all of them match.
     /// </summary>
-    public string? VerifyPacked(string vpkPath, string gameAddonDir, string selectedCompiledPath)
+    public Task<string?> VerifyPackedAsync(string vpkPath, string gameAddonDir, string selectedCompiledPath)
     {
+        // The registry belongs to the UI thread: list the models here, read and hash them on a worker.
         var modelPaths = _entries.Values
             .Select(entry => entry.Guard.ModelPath)
             .Where(path => IsInAddon(path, gameAddonDir))
             .Append(selectedCompiledPath)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        return Task.Run(() => VerifyPacked(vpkPath, gameAddonDir, modelPaths));
+    }
 
+    private static string? VerifyPacked(string vpkPath, string gameAddonDir, IEnumerable<string> modelPaths)
+    {
         using var archive = VpkArchive.Open(vpkPath);
         foreach (var modelPath in modelPaths)
         {

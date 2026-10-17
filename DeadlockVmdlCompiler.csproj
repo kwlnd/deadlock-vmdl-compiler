@@ -47,6 +47,7 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
     <PackageReference Include="ValveKeyValue" Version="0.71.0.528" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.12" />
     <PackageReference Include="ValvePak" Version="6.0.0.182" />
     <PackageReference Include="ValveResourceFormat" Version="[20.2.0-master.aab066c]" />
   </ItemGroup>

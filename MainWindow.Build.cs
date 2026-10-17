@@ -271,7 +271,8 @@ public partial class MainWindow
 
             // A protected model is checked against what it was compiled with, not the current settings.
             var expected = _protected.ExpectedFor(targetPath) ?? ReadAg2Expectation(targetPath);
-            var verificationError = expected.VerifyCompiled(compiledPath);
+            // Parsing a large compiled model takes a noticeable moment; keep the window responsive.
+            var verificationError = await Task.Run(() => expected.VerifyCompiled(compiledPath));
             if (verificationError != null)
             {
                 await DialogService.ShowErrorAsync(this, "compiled model missing AG2 references", verificationError);
@@ -313,7 +314,7 @@ public partial class MainWindow
             var res = await VpkBuilder.PackAddonToVpkAsync(gameAddonDir, outputVpk);
             if (res.Success)
             {
-                var packedModelError = _protected.VerifyPacked(outputVpk, gameAddonDir, compiledPath);
+                var packedModelError = await _protected.VerifyPackedAsync(outputVpk, gameAddonDir, compiledPath);
                 if (packedModelError != null)
                 {
                     Log($"[make vpk error] {packedModelError}");

@@ -76,7 +76,8 @@ public static class DmxModelLoader
             var vmdlContent = File.ReadAllText(vmdlPath);
 
             // 1. Resolve material database with VMDL remaps
-            var materialDb = BuildMaterialDatabase(vmdlContent, vmdlDir, citadelDir);
+            var pendingTextures = new List<(MeshTexture Material, string TexturePath)>();
+            var materialDb = BuildMaterialDatabase(vmdlContent, vmdlDir, citadelDir, pendingTextures);
 
             // 2. Resolve render meshes from RenderMeshList
             var dmxFiles = ExtractLod0RenderMeshes(vmdlContent, vmdlDir, citadelDir);
@@ -90,6 +91,19 @@ public static class DmxModelLoader
             {
                 ParseDmx(dmx, materialDb, compositeMesh);
             }
+
+            // Only the materials the meshes use were read; their textures decode in parallel.
+            Parallel.ForEach(pendingTextures.GroupBy(pending => pending.TexturePath, StringComparer.OrdinalIgnoreCase), group =>
+            {
+                var decoded = LoadTexture(group.Key);
+                if (decoded == null) return;
+                foreach (var (material, _) in group)
+                {
+                    material.Width = decoded.Width;
+                    material.Height = decoded.Height;
+                    material.Pixels = decoded.Pixels;
+                }
+            });
 
             if (compositeMesh.Vertices.Count > 0)
             {
@@ -105,9 +119,16 @@ public static class DmxModelLoader
         }
     }
 
-    private static Dictionary<string, MeshTexture> BuildMaterialDatabase(string vmdlContent, string vmdlDir, string? citadelDir)
+    /// <summary>
+    /// Maps material names to materials that are read on first use, so a folder full of
+    /// unused materials costs only a directory listing. Textures of the materials read are
+    /// added to <paramref name="pendingTextures"/> for decoding.
+    /// </summary>
+    private static Dictionary<string, Lazy<MeshTexture?>> BuildMaterialDatabase(string vmdlContent, string vmdlDir,
+        string? citadelDir, List<(MeshTexture Material, string TexturePath)> pendingTextures)
     {
-        var matDb = new Dictionary<string, MeshTexture>(StringComparer.OrdinalIgnoreCase);
+        var matDb = new Dictionary<string, Lazy<MeshTexture?>>(StringComparer.OrdinalIgnoreCase);
+        var byPath = new Dictionary<string, Lazy<MeshTexture?>>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
@@ -117,6 +138,14 @@ public static class DmxModelLoader
             if (mIdx >= 0)
             {
                 addonRoot = cleanDir.Substring(0, mIdx).Replace('/', Path.DirectorySeparatorChar);
+            }
+
+            Lazy<MeshTexture?> MaterialAt(string vmatPath)
+            {
+                if (!byPath.TryGetValue(vmatPath, out var material))
+                    byPath[vmatPath] = material = new Lazy<MeshTexture?>(
+                        () => LoadMeshTextureFromVmat(vmatPath, vmdlDir, addonRoot, citadelDir, pendingTextures));
+                return material;
             }
 
             var remaps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -145,19 +174,13 @@ public static class DmxModelLoader
                     candidates.Add(Path.Combine(citadelDir, "materials", Path.GetFileName(rel)));
                 }
 
-                foreach (var c in candidates)
+                var found = candidates.FirstOrDefault(File.Exists);
+                if (found != null)
                 {
-                    if (File.Exists(c))
-                    {
-                        var tex = LoadMeshTextureFromVmat(c, vmdlDir, addonRoot, citadelDir);
-                        if (tex != null)
-                        {
-                            RegisterMaterialAliases(matDb, c, addonRoot, tex);
-                            RegisterMaterialKey(matDb, kv.Key, tex, overwrite: true);
-                            RegisterMaterialKey(matDb, Path.GetFileNameWithoutExtension(kv.Key), tex, overwrite: true);
-                            break;
-                        }
-                    }
+                    var tex = MaterialAt(found);
+                    RegisterMaterialAliases(matDb, found, addonRoot, tex);
+                    RegisterMaterialKey(matDb, kv.Key, tex, overwrite: true);
+                    RegisterMaterialKey(matDb, Path.GetFileNameWithoutExtension(kv.Key), tex, overwrite: true);
                 }
             }
 
@@ -183,13 +206,7 @@ public static class DmxModelLoader
                 {
                     var materialKey = NormalizeMaterialKey(Path.GetRelativePath(addonRoot ?? vmdlDir, vmat));
                     if (!matDb.ContainsKey(materialKey))
-                    {
-                        var tex = LoadMeshTextureFromVmat(vmat, vmdlDir, addonRoot, citadelDir);
-                        if (tex != null)
-                        {
-                            RegisterMaterialAliases(matDb, vmat, addonRoot, tex);
-                        }
-                    }
+                        RegisterMaterialAliases(matDb, vmat, addonRoot, MaterialAt(vmat));
                 }
             }
         }
@@ -203,16 +220,16 @@ public static class DmxModelLoader
 
     private static string NormalizeMaterialKey(string key) => key.Trim().Replace('\\', '/').TrimStart('/');
 
-    private static void RegisterMaterialKey(Dictionary<string, MeshTexture> materialDb, string key,
-        MeshTexture material, bool overwrite = false)
+    private static void RegisterMaterialKey(Dictionary<string, Lazy<MeshTexture?>> materialDb, string key,
+        Lazy<MeshTexture?> material, bool overwrite = false)
     {
         var normalized = NormalizeMaterialKey(key);
         if (normalized.Length > 0 && (overwrite || !materialDb.ContainsKey(normalized)))
             materialDb[normalized] = material;
     }
 
-    private static void RegisterMaterialAliases(Dictionary<string, MeshTexture> materialDb,
-        string vmatPath, string? addonRoot, MeshTexture material)
+    private static void RegisterMaterialAliases(Dictionary<string, Lazy<MeshTexture?>> materialDb,
+        string vmatPath, string? addonRoot, Lazy<MeshTexture?> material)
     {
         if (!string.IsNullOrEmpty(addonRoot))
         {
@@ -225,18 +242,20 @@ public static class DmxModelLoader
         RegisterMaterialKey(materialDb, Path.GetFileNameWithoutExtension(vmatPath), material);
     }
 
-    private static MeshTexture? ResolveMaterial(Dictionary<string, MeshTexture> materialDb, string name)
+    private static MeshTexture? ResolveMaterial(Dictionary<string, Lazy<MeshTexture?>> materialDb, string name)
     {
         var key = NormalizeMaterialKey(name);
-        if (materialDb.TryGetValue(key, out var material)) return material;
-        if (materialDb.TryGetValue(Path.GetFileName(key), out material)) return material;
-        if (materialDb.TryGetValue(Path.GetFileNameWithoutExtension(key), out material)) return material;
         // Blender duplicates such as "gun.001" still mean the "gun" material.
         var duplicate = Regex.Match(Path.GetFileName(key), @"^(.+)\.\d{3}$");
-        return duplicate.Success && materialDb.TryGetValue(duplicate.Groups[1].Value, out material) ? material : null;
+        return Find(key) ?? Find(Path.GetFileName(key)) ?? Find(Path.GetFileNameWithoutExtension(key)) ??
+               (duplicate.Success ? Find(duplicate.Groups[1].Value) : null);
+
+        // A material that failed to read falls through to the next name, as if it were absent.
+        MeshTexture? Find(string candidate) => materialDb.TryGetValue(candidate, out var material) ? material.Value : null;
     }
 
-    private static MeshTexture? LoadMeshTextureFromVmat(string vmatPath, string vmdlDir, string? addonRoot, string? citadelDir)
+    private static MeshTexture? LoadMeshTextureFromVmat(string vmatPath, string vmdlDir, string? addonRoot, string? citadelDir,
+        List<(MeshTexture Material, string TexturePath)> pendingTextures)
     {
         try
         {
@@ -268,8 +287,8 @@ public static class DmxModelLoader
                     (fallbackCol & 0xFF) / 255f * tintB);
             }
 
-            var material = texFile != null ? LoadTexture(texFile) : null;
-            material ??= new MeshTexture();
+            var material = new MeshTexture();
+            if (texFile != null) pendingTextures.Add((material, texFile));
             material.Name = Path.GetFileNameWithoutExtension(vmatPath);
             material.FallbackColor = fallbackCol;
             material.IsAdditive = additive;
@@ -496,7 +515,7 @@ public static class DmxModelLoader
         return result;
     }
 
-    private static SimpleMesh3D? ParseDmx(string dmxPath, Dictionary<string, MeshTexture> matDb, SimpleMesh3D compositeMesh)
+    private static SimpleMesh3D? ParseDmx(string dmxPath, Dictionary<string, Lazy<MeshTexture?>> matDb, SimpleMesh3D compositeMesh)
     {
         try
         {

@@ -24,7 +24,16 @@ public sealed class VpkArchive : IDisposable
         FilePath = filePath;
         // VpkBuilder writes lowercase paths; callers may ask with the addon's original casing.
         _package.OptimizeEntriesForBinarySearch(StringComparison.OrdinalIgnoreCase);
-        _package.Read(filePath);
+        try
+        {
+            _package.Read(filePath);
+        }
+        catch
+        {
+            // A corrupt or truncated archive must not stay locked until finalization.
+            _package.Dispose();
+            throw;
+        }
     }
 
     /// <summary>Opens an archive; the caller disposes it when the operation ends.</summary>

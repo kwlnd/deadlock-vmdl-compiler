@@ -65,7 +65,7 @@ public class VpkAndProtectionTests : IDisposable
         Check(IsWriteBlocked(() => File.WriteAllBytes(_deployedModel, [0xFF])), "A registered model was not protected.");
         var registryVpk = _temp["registry_pak01_dir.vpk"];
         Check((await VpkBuilder.PackAddonToVpkAsync(_gameDir, registryVpk)).Success &&
-              registry.VerifyPacked(registryVpk, _gameDir, _deployedModel) == null,
+              await registry.VerifyPackedAsync(registryVpk, _gameDir, _deployedModel) == null,
             "A correctly packed protected model failed verification.");
         registry.ReleaseForAddon(_gameDir);
         Check(registry.Count == 0 && changes == 2 && !IsWriteBlocked(() =>
@@ -86,7 +86,7 @@ public class VpkAndProtectionTests : IDisposable
         var vpk = _temp["mixed_dir.vpk"];
         Check((await VpkBuilder.PackAddonToVpkAsync(addon, vpk)).Success, "Packing a mixed-case addon failed.");
         using var registry = new ProtectedModelRegistry(_ => { });
-        Check(registry.VerifyPacked(vpk, addon, deployed) == null &&
+        Check(await registry.VerifyPackedAsync(vpk, addon, deployed) == null &&
               VpkArchive.ReadFile(vpk, "Models/Heroes/Demo/Demo.vmdl_c")?.SequenceEqual(CompiledBytes) == true,
             "A packed model was not found under the addon's own path casing.");
     }

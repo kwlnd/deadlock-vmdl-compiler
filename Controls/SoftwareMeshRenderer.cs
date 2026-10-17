@@ -89,6 +89,7 @@ public sealed class SoftwareMeshRenderer
 
     // Screen x, screen y, 1/w (0 when behind the camera), light.
     private Vector4[] _projected = [];
+    private (int Top, int Bottom)[] _triangleRows = [];
 
     public void Render(PreparedMesh? mesh, in OrbitCamera camera, int width, int height, int[] pixels, float[] depth)
     {
@@ -125,6 +126,9 @@ public sealed class SoftwareMeshRenderer
         if (_projected.Length < mesh.Positions.Length)
             _projected = new Vector4[mesh.Positions.Length];
         var projected = _projected;
+        if (_triangleRows.Length < mesh.TriangleCount)
+            _triangleRows = new (int Top, int Bottom)[mesh.TriangleCount];
+        var triangleRows = _triangleRows;
 
         // The lights travel with the camera, so the model is never viewed from its dark side.
         var forward = Vector3.Normalize(camera.Target - camera.Position);
@@ -155,6 +159,34 @@ public sealed class SoftwareMeshRenderer
             }
         });
 
+        // Rows each triangle covers on screen, worked out once so a band skips the rest cheaply.
+        // An empty range marks a triangle that is not drawn.
+        Parallel.For(0, (mesh.TriangleCount + 4095) / 4096, chunk =>
+        {
+            var indices = mesh.Indices;
+            var end = Math.Min(mesh.TriangleCount, (chunk + 1) * 4096);
+            for (var triangle = chunk * 4096; triangle < end; triangle++)
+            {
+                triangleRows[triangle] = (1, 0);
+                int i0 = indices[triangle * 3], i1 = indices[triangle * 3 + 1], i2 = indices[triangle * 3 + 2];
+                if ((uint)i0 >= (uint)mesh.Positions.Length || (uint)i1 >= (uint)mesh.Positions.Length ||
+                    (uint)i2 >= (uint)mesh.Positions.Length) continue;
+                var a = projected[i0];
+                var b = projected[i1];
+                var c = projected[i2];
+                if (a.Z == 0 || b.Z == 0 || c.Z == 0) continue;
+
+                var minX = Math.Max(0, (int)MathF.Min(a.X, MathF.Min(b.X, c.X)));
+                var maxX = Math.Min(width - 1, (int)MathF.Max(a.X, MathF.Max(b.X, c.X)));
+                if (minX > maxX) continue;
+                var area = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
+                if (MathF.Abs(area) < 0.0001f) continue;
+                var materialId = mesh.TriangleMaterials[triangle];
+                if ((uint)materialId < (uint)mesh.Materials.Length && mesh.Materials[materialId] is { IsAdditive: true }) continue;
+                triangleRows[triangle] = ((int)MathF.Min(a.Y, MathF.Min(b.Y, c.Y)), (int)MathF.Max(a.Y, MathF.Max(b.Y, c.Y)));
+            }
+        });
+
         // Each band owns its rows, so bands can rasterize every triangle without locks.
         var bands = Math.Clamp(Math.Min(Environment.ProcessorCount, height / 16), 1, 32);
         Parallel.For(0, bands, band =>
@@ -164,28 +196,21 @@ public sealed class SoftwareMeshRenderer
             var indices = mesh.Indices;
             for (int triangle = 0, count = mesh.TriangleCount; triangle < count; triangle++)
             {
+                var (top, bottom) = triangleRows[triangle];
+                var minY = Math.Max(firstRow, top);
+                var maxY = Math.Min(lastRow, bottom);
+                if (minY > maxY) continue;
+
                 int i0 = indices[triangle * 3], i1 = indices[triangle * 3 + 1], i2 = indices[triangle * 3 + 2];
-                if ((uint)i0 >= (uint)mesh.Positions.Length || (uint)i1 >= (uint)mesh.Positions.Length ||
-                    (uint)i2 >= (uint)mesh.Positions.Length) continue;
                 var a = projected[i0];
                 var b = projected[i1];
                 var c = projected[i2];
-                if (a.Z == 0 || b.Z == 0 || c.Z == 0) continue;
-
-                var minY = Math.Max(firstRow, (int)MathF.Min(a.Y, MathF.Min(b.Y, c.Y)));
-                var maxY = Math.Min(lastRow, (int)MathF.Max(a.Y, MathF.Max(b.Y, c.Y)));
-                if (minY > maxY) continue;
                 var minX = Math.Max(0, (int)MathF.Min(a.X, MathF.Min(b.X, c.X)));
                 var maxX = Math.Min(width - 1, (int)MathF.Max(a.X, MathF.Max(b.X, c.X)));
-                if (minX > maxX) continue;
-
-                var area = (b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y);
-                if (MathF.Abs(area) < 0.0001f) continue;
-                var inverseArea = 1.0f / area;
+                var inverseArea = 1.0f / ((b.Y - c.Y) * (a.X - c.X) + (c.X - b.X) * (a.Y - c.Y));
 
                 var materialId = mesh.TriangleMaterials[triangle];
                 var material = (uint)materialId < (uint)mesh.Materials.Length ? mesh.Materials[materialId] : null;
-                if (material is { IsAdditive: true }) continue;
                 RasterizeTriangle(a, b, c, mesh.TexCoords[i0], mesh.TexCoords[i1], mesh.TexCoords[i2], material,
                     inverseArea, minX, maxX, minY, maxY, width, pixels, depth);
             }

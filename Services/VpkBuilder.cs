@@ -1,3 +1,4 @@
+using System.IO.Hashing;
 using System.Text;
 
 namespace DeadlockVmdlCompiler.Services;
@@ -112,7 +113,8 @@ public static class VpkBuilder
                 using var treeStream = new MemoryStream();
                 using var treeWriter = new BinaryWriter(treeStream);
 
-                var fileOffsetMap = new List<(string FullPath, uint Crc, uint EntryLength)>();
+                // CRCs are filled in after the data is written, so every file is read once.
+                var fileOffsetMap = new List<(string FullPath, long CrcPosition, uint EntryLength)>();
                 uint currentDataOffset = 0;
 
                 foreach (var extKv in tree)
@@ -127,19 +129,16 @@ public static class VpkBuilder
                         {
                             WriteNullTerminated(treeWriter, file.Fn);
 
-                            // Calculate CRC32 of file
-                            var fileBytes = File.ReadAllBytes(file.FullPath);
-                            uint crc = ComputeCrc32(fileBytes);
-
-                            treeWriter.Write(crc);                      // CRC32 (4 bytes)
+                            var crcPosition = treeStream.Position;
+                            treeWriter.Write(0u);                        // CRC32 (4 bytes), patched later
                             treeWriter.Write((ushort)0);                 // PreloadBytes (2 bytes)
                             treeWriter.Write((ushort)0x7FFF);             // ArchiveIndex (2 bytes - embedded)
                             treeWriter.Write(currentDataOffset);         // EntryOffset (4 bytes)
-                            treeWriter.Write((uint)fileBytes.Length);     // EntryLength (4 bytes)
+                            treeWriter.Write((uint)file.Length);         // EntryLength (4 bytes)
                             treeWriter.Write((ushort)0xFFFF);            // Terminator (2 bytes)
 
-                            fileOffsetMap.Add((file.FullPath, crc, (uint)fileBytes.Length));
-                            currentDataOffset += (uint)fileBytes.Length;
+                            fileOffsetMap.Add((file.FullPath, crcPosition, (uint)file.Length));
+                            currentDataOffset += (uint)file.Length;
                         }
 
                         treeWriter.Write((byte)0); // End of Directory
@@ -161,9 +160,10 @@ public static class VpkBuilder
                 long totalBytesWritten = 0;
                 try
                 {
-                    using (var outFs = new FileStream(tempVpkPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                    using (var outFs = new FileStream(tempVpkPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None))
                     using (var outWriter = new BinaryWriter(outFs))
                     {
+                        const int headerSize = 12;
                         // Header (12 bytes for VPK v1)
                         outWriter.Write((uint)0x55aa1234); // Signature
                         outWriter.Write((uint)1);          // Version 1
@@ -173,13 +173,35 @@ public static class VpkBuilder
                         outWriter.Write(treeBytes);
 
                         // Data Section
-                        foreach (var f in fileOffsetMap)
+                        outWriter.Flush();
+                        var crcs = new uint[fileOffsetMap.Count];
+                        var buffer = new byte[1 << 20];
+                        var crc = new Crc32();
+                        for (var i = 0; i < fileOffsetMap.Count; i++)
                         {
-                            var bytes = File.ReadAllBytes(f.FullPath);
-                            if (bytes.Length != f.EntryLength || ComputeCrc32(bytes) != f.Crc)
+                            var f = fileOffsetMap[i];
+                            // Sharing read only keeps writers out while the file is copied.
+                            using var input = new FileStream(f.FullPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                                1, FileOptions.SequentialScan);
+                            crc.Reset();
+                            long copied = 0;
+                            int read;
+                            while ((read = input.Read(buffer)) > 0)
+                            {
+                                crc.Append(buffer.AsSpan(0, read));
+                                outFs.Write(buffer, 0, read);
+                                copied += read;
+                            }
+                            if (copied != f.EntryLength)
                                 throw new IOException($"File changed while packaging: {f.FullPath}");
-                            outWriter.Write(bytes);
-                            totalBytesWritten += bytes.Length;
+                            crcs[i] = crc.GetCurrentHashAsUInt32();
+                            totalBytesWritten += copied;
+                        }
+
+                        for (var i = 0; i < fileOffsetMap.Count; i++)
+                        {
+                            outFs.Position = headerSize + fileOffsetMap[i].CrcPosition;
+                            outWriter.Write(crcs[i]);
                         }
                     }
                     File.Move(tempVpkPath, outputVpkPath, overwrite: true);
@@ -210,36 +232,5 @@ public static class VpkBuilder
         var bytes = Encoding.UTF8.GetBytes(text);
         writer.Write(bytes);
         writer.Write((byte)0);
-    }
-
-    private static readonly uint[] Crc32Table = InitializeCrc32Table();
-
-    private static uint[] InitializeCrc32Table()
-    {
-        var table = new uint[256];
-        for (uint i = 0; i < 256; i++)
-        {
-            uint entry = i;
-            for (int j = 0; j < 8; j++)
-            {
-                if ((entry & 1) == 1)
-                    entry = (entry >> 1) ^ 0xEDB88320;
-                else
-                    entry >>= 1;
-            }
-            table[i] = entry;
-        }
-        return table;
-    }
-
-    public static uint ComputeCrc32(byte[] bytes)
-    {
-        uint crc = 0xFFFFFFFF;
-        for (int i = 0; i < bytes.Length; i++)
-        {
-            byte index = (byte)((crc & 0xFF) ^ bytes[i]);
-            crc = (crc >> 8) ^ Crc32Table[index];
-        }
-        return ~crc;
     }
 }

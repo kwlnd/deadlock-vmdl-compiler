@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace DeadlockVmdlCompiler.Services;
@@ -20,7 +21,11 @@ internal static class ModelDocAg2Editor
     {
         var nodes = EnumerateAllNodes(content)
             .Where(node => node.ClassName.Equals("AnimFile", StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(node => node.Start).ToArray();
+            .OrderBy(node => node.Start).ToArray();
+        // Clips do not nest, so the edited blocks are spliced in one pass instead of copying
+        // the whole document for every clip.
+        var result = new StringBuilder(content.Length + 64);
+        var copied = 0;
         var found = 0;
         var missing = 0;
         var activeFound = 0;
@@ -40,9 +45,10 @@ internal static class ModelDocAg2Editor
             if (muted) continue;
             activeMissing++;
             var block = content.Substring(node.Start, node.End - node.Start);
-            block = SetNodeDisabled(block, "AnimFile", disabled: true);
-            content = content.Remove(node.Start, node.End - node.Start).Insert(node.Start, block);
+            result.Append(content, copied, node.Start - copied).Append(SetNodeDisabled(block, "AnimFile", disabled: true));
+            copied = node.End;
         }
+        content = result.Append(content, copied, content.Length - copied).ToString();
         content = SetNodeDisabled(content, "AnimationList", activeFound == 0 && activeMissing > 0);
         return (content, found, missing);
     }
