@@ -45,6 +45,8 @@
             <StackPanel x:Name="PanelButtons" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button x:Name="BtnCancel" Content="cancel" MinWidth="86" Height="34"
                         Click="BtnCancel_Click" IsVisible="False"/>
+                <Button x:Name="BtnAlternative" MinWidth="86" Height="34"
+                        Click="BtnAlternative_Click" IsVisible="False"/>
                 <Button x:Name="BtnOk" Content="ok" Classes="primary" MinWidth="86" Height="34"
                         Click="BtnOk_Click"/>
             </StackPanel>

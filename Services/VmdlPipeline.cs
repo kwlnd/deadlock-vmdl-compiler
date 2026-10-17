@@ -1002,14 +1002,21 @@ public static class VmdlPipeline
         return (true, $"ModelDoc Fix Applied: {string.Join(", ", changes)}", true);
     }
 
-    public sealed record GameSyncOptions(bool FixAttachmentFrame, bool AddAttachments, bool GameData, bool Hitboxes)
+    public sealed record GameSyncOptions(bool FixAttachmentFrame, bool AddAttachments, bool GameData)
     {
-        public bool NeedsGameModel => AddAttachments || GameData || Hitboxes;
+        public bool NeedsGameModel => AddAttachments || GameData;
+    }
+
+    public static async Task<bool> UsesLegacyCameraFrameAsync(string vmdlPath)
+    {
+        if (!File.Exists(vmdlPath)) return false;
+        var content = await File.ReadAllTextAsync(vmdlPath);
+        return ModelDocAg2Editor.UsesLegacyRootFrame(content);
     }
 
     public static (string Content, List<string> Changes) SyncFromGameContent(
         string content, string gameContent, GameSyncOptions options) =>
-        ModelDocAg2Editor.SyncFromGame(content, gameContent, options.AddAttachments, options.GameData, options.Hitboxes);
+        ModelDocAg2Editor.SyncFromGame(content, gameContent, options.AddAttachments, options.GameData);
 
     /// <summary>
     /// Brings an authored .vmdl up to date with the installed game: converts old-frame root

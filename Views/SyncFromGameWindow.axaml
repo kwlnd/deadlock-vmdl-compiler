@@ -44,6 +44,13 @@
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
                 </Grid>
             </Border>
+            <CheckBox x:Name="ChkAllModels" Classes="option" IsChecked="False" IsVisible="False">
+                <StackPanel Spacing="2">
+                    <TextBlock x:Name="TxtAllModels" Classes="field-label" Text="apply to every model in all addons"/>
+                    <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                               Text="Each model is matched to its own game model. Models that are already current are left unchanged."/>
+                </StackPanel>
+            </CheckBox>
 
             <Border Height="1" Background="{StaticResource StudioBorder}"/>
 
@@ -67,13 +74,6 @@
                         <TextBlock Classes="field-label" Text="update game data"/>
                         <TextBlock Classes="field-hint" TextWrapping="Wrap"
                                    Text="Camera, unit status and hero model settings. Particle configs are kept."/>
-                    </StackPanel>
-                </CheckBox>
-                <CheckBox x:Name="ChkHitboxes" Classes="option" IsChecked="False">
-                    <StackPanel Spacing="2">
-                        <TextBlock Classes="field-label" Text="replace hitboxes"/>
-                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
-                                   Text="Leave off if you edited the hitboxes of this model."/>
                     </StackPanel>
                 </CheckBox>
             </StackPanel>

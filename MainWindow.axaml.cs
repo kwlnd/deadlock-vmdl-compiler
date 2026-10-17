@@ -618,6 +618,7 @@ public partial class MainWindow : Window
         {
             var path = targetPath ?? GetResolvedTargetPath();
             var citadelDir = TxtCitadelPath.Text?.Trim();
+            _ = UpdateLegacyFrameNoticeAsync(path, request);
 
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
@@ -643,6 +644,20 @@ public partial class MainWindow : Window
             }
         }
         catch { }
+    }
+
+    private async Task UpdateLegacyFrameNoticeAsync(string? path, int request)
+    {
+        var legacy = false;
+        try
+        {
+            if (!string.IsNullOrEmpty(path))
+                legacy = await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(path));
+        }
+        catch { }
+        // A newer selection owns the notice now.
+        if (request == _previewRequest)
+            BorderLegacyFrame.IsVisible = legacy;
     }
 
     // -----------------------------------------------------------------
@@ -1114,7 +1129,10 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new SyncFromGameWindow(targetPath);
+        var allModels = _discoveredAddons
+            .SelectMany(addon => addon.HeroModels.Select(model => (Addon: addon.Name, Model: model)))
+            .Where(entry => File.Exists(entry.Model.FullPath)).ToList();
+        var dialog = new SyncFromGameWindow(targetPath, allModels.Count);
         await dialog.ShowDialog(this);
         if (dialog.Result is not { } options) return;
 
@@ -1123,18 +1141,48 @@ public partial class MainWindow : Window
             _isProcessing = true;
             var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
             var pak01 = deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null;
-            var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
-            var (success, msg, changed) = await Task.Run(() =>
-                VmdlPipeline.SyncFromGameAsync(targetPath, options, pak01, fallback, onLog: Log));
-            Log(msg);
-            if (success)
+            if (!dialog.AllModels)
             {
-                await DialogService.ShowInfoAsync(this, changed ? "model synced" : "nothing to sync", msg);
+                var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
+                var (success, msg, changed) = await Task.Run(() =>
+                    VmdlPipeline.SyncFromGameAsync(targetPath, options, pak01, fallback, onLog: Log));
+                Log(msg);
+                if (success)
+                {
+                    await DialogService.ShowInfoAsync(this, changed ? "model synced" : "nothing to sync", msg);
+                }
+                else
+                {
+                    await DialogService.ShowErrorAsync(this, "sync from game failed", msg);
+                }
             }
             else
             {
-                await DialogService.ShowErrorAsync(this, "sync from game failed", msg);
+                var synced = 0;
+                var unchanged = 0;
+                var failed = new List<string>();
+                foreach (var (addon, model) in allModels)
+                {
+                    var name = $"{addon}/{Path.GetFileName(model.FullPath)}";
+                    var fallback = DeadlockHeroCatalog.GetExportableModels().FirstOrDefault(hero =>
+                        hero.HeroKey.Equals(model.Hero, StringComparison.OrdinalIgnoreCase))?.VpkPath;
+                    var (success, msg, changed) = await Task.Run(() =>
+                        VmdlPipeline.SyncFromGameAsync(model.FullPath, options, pak01, fallback));
+                    Log($"[sync from game] {name}: {msg}");
+                    if (!success) failed.Add(name);
+                    else if (changed) synced++;
+                    else unchanged++;
+                }
+                var summary = $"synced {synced} model(s), {unchanged} already current" +
+                              (failed.Count > 0 ? $", {failed.Count} failed: {string.Join(", ", failed)}" : "") +
+                              ". details are in the log.";
+                Log($"[sync from game] {summary}");
+                if (failed.Count > 0)
+                    await DialogService.ShowErrorAsync(this, "sync finished with errors", summary);
+                else
+                    await DialogService.ShowInfoAsync(this, "all models synced", summary);
             }
+            _ = UpdateLegacyFrameNoticeAsync(targetPath, _previewRequest);
         }
         catch (Exception ex)
         {
@@ -1450,6 +1498,30 @@ public partial class MainWindow : Window
             Log("[compile error] cswin64 compiler path is invalid or missing resourcecompiler.exe.");
             await DialogService.ShowErrorAsync(this, "compiler missing", "cswin64 compiler path is invalid or missing resourcecompiler.exe.");
             return;
+        }
+
+        if (await Task.Run(() => VmdlPipeline.UsesLegacyCameraFrameAsync(targetPath)))
+        {
+            var choice = await DialogService.ShowChoiceAsync(this, "old camera attachments",
+                "this model was made before the october 2026 update. compiled as it is, its cameras will be misplaced in game.\n\n" +
+                "sync and compile updates the .vmdl from the installed game first (camera frame, missing attachments, game data; a backup is written).",
+                "sync and compile", "compile anyway");
+            if (choice == DialogService.Choice.Cancel) return;
+            if (choice == DialogService.Choice.Primary)
+            {
+                var deadlockInfo = DeadlockLocator.DetectDeadlockInstallation();
+                var fallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
+                var (synced, syncMessage, _) = await Task.Run(() => VmdlPipeline.SyncFromGameAsync(targetPath,
+                    new VmdlPipeline.GameSyncOptions(true, true, true),
+                    deadlockInfo.IsValid ? deadlockInfo.Pak01VpkPath : null, fallback, onLog: Log));
+                Log(syncMessage);
+                _ = UpdateLegacyFrameNoticeAsync(targetPath, _previewRequest);
+                if (!synced)
+                {
+                    await DialogService.ShowErrorAsync(this, "sync from game failed", syncMessage + "\n\nthe model was not compiled.");
+                    return;
+                }
+            }
         }
 
         var requestedSkel = TxtSkel.Text?.Trim();

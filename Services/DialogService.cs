@@ -23,4 +23,14 @@ public static class DialogService
         await box.ShowDialog(owner);
         return box.Result;
     }
+
+    public enum Choice { Cancel, Primary, Alternative }
+
+    public static async Task<Choice> ShowChoiceAsync(Window owner, string title, string message,
+        string primary, string alternative, string cancel = "cancel")
+    {
+        var box = new MessageBoxWindow(title, message, primary, alternative, cancel);
+        await box.ShowDialog(owner);
+        return box.Result ? Choice.Primary : box.AlternativeChosen ? Choice.Alternative : Choice.Cancel;
+    }
 }

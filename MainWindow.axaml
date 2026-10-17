@@ -114,6 +114,25 @@
                                 </Button>
                             </Grid>
 
+                            <Border x:Name="BorderLegacyFrame" Classes="studio-inset" Padding="10,8" IsVisible="False">
+                                <Grid ColumnDefinitions="16,9,*,8,Auto">
+                                    <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Classes="icon warning" Data="{StaticResource IconAlert}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="body-copy" Foreground="#FCD99B"
+                                                   Text="made before the october 2026 update"/>
+                                        <TextBlock Classes="field-hint" TextWrapping="Wrap"
+                                                   Text="cameras will be misplaced in game until its attachments are synced."/>
+                                    </StackPanel>
+                                    <Button Grid.Column="4" Classes="utility" Height="28" Content="sync..."
+                                            Click="BtnSyncFromGame_Click"
+                                            ToolTip.Tip="Open sync from game for this model"/>
+                                </Grid>
+                            </Border>
+
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
                                 <TextBlock Text="hero preset" Classes="field-label"/>
                                 <TextBlock x:Name="LblHeroPathsSource" Grid.Column="1" Text="built-in presets"
@@ -306,7 +325,7 @@
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="BtnSyncFromGame" Grid.Column="4" Classes="utility tile" Click="BtnSyncFromGame_Click"
-                                        ToolTip.Tip="Update an older .vmdl from the installed game: move camera attachments to the October 2026 frame, add missing attachments, update game data and optionally hitboxes">
+                                        ToolTip.Tip="Update an older .vmdl from the installed game: move camera attachments to the October 2026 frame, add missing attachments and update game data">
                                     <StackPanel Spacing="5" HorizontalAlignment="Center">
                                         <Viewbox Width="14" Height="14" HorizontalAlignment="Center">
                                             <Canvas Width="24" Height="24">

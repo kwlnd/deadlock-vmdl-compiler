@@ -8,6 +8,9 @@ public partial class MessageBoxWindow : Window
 {
     public bool Result { get; private set; }
 
+    /// <summary>Set by the alternative button of a three-way choice.</summary>
+    public bool AlternativeChosen { get; private set; }
+
     public MessageBoxWindow()
     {
         InitializeComponent();
@@ -32,6 +35,24 @@ public partial class MessageBoxWindow : Window
             IconPath.Fill = new SolidColorBrush(Color.FromRgb(0xEF, 0x44, 0x44));
             IconPath.Data = Geometry.Parse("M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z");
         }
+    }
+
+    /// <summary>A three-way choice: primary action, alternative action, or cancel.</summary>
+    public MessageBoxWindow(string title, string message, string primary, string alternative, string cancel)
+        : this(title, message, isConfirm: true)
+    {
+        BtnOk.Content = primary;
+        BtnAlternative.Content = alternative;
+        BtnAlternative.IsVisible = true;
+        BtnCancel.Content = cancel;
+        IconPath.Fill = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24));
+        BorderIcon.Background = new SolidColorBrush(Color.FromRgb(0x3B, 0x2F, 0x14));
+    }
+
+    private void BtnAlternative_Click(object? sender, RoutedEventArgs e)
+    {
+        AlternativeChosen = true;
+        Close(false);
     }
 
     private void BtnOk_Click(object? sender, RoutedEventArgs e)

@@ -354,17 +354,9 @@ internal static class ModelDocAg2Editor
             .Where(node => node.ClassName.Equals("Attachment", StringComparison.OrdinalIgnoreCase) &&
                            FieldValue(content, node, "parent_bone").Equals("root_motion", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(node => node.Start).ToList();
-        var pivots = nodes.Where(node => CameraPivots.Contains(FieldValue(content, node, "name"),
-            StringComparer.OrdinalIgnoreCase)).ToList();
-        if (pivots.Count == 0)
-        {
-            changes.Add("Error: No standing_pivot or crouching_pivot attachment on root_motion was found.");
-            return (content, changes);
-        }
-
-        var frames = pivots.Select(node => ReadVector(content, node, "relative_angles") is { Length: 3 } angles
-            ? AnglesToQuaternion(angles[0], angles[1], angles[2]) : IdentityFrame).ToList();
-        if (frames.All(frame => SameRotation(frame, IdentityFrame)))
+        var frames = PivotFrames(content, nodes);
+        // Models without camera pivots (neutrals, props) have no camera frame to move.
+        if (frames.Count == 0 || frames.All(frame => SameRotation(frame, IdentityFrame)))
             return (content, changes);
         if (!frames.All(frame => SameRotation(frame, LegacyRootFrame)))
         {
@@ -404,11 +396,11 @@ internal static class ModelDocAg2Editor
 
     /// <summary>
     /// Copies current game data into an authored model: attachments the model lacks, the
-    /// game's settings structs (GenericGameData classes ending in _t), and optionally the
-    /// hitbox sets. Nodes that exist only in the authored model are kept.
+    /// game's settings structs (GenericGameData classes ending in _t). Nodes that exist only
+    /// in the authored model are kept.
     /// </summary>
     internal static (string Content, List<string> Changes) SyncFromGame(
-        string content, string game, bool attachments, bool gameData, bool hitboxes)
+        string content, string game, bool attachments, bool gameData)
     {
         var changes = new List<string>();
         var newline = content.Contains("\r\n", StringComparison.Ordinal) ? "\r\n" : "\n";
@@ -483,34 +475,6 @@ internal static class ModelDocAg2Editor
             if (added.Count > 0) changes.Add($"Added game data: {string.Join(", ", added)}");
         }
 
-        if (hitboxes)
-        {
-            var source = EnumerateAllNodes(game).FirstOrDefault(node =>
-                node.ClassName.Equals("HitboxSetList", StringComparison.OrdinalIgnoreCase));
-            if (source == default)
-            {
-                changes.Add("Error: The game model has no HitboxSetList.");
-                return (content, changes);
-            }
-            var target = EnumerateAllNodes(content).FirstOrDefault(node =>
-                node.ClassName.Equals("HitboxSetList", StringComparison.OrdinalIgnoreCase));
-            if (target == default)
-            {
-                if (!TryGetRootChildren(content, out var open, out var close))
-                {
-                    changes.Add("Error: Could not locate rootNode children array.");
-                    return (content, changes);
-                }
-                content = InsertIntoArray(content, open, close, CopyNode(game, source, ChildIndent(content, open, close), newline), newline);
-                changes.Add("Added hitbox sets");
-            }
-            else if (Normalize(content[target.Start..target.End]) != Normalize(game[source.Start..source.End]))
-            {
-                content = ReplaceNode(content, target, game, source, newline);
-                changes.Add("Replaced hitbox sets");
-            }
-        }
-
         return (content, changes);
     }
 
@@ -561,6 +525,24 @@ internal static class ModelDocAg2Editor
         var first = EnumerateNodes(content, open, close).FirstOrDefault();
         return first != default ? LineIndent(content, first.Start) : LineIndent(content, open) + "\t";
     }
+
+    /// <summary>True when the camera pivots still use the frame from before the October 2026 update.</summary>
+    internal static bool UsesLegacyRootFrame(string content)
+    {
+        var nodes = EnumerateAllNodes(content)
+            .Where(node => node.ClassName.Equals("Attachment", StringComparison.OrdinalIgnoreCase) &&
+                           FieldValue(content, node, "parent_bone").Equals("root_motion", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var frames = PivotFrames(content, nodes);
+        return frames.Count > 0 && frames.Any(frame => SameRotation(frame, LegacyRootFrame));
+    }
+
+    private static List<double[]> PivotFrames(string content, IEnumerable<Node> rootAttachments) =>
+        rootAttachments
+            .Where(node => CameraPivots.Contains(FieldValue(content, node, "name"), StringComparer.OrdinalIgnoreCase))
+            .Select(node => ReadVector(content, node, "relative_angles") is { Length: 3 } angles
+                ? AnglesToQuaternion(angles[0], angles[1], angles[2]) : IdentityFrame)
+            .ToList();
 
     private static double[]? ReadVector(string content, Node node, string field)
     {
