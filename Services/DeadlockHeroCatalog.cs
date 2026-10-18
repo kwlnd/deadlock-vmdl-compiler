@@ -66,7 +66,6 @@ public static class DeadlockHeroCatalog
         "models/npc_units/neutral_mushroom_large_01/neutral_mushroom_large_01.vmdl_c",
         "models/npc_units/neutral_mushroom_small_01/neutral_mushroom_small_01.vmdl_c",
         "models/npc_units/neutral_park_watcher_01/neutral_park_watcher_01.vmdl_c",
-        "models/npc_units/neutral_pigeon_cerberus/neutral_pigeon_cerberus.vmdl_c",
         "models/npc_units/neutral_plant_large_01/neutral_plant_large_01.vmdl_c",
         "models/npc_units/neutral_plant_small_01/neutral_plant_small_01.vmdl_c",
         "models/npc_units/neutral_specimens/neutral_specimen_01.vmdl_c",

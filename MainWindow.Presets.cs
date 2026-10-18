@@ -36,16 +36,18 @@ public partial class MainWindow
             var first = group.First();
             if (!seen.Add(group.Key)) continue;
             var sources = group.Select(npc => npc.SourcePath).ToList();
-            npcs.Add(new HeroPresetChoice(first.Key, detail: first.IsNeutral ? "neutral" : "npc", preset: first.Preset,
+            npcs.Add(new HeroPresetChoice(first.Key,
+                detail: first.IsNeutral ? "neutral" : NpcCatalog.IsSummon(first.SourcePath) ? "summon" : "npc", preset: first.Preset,
                 displayName: NpcCatalog.DisplayName(first.SourcePath, withoutTeam: sources.Count > 1),
                 sourcePaths: sources));
         }
-        foreach (var (key, preset) in presets.Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals")))
+        foreach (var (key, preset) in presets.Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals") &&
+                                                            !NpcCatalog.IsUnused(pair.Key)))
         {
             if (!seen.Add(PresetSignature(preset))) continue;
             npcs.Add(new HeroPresetChoice(key, detail: "neutral", displayName: NpcCatalog.DisplayName(key)));
         }
-        choices.AddRange(npcs.OrderBy(choice => choice.Detail == "npc" ? 0 : 1)
+        choices.AddRange(npcs.OrderBy(choice => choice.Detail switch { "npc" => 0, "summon" => 1, _ => 2 })
             .ThenBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase));
         choices.AddRange(listed.Where(choice => choice.Hero == null)
             .OrderBy(choice => choice.Key, StringComparer.OrdinalIgnoreCase));
@@ -80,7 +82,7 @@ public partial class MainWindow
             var icons = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
             foreach (var (path, png) in pngs)
             {
-                using var input = new MemoryStream(png);
+                using var input = new MemoryStream(NpcCatalog.Trim(path, png));
                 icons[path] = new Bitmap(input);
             }
             foreach (var old in _npcIcons.Values) old.Dispose();

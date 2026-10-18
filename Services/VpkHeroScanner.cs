@@ -149,8 +149,12 @@ public static class VpkHeroScanner
                 // The game's unit list names the models it spawns (both teams' troopers, the
                 // walker, guardian...); unused leftovers in models/npc stay out. A VPK without
                 // it falls back to every model under models/npc.
-                var modelPaths = NpcUnitModels(archive) ?? archive.FindFiles("vmdl_c", directory =>
-                    directory.StartsWith("models/npc/", StringComparison.OrdinalIgnoreCase));
+                var modelPaths = (NpcUnitModels(archive) ?? archive.FindFiles("vmdl_c", directory =>
+                        directory.StartsWith("models/npc/", StringComparison.OrdinalIgnoreCase)))
+                    .Concat(NpcCatalog.SummonModels.Where(archive.Contains))
+                    .Where(path => !NpcCatalog.IsUnused(path))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
                 if (modelPaths.Count == 0)
                     return (false, "No NPC models were found in the selected VPK.", new List<NpcPreset>());
 

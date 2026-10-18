@@ -141,7 +141,7 @@ public class Ag2InjectionTests
         HeroDatabase.UseBuiltInDatabase();
         var neutralModels = NeutralModels();
         var presets = HeroDatabase.GetVisiblePresets();
-        Check(neutralModels.Count == 19 && presets.Keys.Where(key => key.StartsWith("neutral_", StringComparison.Ordinal))
+        Check(neutralModels.Count == 18 && presets.Keys.Where(key => key.StartsWith("neutral_", StringComparison.Ordinal))
                   .ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(neutralModels.Keys),
             "The built-in list is missing an AG2 neutral model or includes a non-AG2 creep.");
         foreach (var (key, modelPath) in neutralModels)

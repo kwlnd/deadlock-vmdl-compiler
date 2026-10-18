@@ -34,7 +34,7 @@ public sealed class HeroPresetChoice : INotifyPropertyChanged
     /// </summary>
     public IReadOnlyList<string> SourcePaths { get; }
 
-    public bool IsNpc => _detail is "npc" or "neutral";
+    public bool IsNpc => _detail is "npc" or "summon" or "neutral";
     private readonly string? _displayName;
     public string DisplayName => IsAuto ? "auto-detect" : _displayName ?? Hero?.DisplayName ?? Key;
     private readonly string? _detail;

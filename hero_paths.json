@@ -327,14 +327,6 @@
       "Neutrals": "animgraphs/animgraph2/npc_units/neutrals/npc_neutral.vnmgraph\u002Bunderhand.vnmgraph"
     }
   },
-  "neutral_pigeon_cerberus": {
-    "skel": "models/npc_units/neutral_pigeon_cerberus/neutral_pigeon_cerberus.vnmskel",
-    "graph": "",
-    "ui_graph": "",
-    "named_graphs": {
-      "Neutrals": "animgraphs/animgraph2/npc_units/neutrals/npc_neutral.vnmgraph\u002Bpigeon_cerberus.vnmgraph"
-    }
-  },
   "neutral_plant_large_01": {
     "skel": "models/npc_units/neutral_plant_large_01/neutral_plant_large_01.vnmskel",
     "graph": "",
