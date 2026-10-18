@@ -135,6 +135,22 @@
                                 </Grid>
                             </Border>
 
+                            <Border x:Name="BorderNotGameModel" Classes="studio-inset" Padding="10,8" IsVisible="False">
+                                <Grid ColumnDefinitions="16,9,*">
+                                    <Viewbox Width="15" Height="15" VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Classes="icon warning" Data="{StaticResource IconAlert}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                    <StackPanel Grid.Column="2" Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Classes="body-copy" Foreground="#FCD99B"
+                                                   Text="the game has no model at this path"/>
+                                        <TextBlock x:Name="TxtNotGameModel" Classes="field-hint" TextWrapping="Wrap"
+                                                   Text="a VPK with it changes nothing in game."/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
                                 <TextBlock Text="hero / npc preset" Classes="field-label"/>
                                 <TextBlock x:Name="LblHeroPathsSource" Grid.Column="1" Text="built-in presets"

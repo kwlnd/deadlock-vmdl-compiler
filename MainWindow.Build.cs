@@ -59,8 +59,17 @@ public partial class MainWindow
             // the selected model can keep the paths typed in this window.
             var fields = new HeroPresetChoice("", detail: "paths typed in this window", displayName: "paths from the fields");
             var presets = _presetChoices.Where(choice => !choice.IsAuto).ToList();
-            var rows = (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel> ?? []).Select(model =>
+            var models = (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel> ?? []).ToList();
+            var notLoaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var model in models)
+                if (await ReplacesGameModelAsync(model.FullPath) == false) notLoaded.Add(model.FullPath);
+            var rows = models.Select(model =>
             {
+                if (notLoaded.Contains(model.FullPath))
+                    return new BatchCompileRow(model.FullPath, model.Display,
+                        model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase) ? presets.Prepend(fields).ToList() : presets,
+                        model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase) ? fields : FindPresetForModel(model.FullPath, out _),
+                        "not a game model path: the game will not load it");
                 if (model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
                     return new BatchCompileRow(model.FullPath, model.Display, presets.Prepend(fields).ToList(), fields,
                         "selected in the main window");
@@ -97,6 +106,22 @@ public partial class MainWindow
             }
             // The selected model compiles first, as a single compile would.
             jobs = jobs.OrderBy(job => !job.Path.Equals(targetPath, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+
+        // A model at a path the game does not load compiles fine but changes nothing in game.
+        var notInGame = new List<string>();
+        foreach (var job in jobs)
+            if (await ReplacesGameModelAsync(job.Path) == false)
+                notInGame.Add(GameModelSource.GetVpkPath(job.Path) ?? Path.GetFileName(job.Path));
+        if (notInGame.Count > 0)
+        {
+            Log($"[compile warning] the game has no model at: {string.Join(", ", notInGame)}");
+            if (!await DialogService.ShowConfirmAsync(this, "not a game model path",
+                    "the game has no model at " + (notInGame.Count == 1 ? "this path" : "these paths") + ":\n\n" +
+                    string.Join("\n", notInGame.Select(path => "- " + path)) +
+                    "\n\nDeadlock only loads a mod's model in place of the stock model at the same path, so a VPK with " +
+                    (notInGame.Count == 1 ? "it" : "them") + " changes nothing in game. move or rename the model first.\n\ncompile anyway?"))
+                return;
         }
 
         // Hold the guard while the camera checks and optional syncs run, so a second click

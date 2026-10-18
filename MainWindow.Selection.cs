@@ -231,6 +231,7 @@ public partial class MainWindow
             var path = targetPath ?? GetResolvedTargetPath();
             var citadelDir = TxtCitadelPath.Text?.Trim();
             _ = UpdateLegacyFrameNoticeAsync(path, request);
+            _ = UpdateGamePathNoticeAsync(path, request);
 
             if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
@@ -275,6 +276,48 @@ public partial class MainWindow
         TxtPreviewEmpty.Text = title;
         TxtPreviewEmptyHint.Text = hint ?? string.Empty;
         TxtPreviewEmptyHint.IsVisible = hint != null;
+    }
+
+    /// <summary>
+    /// Warns when the model's path is not a game model's path: the game only loads a mod's model in
+    /// place of the stock one at the same path, so a VPK with it would change nothing in game.
+    /// </summary>
+    private async Task UpdateGamePathNoticeAsync(string? path, int request)
+    {
+        var replaces = string.IsNullOrEmpty(path) ? true : await ReplacesGameModelAsync(path) ?? true;
+        if (request != _previewRequest) return;
+        BorderNotGameModel.IsVisible = !replaces;
+        if (!replaces)
+            TxtNotGameModel.Text = $"{GameModelSource.GetVpkPath(path!) ?? Path.GetFileName(path)} is not loaded by Deadlock, " +
+                                   "so a VPK with it changes nothing in game. Move or rename the model to the path of the model it replaces.";
+    }
+
+    private Task<HashSet<string>?>? _gameModels;
+
+    /// <summary>
+    /// Whether the game has a model at this model's path; null when Deadlock or the path is unknown.
+    /// The game's model list is read once.
+    /// </summary>
+    private async Task<bool?> ReplacesGameModelAsync(string vmdlPath)
+    {
+        var gamePath = GameModelSource.GetVpkPath(vmdlPath);
+        if (gamePath == null) return null;
+        _gameModels ??= Task.Run<HashSet<string>?>(() =>
+        {
+            var deadlock = DeadlockLocator.DetectDeadlockInstallation();
+            if (!deadlock.IsValid) return null;
+            using var archive = VpkArchive.Open(deadlock.Pak01VpkPath);
+            return archive.FindFiles("vmdl_c", _ => true).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        });
+        try
+        {
+            return await _gameModels is { } models ? models.Contains(gamePath) : null;
+        }
+        catch (Exception ex)
+        {
+            Log($"[presets] could not read the game's model list: {ex.Message}");
+            return null;
+        }
     }
 
     private async Task UpdateLegacyFrameNoticeAsync(string? path, int request)
