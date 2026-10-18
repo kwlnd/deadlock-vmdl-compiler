@@ -20,7 +20,7 @@ public partial class MainWindow : Window
     private bool _isApplyingPreset;
     private IReadOnlyDictionary<string, string>? _selectedNamedGraphs;
     private List<HeroPresetChoice> _presetChoices = new();
-    private List<NpcPresetChoice> _npcPresetChoices = new();
+    private IReadOnlyList<NpcPreset> _scannedNpcPresets = [];
     private Dictionary<string, Bitmap> _presetPortraits = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _portraitLoadGate = new(1, 1);
     private string? _portraitSource;
@@ -130,11 +130,6 @@ public partial class MainWindow : Window
             {
                 _ = LoadPresetPortraitsAsync(deadlockInstall.Pak01VpkPath);
                 _ = LoadNpcPresetsAsync(deadlockInstall.Pak01VpkPath);
-            }
-            else
-            {
-                PopulateNpcPresets(Array.Empty<NpcPreset>());
-                LblNpcPresetStatus.Text = "Deadlock VPK not detected";
             }
 
             RescanModels(logOutput: false);

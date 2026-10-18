@@ -14,15 +14,37 @@ public partial class MainWindow
     private void PopulateHeroPresets()
     {
         var previousKey = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Key;
-        var choices = HeroDatabase.GetVisiblePresets()
+        var presets = HeroDatabase.GetVisiblePresets();
+        var listed = presets
             .Where(pair => !pair.Value.NamedGraphs.ContainsKey("Neutrals"))
             .Select(pair => new HeroPresetChoice(pair.Key,
                 HeroPresetMatcher.FindKnownHero(pair.Key, pair.Value),
                 detail: null))
-            .OrderBy(choice => choice.Hero == null ? 1 : 0)
-            .ThenBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var choices = listed.Where(choice => choice.Hero != null)
+            .OrderBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(choice => choice.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        // NPCs and neutrals follow the heroes in the same list: walkers, guardians, the mid-boss,
+        // troopers and so on, scanned from the game, then the neutral presets of the preset list.
+        var npcs = new List<HeroPresetChoice>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var npc in _scannedNpcPresets)
+        {
+            if (npc.IsNeutral && !seen.Add(PresetSignature(npc.Preset))) continue;
+            npcs.Add(new HeroPresetChoice(npc.Key, detail: npc.IsNeutral ? "neutral" : "npc", preset: npc.Preset,
+                displayName: NpcDisplayName(npc.SourcePath), sourcePath: npc.SourcePath));
+        }
+        foreach (var (key, preset) in presets.Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals")))
+        {
+            if (!seen.Add(PresetSignature(preset))) continue;
+            npcs.Add(new HeroPresetChoice(key, detail: "neutral", displayName: NpcDisplayName(key)));
+        }
+        choices.AddRange(npcs.OrderBy(choice => choice.Detail == "npc" ? 0 : 1)
+            .ThenBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase));
+        choices.AddRange(listed.Where(choice => choice.Hero == null)
+            .OrderBy(choice => choice.Key, StringComparer.OrdinalIgnoreCase));
         choices.Insert(0, new HeroPresetChoice(string.Empty, isAuto: true));
         foreach (var choice in choices)
         {
@@ -38,46 +60,21 @@ public partial class MainWindow
         BtnDefaultHeroPaths.IsVisible = source != null || !string.IsNullOrWhiteSpace(_config.HeroPathsFile);
     }
 
-    private void PopulateNpcPresets(IReadOnlyList<NpcPreset> scannedPresets)
+    /// <summary>A readable name for an NPC model, such as Walker for boss_tier_02_sun_walker.</summary>
+    internal static string NpcDisplayName(string modelPath)
     {
-        var previousKey = (CmbNpcPreset.SelectedItem as NpcPresetChoice)?.Key;
-        var choices = new List<NpcPresetChoice>
+        var path = modelPath.EndsWith("_c", StringComparison.OrdinalIgnoreCase) ? modelPath[..^2] : modelPath;
+        var name = Path.GetFileNameWithoutExtension(path.Replace('\\', '/')).ToLowerInvariant();
+        return name switch
         {
-            new NpcPresetChoice(string.Empty, "auto-detect NPC paths", "from selected model", isAuto: true)
+            "boss_tier_01_brazier_guardian" => "Guardian",
+            "boss_tier_02_sun_walker" => "Walker",
+            "midboss" => "Mid-Boss",
+            "trooper_humanoid" => "Trooper",
+            _ => string.Join(' ', (name.StartsWith("neutral_") ? name["neutral_".Length..] : name)
+                .Split('_', StringSplitOptions.RemoveEmptyEntries)
+                .Select(word => char.ToUpperInvariant(word[0]) + word[1..]))
         };
-
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (key, preset) in HeroDatabase.GetVisiblePresets()
-                     .Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals"))
-                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            var signature = PresetSignature(preset);
-            if (!seen.Add(signature)) continue;
-            choices.Add(new NpcPresetChoice(
-                key,
-                key,
-                "neutral AG2 preset",
-                preset));
-        }
-
-        foreach (var npc in scannedPresets.OrderBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase))
-        {
-            var signature = PresetSignature(npc.Preset);
-            if (npc.IsNeutral && seen.Contains(signature)) continue;
-            choices.Add(new NpcPresetChoice(
-                npc.Key,
-                npc.DisplayName,
-                npc.IsNeutral ? "neutral model from pak01_dir.vpk" : npc.SourcePath,
-                npc.Preset,
-                sourcePath: npc.SourcePath));
-            if (npc.IsNeutral) seen.Add(signature);
-        }
-
-        _npcPresetChoices = choices;
-        CmbNpcPreset.ItemsSource = choices;
-        CmbNpcPreset.SelectedItem = choices.FirstOrDefault(choice =>
-            choice.Key.Equals(previousKey, StringComparison.OrdinalIgnoreCase)) ?? choices[0];
-        LblNpcPresetStatus.Text = $"{Math.Max(0, choices.Count - 1)} NPC/neutral presets";
     }
 
     private static string PresetSignature(HeroPreset preset) =>
@@ -132,11 +129,11 @@ public partial class MainWindow
     {
         try
         {
-            LblNpcPresetStatus.Text = "scanning pak01_dir.vpk...";
             var result = await VpkHeroScanner.ScanVpkForNpcsAsync(vpkPath);
             if (!IsVisible) return;
 
-            PopulateNpcPresets(result.Presets);
+            _scannedNpcPresets = result.Presets;
+            PopulateHeroPresets();
             var currentTarget = GetResolvedTargetPath();
             if (!string.IsNullOrWhiteSpace(currentTarget))
                 UpdateHeroDetailsFromPath(currentTarget);
@@ -144,7 +141,6 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            LblNpcPresetStatus.Text = "NPC scan failed";
             Log($"[npc presets] scan failed: {ex.Message}");
         }
     }
@@ -223,32 +219,19 @@ public partial class MainWindow
     {
         try
         {
-            if (TrySelectNpcPresetForPath(vmdlPath))
-                return;
-
-            var heroName = CsdkPaths.DetectHeroFromPath(vmdlPath);
-            var db = HeroDatabase.GetDatabase();
-            if (string.IsNullOrEmpty(heroName) || !db.TryGetValue(heroName, out var preset))
-            {
-                CmbHeroPreset.SelectedIndex = 0;
-
-                ApplyPresetPaths(null);
-                return;
-            }
-
-            ApplyPresetPaths(preset);
-
-            var match = _presetChoices.FirstOrDefault(choice =>
-                choice.Key.Equals(heroName, StringComparison.OrdinalIgnoreCase));
+            var match = FindPresetForModel(vmdlPath, out var fromContent);
             if (match == null)
             {
-                var hero = HeroPresetMatcher.FindKnownHero(heroName, preset);
-                if (hero != null)
-                    match = _presetChoices.FirstOrDefault(choice =>
-                        choice.Hero?.HeroKey.Equals(hero.HeroKey, StringComparison.OrdinalIgnoreCase) == true);
+                SelectPresetQuietly(_presetChoices.FirstOrDefault());
+                ApplyPresetPaths(null);
+                Log($"[presets] could not tell which hero or npc {Path.GetFileName(vmdlPath)} is; pick its preset in the list.");
+                return;
             }
-            if (match != null && !ReferenceEquals(CmbHeroPreset.SelectedItem, match))
-                CmbHeroPreset.SelectedItem = match;
+
+            SelectPresetQuietly(match);
+            ApplyPresetPaths(PresetFor(match));
+            if (fromContent)
+                Log($"[presets] {Path.GetFileName(vmdlPath)}: detected {match.DisplayName} from the files the model uses.");
         }
         catch (Exception ex)
         {
@@ -256,33 +239,62 @@ public partial class MainWindow
         }
     }
 
-    private bool TrySelectNpcPresetForPath(string vmdlPath)
+    private void SelectPresetQuietly(HeroPresetChoice? choice)
     {
-        if (_npcPresetChoices.Count == 0) return false;
+        if (choice == null || ReferenceEquals(CmbHeroPreset.SelectedItem, choice)) return;
+        _isApplyingPreset = true;
+        try { CmbHeroPreset.SelectedItem = choice; }
+        finally { _isApplyingPreset = false; }
+    }
 
-        var detectedKey = CsdkPaths.DetectHeroFromPath(vmdlPath);
-        var match = !string.IsNullOrWhiteSpace(detectedKey)
-            ? _npcPresetChoices.FirstOrDefault(choice =>
-                choice.Key.Equals(detectedKey, StringComparison.OrdinalIgnoreCase))
-            : null;
+    private static HeroPreset? PresetFor(HeroPresetChoice choice) =>
+        choice.Preset ?? (HeroDatabase.GetVisiblePresets().TryGetValue(choice.Key, out var preset) ? preset : null);
 
-        if (match == null)
+    /// <summary>
+    /// The preset of a model: by its path, then by the game model it replaces, then by the files
+    /// its .vmdl uses (skeleton, meshes, materials), for addons whose folders are named freely.
+    /// </summary>
+    private HeroPresetChoice? FindPresetForModel(string vmdlPath, out bool fromContent)
+    {
+        fromContent = false;
+        var choices = _presetChoices.Where(choice => !choice.IsAuto).ToList();
+        HeroPresetChoice? ForKey(string? key)
         {
-            var (_, _, subpath) = CsdkPaths.ParseCsdkPath(
-                vmdlPath, TxtCitadelPath.Text?.Trim());
-            var sourcePath = subpath.Replace('\\', '/');
-            if (sourcePath.EndsWith(".vmdl", StringComparison.OrdinalIgnoreCase))
-                sourcePath += "_c";
-            match = _npcPresetChoices.FirstOrDefault(choice =>
-                !string.IsNullOrWhiteSpace(choice.SourcePath) &&
-                choice.SourcePath.Equals(sourcePath, StringComparison.OrdinalIgnoreCase));
+            if (string.IsNullOrWhiteSpace(key)) return null;
+            var exact = choices.FirstOrDefault(choice => choice.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+            if (exact != null) return exact;
+            var hero = HeroDatabase.GetDatabase().TryGetValue(key, out var preset)
+                ? HeroPresetMatcher.FindKnownHero(key, preset) : null;
+            return hero == null ? null : choices.FirstOrDefault(choice =>
+                choice.Hero?.HeroKey.Equals(hero.HeroKey, StringComparison.OrdinalIgnoreCase) == true);
         }
 
-        if (match?.Preset == null) return false;
+        var (_, _, subpath) = CsdkPaths.ParseCsdkPath(vmdlPath, TxtCitadelPath.Text?.Trim());
+        var gamePath = subpath.Replace('\\', '/') + "_c";
+        var byPath = choices.FirstOrDefault(choice =>
+                         choice.SourcePath.Equals(gamePath, StringComparison.OrdinalIgnoreCase)) ??
+                     ForKey(CsdkPaths.DetectHeroFromPath(vmdlPath));
+        if (byPath != null) return byPath;
 
-        CmbNpcPreset.SelectedItem = match;
-        ApplyPresetPaths(match.Preset);
-        return true;
+        string content;
+        try { content = File.ReadAllText(vmdlPath).Replace('\\', '/'); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+
+        // A model compiled before already names its skeleton; that is the strongest hint.
+        var bySkeleton = choices.FirstOrDefault(choice => PresetFor(choice) is { Skel.Length: > 0 } preset &&
+                                                          content.Contains(preset.Skel, StringComparison.OrdinalIgnoreCase));
+        var best = bySkeleton ?? System.Text.RegularExpressions.Regex.Matches(content, @"models/[A-Za-z0-9_./-]+")
+            .Select(reference => choices.FirstOrDefault(choice => choice.SourcePath.Length > 0 &&
+                                     reference.Value.StartsWith(Path.GetDirectoryName(choice.SourcePath)!.Replace('\\', '/') + "/",
+                                         StringComparison.OrdinalIgnoreCase)) ??
+                                 ForKey(CsdkPaths.DetectHeroFromPath(reference.Value)))
+            .OfType<HeroPresetChoice>()
+            .GroupBy(choice => choice)
+            .OrderByDescending(group => group.Count())
+            .Select(group => group.Key)
+            .FirstOrDefault();
+        fromContent = best != null;
+        return best;
     }
 
     private void CmbHeroPreset_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -297,60 +309,10 @@ public partial class MainWindow
                 if (!string.IsNullOrEmpty(path)) UpdateHeroDetailsFromPath(path);
                 else ApplyPresetPaths(null);
             }
-            else
+            else if (PresetFor(choice) is { } preset)
             {
-                var db = HeroDatabase.GetVisiblePresets();
-                if (db.TryGetValue(choice.Key, out var preset))
-                {
-                    ApplyPresetPaths(preset);
-                }
+                ApplyPresetPaths(preset);
             }
         }
-    }
-
-    private void CmbNpcPreset_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_isApplyingPreset) return;
-        if (CmbNpcPreset.SelectedItem is not NpcPresetChoice choice) return;
-
-        if (choice.IsAuto)
-        {
-            var path = GetResolvedTargetPath();
-            if (!string.IsNullOrEmpty(path) && !TrySelectNpcPresetForPath(path))
-                ApplyPresetPaths(null);
-            return;
-        }
-
-        if (choice.Preset != null)
-        {
-            CmbHeroPreset.SelectedIndex = 0;
-            ApplyPresetPaths(choice.Preset);
-        }
-    }
-
-    // -----------------------------------------------------------------
-    // EVENT HANDLERS
-    // -----------------------------------------------------------------
-    private void ChkShowNpcPresets_Click(object? sender, RoutedEventArgs e)
-    {
-        NpcPresetPanel.IsVisible = ChkShowNpcPresets.IsChecked == true;
-    }
-
-    private async void BtnScanNpcPresets_Click(object? sender, RoutedEventArgs e)
-    {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "select Deadlock pak01_dir.vpk",
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("Deadlock VPK (*.vpk)")
-                {
-                    Patterns = new[] { "pak01_dir.vpk", "*.vpk" }
-                }
-            }
-        });
-        if (files.Count > 0)
-            await LoadNpcPresetsAsync(files[0].Path.LocalPath);
     }
 }

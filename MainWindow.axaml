@@ -136,7 +136,7 @@
                             </Border>
 
                             <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-                                <TextBlock Text="hero preset" Classes="field-label"/>
+                                <TextBlock Text="hero / npc preset" Classes="field-label"/>
                                 <TextBlock x:Name="LblHeroPathsSource" Grid.Column="1" Text="built-in presets"
                                            Classes="field-hint" VerticalAlignment="Center" MaxWidth="260"
                                            TextTrimming="CharacterEllipsis" ToolTip.Tip="Skeleton and AnimGraph 2 paths come from this preset list"/>
@@ -169,8 +169,6 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             <Grid ColumnDefinitions="*,Auto,Auto">
-                                <CheckBox x:Name="ChkShowNpcPresets" Content="show npc presets"
-                                          IsChecked="False" Click="ChkShowNpcPresets_Click"/>
                                 <Button x:Name="BtnLoadHeroPaths" Grid.Column="1" Classes="utility" Height="24"
                                         Click="BtnLoadHeroPaths_Click"
                                         ToolTip.Tip="Use your own AG2 preset list (hero_paths.json format)">
@@ -196,32 +194,6 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
-                            <StackPanel x:Name="NpcPresetPanel" IsVisible="False" Spacing="9">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Text="npc preset" Classes="field-label"/>
-                                    <TextBlock x:Name="LblNpcPresetStatus" Grid.Column="1"
-                                               Text="loading..." Classes="field-hint"
-                                               VerticalAlignment="Center"/>
-                                </Grid>
-                                <Grid ColumnDefinitions="*,6,84">
-                                    <ComboBox x:Name="CmbNpcPreset" Height="40"
-                                              HorizontalAlignment="Stretch"
-                                              SelectionChanged="CmbNpcPreset_SelectionChanged">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate DataType="models:NpcPresetChoice">
-                                                <StackPanel Spacing="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding DisplayName}" FontSize="11.5"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{StaticResource StudioText}"/>
-                                                    <TextBlock Text="{Binding Detail}" Classes="field-hint"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                    <Button Grid.Column="2" Classes="utility" Height="40" HorizontalAlignment="Stretch"
-                                            Content="scan vpk" Click="BtnScanNpcPresets_Click"/>
-                                </Grid>
-                            </StackPanel>
                         </StackPanel>
                     </Border>
 
