@@ -23,9 +23,9 @@ public static class VmdlScanner
                 var db = HeroDatabase.GetDatabase();
 
                 // Heroes live in heroes_wip or heroes_staging, NPCs such as the walker and
-                // guardian in models/npc. Other models, such as neutral creeps, are listed
+                // guardian in models/npc, troopers in models/npc_units/troopers. Other models, such as neutral creeps, are listed
                 // only when their file name is a preset.
-                var isNpc = cleanPath.Contains("/models/npc/");
+                var isNpc = cleanPath.Contains("/models/npc/") || cleanPath.Contains("/models/npc_units/troopers/");
                 if (!cleanPath.Contains("heroes_wip") && !cleanPath.Contains("heroes_staging") && !isNpc &&
                     !db.ContainsKey(filenameStem))
                     continue;

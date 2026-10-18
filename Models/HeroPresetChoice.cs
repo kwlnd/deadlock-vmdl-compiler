@@ -8,7 +8,7 @@ public sealed class HeroPresetChoice : INotifyPropertyChanged
     private Bitmap? _portrait;
 
     public HeroPresetChoice(string key, DeadlockHeroModel? hero = null, bool isAuto = false, string? detail = null,
-        HeroPreset? preset = null, string? displayName = null, string sourcePath = "")
+        HeroPreset? preset = null, string? displayName = null, IReadOnlyList<string>? sourcePaths = null)
     {
         Key = key;
         Hero = hero;
@@ -16,7 +16,7 @@ public sealed class HeroPresetChoice : INotifyPropertyChanged
         _detail = detail;
         Preset = preset;
         _displayName = displayName;
-        SourcePath = sourcePath;
+        SourcePaths = sourcePaths ?? [];
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -28,8 +28,11 @@ public sealed class HeroPresetChoice : INotifyPropertyChanged
     /// <summary>Paths of an NPC found in the game's VPK; null for presets from the preset list.</summary>
     public HeroPreset? Preset { get; }
 
-    /// <summary>The game model an NPC preset was read from, such as models/npc/midboss/midboss.vmdl_c.</summary>
-    public string SourcePath { get; }
+    /// <summary>
+    /// The game models an NPC preset was read from, such as models/npc/midboss/midboss.vmdl_c;
+    /// both teams' models when they share skeleton and graphs.
+    /// </summary>
+    public IReadOnlyList<string> SourcePaths { get; }
 
     public bool IsNpc => _detail is "npc" or "neutral";
     private readonly string? _displayName;

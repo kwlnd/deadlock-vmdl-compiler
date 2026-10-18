@@ -26,20 +26,24 @@ public partial class MainWindow
             .ThenBy(choice => choice.Key, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // NPCs and neutrals follow the heroes in the same list: walkers, guardians, the mid-boss,
-        // troopers and so on, scanned from the game, then the neutral presets of the preset list.
+        // NPCs and neutrals follow the heroes in the same list: walkers, guardians, troopers and
+        // so on, scanned from the game, then the neutral presets of the preset list. Models with the
+        // same skeleton and graphs, like both teams' troopers, share one entry.
         var npcs = new List<HeroPresetChoice>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var npc in _scannedNpcPresets)
+        foreach (var group in _scannedNpcPresets.GroupBy(npc => PresetSignature(npc.Preset)))
         {
-            if (npc.IsNeutral && !seen.Add(PresetSignature(npc.Preset))) continue;
-            npcs.Add(new HeroPresetChoice(npc.Key, detail: npc.IsNeutral ? "neutral" : "npc", preset: npc.Preset,
-                displayName: NpcDisplayName(npc.SourcePath), sourcePath: npc.SourcePath));
+            var first = group.First();
+            if (!seen.Add(group.Key)) continue;
+            var sources = group.Select(npc => npc.SourcePath).ToList();
+            npcs.Add(new HeroPresetChoice(first.Key, detail: first.IsNeutral ? "neutral" : "npc", preset: first.Preset,
+                displayName: NpcCatalog.DisplayName(first.SourcePath, withoutTeam: sources.Count > 1),
+                sourcePaths: sources));
         }
         foreach (var (key, preset) in presets.Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals")))
         {
             if (!seen.Add(PresetSignature(preset))) continue;
-            npcs.Add(new HeroPresetChoice(key, detail: "neutral", displayName: NpcDisplayName(key)));
+            npcs.Add(new HeroPresetChoice(key, detail: "neutral", displayName: NpcCatalog.DisplayName(key)));
         }
         choices.AddRange(npcs.OrderBy(choice => choice.Detail == "npc" ? 0 : 1)
             .ThenBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase));
@@ -50,6 +54,8 @@ public partial class MainWindow
         {
             if (choice.Hero != null && _presetPortraits.TryGetValue(choice.Hero.HeroKey, out var portrait))
                 choice.Portrait = portrait;
+            else if (NpcIconFor(choice) is { } icon)
+                choice.Portrait = icon;
         }
         _presetChoices = choices;
         CmbHeroPreset.ItemsSource = choices;
@@ -60,21 +66,33 @@ public partial class MainWindow
         BtnDefaultHeroPaths.IsVisible = source != null || !string.IsNullOrWhiteSpace(_config.HeroPathsFile);
     }
 
-    /// <summary>A readable name for an NPC model, such as Walker for boss_tier_02_sun_walker.</summary>
-    internal static string NpcDisplayName(string modelPath)
+    private Bitmap? NpcIconFor(HeroPresetChoice choice) =>
+        choice.IsNpc && NpcCatalog.IconPath(choice.SourcePaths.FirstOrDefault() ?? choice.Key) is { } path &&
+        _npcIcons.TryGetValue(path, out var icon) ? icon : null;
+
+    /// <summary>Loads the NPC HUD icons from the game for the NPC entries of the preset list.</summary>
+    private async Task LoadNpcIconsAsync(string vpkPath)
     {
-        var path = modelPath.EndsWith("_c", StringComparison.OrdinalIgnoreCase) ? modelPath[..^2] : modelPath;
-        var name = Path.GetFileNameWithoutExtension(path.Replace('\\', '/')).ToLowerInvariant();
-        return name switch
+        try
         {
-            "boss_tier_01_brazier_guardian" => "Guardian",
-            "boss_tier_02_sun_walker" => "Walker",
-            "midboss" => "Mid-Boss",
-            "trooper_humanoid" => "Trooper",
-            _ => string.Join(' ', (name.StartsWith("neutral_") ? name["neutral_".Length..] : name)
-                .Split('_', StringSplitOptions.RemoveEmptyEntries)
-                .Select(word => char.ToUpperInvariant(word[0]) + word[1..]))
-        };
+            var pngs = await Task.Run(() => HeroIconLoader.LoadImages(vpkPath, NpcCatalog.IconPaths));
+            if (!IsVisible) return;
+            var icons = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (path, png) in pngs)
+            {
+                using var input = new MemoryStream(png);
+                icons[path] = new Bitmap(input);
+            }
+            foreach (var old in _npcIcons.Values) old.Dispose();
+            _npcIcons = icons;
+            foreach (var choice in _presetChoices)
+                if (choice.Hero == null && NpcIconFor(choice) is { } icon)
+                    choice.Portrait = icon;
+        }
+        catch (Exception ex)
+        {
+            Log($"[npc presets] icons unavailable: {ex.Message}");
+        }
     }
 
     private static string PresetSignature(HeroPreset preset) =>
@@ -134,6 +152,7 @@ public partial class MainWindow
 
             _scannedNpcPresets = result.Presets;
             PopulateHeroPresets();
+            _ = LoadNpcIconsAsync(vpkPath);
             var currentTarget = GetResolvedTargetPath();
             if (!string.IsNullOrWhiteSpace(currentTarget))
                 UpdateHeroDetailsFromPath(currentTarget);
@@ -272,7 +291,7 @@ public partial class MainWindow
         var (_, _, subpath) = CsdkPaths.ParseCsdkPath(vmdlPath, TxtCitadelPath.Text?.Trim());
         var gamePath = subpath.Replace('\\', '/') + "_c";
         var byPath = choices.FirstOrDefault(choice =>
-                         choice.SourcePath.Equals(gamePath, StringComparison.OrdinalIgnoreCase)) ??
+                         choice.SourcePaths.Contains(gamePath, StringComparer.OrdinalIgnoreCase)) ??
                      ForKey(CsdkPaths.DetectHeroFromPath(vmdlPath));
         if (byPath != null) return byPath;
 
@@ -284,9 +303,9 @@ public partial class MainWindow
         var bySkeleton = choices.FirstOrDefault(choice => PresetFor(choice) is { Skel.Length: > 0 } preset &&
                                                           content.Contains(preset.Skel, StringComparison.OrdinalIgnoreCase));
         var best = bySkeleton ?? System.Text.RegularExpressions.Regex.Matches(content, @"models/[A-Za-z0-9_./-]+")
-            .Select(reference => choices.FirstOrDefault(choice => choice.SourcePath.Length > 0 &&
-                                     reference.Value.StartsWith(Path.GetDirectoryName(choice.SourcePath)!.Replace('\\', '/') + "/",
-                                         StringComparison.OrdinalIgnoreCase)) ??
+            .Select(reference => choices.FirstOrDefault(choice => choice.SourcePaths.Any(source =>
+                                     reference.Value.StartsWith(Path.GetDirectoryName(source)!.Replace('\\', '/') + "/",
+                                         StringComparison.OrdinalIgnoreCase))) ??
                                  ForKey(CsdkPaths.DetectHeroFromPath(reference.Value)))
             .OfType<HeroPresetChoice>()
             .GroupBy(choice => choice)

@@ -11,6 +11,16 @@ public static class HeroIconLoader
     {
         var wanted = heroes.Where(hero => hero.IconVpkPath != null).ToDictionary(hero => hero.IconVpkPath!,
             hero => hero.HeroKey, StringComparer.OrdinalIgnoreCase);
+        return LoadImages(pak01VpkPath, wanted);
+    }
+
+    /// <summary>Decodes compiled panorama images to PNG, keyed by the path they were read from.</summary>
+    public static IReadOnlyDictionary<string, byte[]> LoadImages(string pak01VpkPath, IEnumerable<string> imagePaths) =>
+        LoadImages(pak01VpkPath, imagePaths.Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(path => path, path => path, StringComparer.OrdinalIgnoreCase));
+
+    private static IReadOnlyDictionary<string, byte[]> LoadImages(string pak01VpkPath, IReadOnlyDictionary<string, string> wanted)
+    {
         var result = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
         using var archive = VpkArchive.Open(pak01VpkPath);
 

@@ -21,6 +21,7 @@ public partial class MainWindow : Window
     private IReadOnlyDictionary<string, string>? _selectedNamedGraphs;
     private List<HeroPresetChoice> _presetChoices = new();
     private IReadOnlyList<NpcPreset> _scannedNpcPresets = [];
+    private Dictionary<string, Avalonia.Media.Imaging.Bitmap> _npcIcons = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, Bitmap> _presetPortraits = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _portraitLoadGate = new(1, 1);
     private string? _portraitSource;

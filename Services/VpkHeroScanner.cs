@@ -146,10 +146,13 @@ public static class VpkHeroScanner
                     return (false, $"File or folder not found: {resolvedPath}", new List<NpcPreset>());
 
                 using var archive = VpkArchive.Open(resolvedPath);
-                var modelPaths = archive.FindFiles("vmdl_c", directory =>
+                // The game's unit list names the models it spawns (both teams' troopers, the
+                // walker, guardian...); unused leftovers in models/npc stay out. A VPK without
+                // it falls back to every model under models/npc.
+                var modelPaths = NpcUnitModels(archive) ?? archive.FindFiles("vmdl_c", directory =>
                     directory.StartsWith("models/npc/", StringComparison.OrdinalIgnoreCase));
                 if (modelPaths.Count == 0)
-                    return (false, "No NPC models were found under models/npc in the selected VPK.", new List<NpcPreset>());
+                    return (false, "No NPC models were found in the selected VPK.", new List<NpcPreset>());
 
                 var results = new Dictionary<string, NpcPreset>(StringComparer.OrdinalIgnoreCase);
                 var total = modelPaths.Count;
@@ -195,13 +198,31 @@ public static class VpkHeroScanner
                     .ToList();
                 return list.Count == 0
                     ? (false, "NPC scan completed, but no models with AnimGraph2 nodes were found.", list)
-                    : (true, $"Found {list.Count} NPC preset(s) under models/npc.", list);
+                    : (true, $"Found {list.Count} NPC preset(s).", list);
             }
             catch (Exception ex)
             {
                 return (false, $"Error scanning NPC presets: {ex.Message}", new List<NpcPreset>());
             }
         });
+    }
+
+    /// <summary>
+    /// The NPC and neutral models scripts/npc_units.vdata spawns, as compiled VPK paths, or null
+    /// when the VPK has no unit list.
+    /// </summary>
+    private static IReadOnlyList<string>? NpcUnitModels(VpkArchive archive)
+    {
+        var bytes = archive.Read("scripts/npc_units.vdata_c");
+        if (bytes == null) return null;
+        using var resource = new Resource();
+        resource.Read(new MemoryStream(bytes));
+        var text = resource.DataBlock?.ToString() ?? string.Empty;
+        return Regex.Matches(text, @"resource_name:""((?:models/npc/|models/npc_units/)[^""]+\.vmdl)""")
+            .Select(match => match.Groups[1].Value.Replace('\\', '/') + "_c")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(archive.Contains)
+            .ToList();
     }
 
     private static string ResolveVpkPath(string targetPath)
