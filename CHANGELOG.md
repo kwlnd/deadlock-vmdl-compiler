@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.0
+
+- **add addon** can export a model from any mod .vpk, not only from the game; missing skeletons, animations and stock materials are taken from the game. Mods compiled under another file name are saved at the path the game loads.
+- Compile ships the materials and textures a model uses, including materials from other folders of the addon and material group variants, so mods with their own materials no longer show up missing in game. Use the latest CSWin64.
+- Compile all models of an addon at once: a window lists every model with its preset (detected or picked by hand), then one VPK holds them all.
+- Warns when a model is not at a game model's path, since the game would not load it.
+- NPCs are in the preset list with icons (Walker, Guardian, Mid-Boss, Archmother, Hidden King, cores, troopers, neutrals, hero summons); the NPC checkbox and second list are gone.
+- A failed compile shows its main errors and saves the full output to compilation_error.log.
+- Fixed: the preview showed alternate skins, missed materials from other folders and did not list NPC models.
+
 ## 1.5.3
 
 - Preview loads 2-8 times faster: only the materials the model uses are read, and textures decode in parallel. Rotating heavy models is smoother.
