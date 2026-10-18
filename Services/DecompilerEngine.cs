@@ -178,6 +178,12 @@ public static class DecompilerEngine
 
                                 mainVmdl ??= target;
                                 onLog?.Invoke($"[vmdl] {Path.GetFileName(target)} ({dataBytes.Length:N0} bytes)");
+                                // Material group variants (skins, the friendly team colour) are named
+                                // only here, not in the meshes.
+                                foreach (Match match in Regex.Matches(cleanText,
+                                             @"(?<![A-Za-z0-9_./-])(?:[A-Za-z0-9_-]+/)+[A-Za-z0-9_.-]+\.vmat\b",
+                                             RegexOptions.IgnoreCase))
+                                    materialPaths.Add(match.Value);
                                 if (changes.Count > 0)
                                 {
                                     onLog?.Invoke($"[ag2 clean] {string.Join(", ", changes)}");

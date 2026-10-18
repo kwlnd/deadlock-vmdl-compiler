@@ -49,6 +49,33 @@ public class CompilerSyncTests : IDisposable
     }
 
     [Fact]
+    public void CopiesMaterialsTheModelUsesFromOtherFolders()
+    {
+        var csdkAddon = _temp["csdk/content/citadel_addons/walker"];
+        var csWinAddon = _temp["cswin/content/csgo_addons/walker"];
+        Write(Path.Combine(csdkAddon, "models", "npc", "walker", "materials", "body.vmat"), "body");
+        Write(Path.Combine(csdkAddon, "models", "npc", "walker", "materials", "body_friendly.vmat"), "friendly");
+        Write(Path.Combine(csdkAddon, "models", "npc", "walker_v2", "body.dmx"),
+            "\0\0models/npc/walker/materials/body.vmat\0\0");
+        var vmdl = """
+            { rootNode = { _class = "RootNode" children = [
+                { _class = "RenderMeshList" children = [
+                    { _class = "RenderMeshFile" filename = "models/npc/walker_v2/body.dmx" } ] },
+                { _class = "MaterialGroupList" children = [
+                    { _class = "MaterialGroup" remaps = [
+                        { from = "models/npc/walker/materials/body.vmat" to = "models/npc/walker/materials/body_friendly.vmat" },
+                        { from = "materials/stock/game_only.vmat" to = "materials/stock/game_only.vmat" } ] } ] } ] } }
+            """;
+
+        Check(CsWinCompiler.SyncReferencedMaterials(vmdl, csdkAddon, csWinAddon) == 2,
+            "Materials from another folder of the addon were not copied to CSWin64.");
+        Check(File.ReadAllText(Path.Combine(csWinAddon, "models", "npc", "walker", "materials", "body_friendly.vmat")) == "friendly",
+            "A material group variant was not copied to its own path.");
+        Check(CsWinCompiler.SyncReferencedMaterials(vmdl, csdkAddon, csWinAddon) == 0,
+            "Unchanged materials were copied again.");
+    }
+
+    [Fact]
     public void SummarizesALongCompilerFailure()
     {
         var lines = Enumerable.Range(0, 40).Select(i => i % 4 == 0 ? $"Error loading texture {i}" : $"Read input {i}").ToList();

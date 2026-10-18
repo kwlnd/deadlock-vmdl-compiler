@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 using ValveResourceFormat;
 
@@ -329,11 +330,15 @@ public static class CsWinCompiler
             }
             if (copied > 0) onLog?.Invoke($"[sync] copied {copied} new or changed asset(s) to cswin64");
 
-            // Materials also point at textures outside the model folder, such as
-            // materials/default/default_ao.tga; CSWin64 fails on a missing one.
+            // The model can use materials from another folder of the addon (the walker's v2 model
+            // uses boss_tier_02_sun_walker/materials), and materials point at textures outside
+            // the model folder, such as materials/default/default_ao.tga; CSWin64 fails on a
+            // missing one.
             try
             {
-                var textures = SyncMaterialTextures(csWinVmdlDir, csWinAddonRoot, csdkAddonRoot);
+                var materials = SyncReferencedMaterials(upgradedVmdlContent, csdkAddonRoot, csWinAddonRoot);
+                if (materials > 0) onLog?.Invoke($"[sync] copied {materials} material(s) the model uses from outside its folder");
+                var textures = SyncMaterialTextures(csWinAddonRoot, csWinAddonRoot, csdkAddonRoot);
                 if (textures > 0) onLog?.Invoke($"[sync] copied {textures} texture(s) the materials reference from outside the model folder");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -540,6 +545,43 @@ public static class CsWinCompiler
         {
             return null;
         }
+    }
+
+    private static readonly Regex MaterialReference = new(
+        @"(?<![A-Za-z0-9_./-])(?:[A-Za-z0-9_-]+/)+[A-Za-z0-9_.-]+\.vmat\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    /// <summary>
+    /// Copies the .vmat files a model names (material group remaps in the ModelDoc, material
+    /// names in its render meshes) from anywhere in the CSDK12 addon to the same path in the
+    /// CSWin64 addon. Materials the addon does not have, such as stock game ones, are skipped.
+    /// Returns how many files were copied.
+    /// </summary>
+    public static int SyncReferencedMaterials(string vmdlContent, string csdkAddonRoot, string csWinAddonRoot)
+    {
+        var text = new StringBuilder(vmdlContent);
+        foreach (var mesh in ModelDocAg2Editor.GetRenderMeshFiles(vmdlContent))
+        {
+            var meshPath = Path.Combine(csdkAddonRoot, mesh.Replace('/', Path.DirectorySeparatorChar));
+            // Binary DMX keeps material names in its string table.
+            if (File.Exists(meshPath)) text.Append('\n').Append(Encoding.Latin1.GetString(File.ReadAllBytes(meshPath)));
+        }
+
+        var copied = 0;
+        foreach (var reference in MaterialReference.Matches(text.ToString()).Select(match => match.Value.Replace('\\', '/'))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (reference.Split('/').Any(part => part is "" or "." or "..")) continue;
+            var relative = reference.Replace('/', Path.DirectorySeparatorChar);
+            var source = Path.Combine(csdkAddonRoot, relative);
+            if (!File.Exists(source)) continue;
+            var target = Path.Combine(csWinAddonRoot, relative);
+            if (!NeedsCopy(source, target)) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(source, target, overwrite: true);
+            copied++;
+        }
+        return copied;
     }
 
     private static readonly Regex MaterialTextureReference = new(
