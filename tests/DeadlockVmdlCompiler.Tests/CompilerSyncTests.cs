@@ -46,6 +46,14 @@ public class CompilerSyncTests : IDisposable
             "A texture was taken from the wrong CSDK12 folder.");
         Check(CsWinCompiler.SyncMaterialTextures(csWinModel, csWinAddon, csdkAddon) == 0,
             "Textures already in CSWin64 were copied again.");
+
+        // An edited texture must reach CSWin64 on the next compile.
+        var edited = Path.Combine(csdkAddon, "materials", "default", "addon_mask.png");
+        File.WriteAllText(edited, "addon v2");
+        File.SetLastWriteTimeUtc(edited, DateTime.UtcNow.AddMinutes(1));
+        Check(CsWinCompiler.SyncMaterialTextures(csWinModel, csWinAddon, csdkAddon) == 1 &&
+              Read("materials/default/addon_mask.png") == "addon v2",
+            "An edited texture outside the model folder was not copied to CSWin64 again.");
     }
 
     [Fact]

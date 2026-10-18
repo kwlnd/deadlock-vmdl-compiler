@@ -35,8 +35,13 @@ public partial class MainWindow
         {
             var first = group.First();
             var sources = group.Select(npc => npc.SourcePath).ToList();
+            // A preset list that names the model (a custom list's own paths) overrides the scan.
+            var ownPreset = sources.Select(source => Path.GetFileNameWithoutExtension(source[..^2]))
+                .Select(stem => presets.TryGetValue(stem, out var own) ? own : null)
+                .FirstOrDefault(own => own != null);
             npcs.Add(new HeroPresetChoice(first.Key,
-                detail: first.IsNeutral ? "neutral" : NpcCatalog.IsSummon(first.SourcePath) ? "summon" : "npc", preset: first.Preset,
+                detail: first.IsNeutral ? "neutral" : NpcCatalog.IsSummon(first.SourcePath) ? "summon" : "npc",
+                preset: ownPreset ?? first.Preset,
                 displayName: NpcCatalog.DisplayName(first.SourcePath, withoutTeam: sources.Count > 1),
                 sourcePaths: sources));
         }
@@ -317,9 +322,17 @@ public partial class MainWindow
         try { content = File.ReadAllText(vmdlPath).Replace('\\', '/'); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
 
-        // A model compiled before already names its skeleton; that is the strongest hint.
-        var bySkeleton = choices.FirstOrDefault(choice => PresetFor(choice) is { Skel.Length: > 0 } preset &&
-                                                          content.Contains(preset.Skel, StringComparison.OrdinalIgnoreCase));
+        // A model compiled before already names its skeleton; that is the strongest hint. Presets
+        // can share a skeleton (Viscous uses Kelvin's), so the named graphs pick among them, and a
+        // tie is left to the other files the model uses.
+        var bySkeletonAll = choices.Where(choice => PresetFor(choice) is { Skel.Length: > 0 } preset &&
+                                                    content.Contains(preset.Skel, StringComparison.OrdinalIgnoreCase)).ToList();
+        var bySkeletonGraph = bySkeletonAll.Where(choice => PresetFor(choice) is { } preset &&
+                new[] { preset.Graph, preset.UiGraph }.Concat(preset.NamedGraphs.Values)
+                    .Any(graph => graph.Length > 0 && content.Contains(graph, StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        var bySkeleton = bySkeletonAll.Count == 1 ? bySkeletonAll[0]
+            : bySkeletonGraph.Count == 1 ? bySkeletonGraph[0] : null;
         var best = bySkeleton ?? System.Text.RegularExpressions.Regex.Matches(content, @"models/[A-Za-z0-9_./-]+")
             .Select(reference => choices.FirstOrDefault(choice => choice.SourcePaths.Any(source =>
                                      reference.Value.StartsWith(Path.GetDirectoryName(source)!.Replace('\\', '/') + "/",

@@ -611,11 +611,11 @@ public static class CsWinCompiler
         {
             var relative = reference.Replace('/', Path.DirectorySeparatorChar);
             var target = Path.Combine(csWinAddonRoot, relative);
-            if (File.Exists(target)) continue;
             var source = sources.Select(root => Path.Combine(root, relative)).FirstOrDefault(File.Exists);
-            if (source == null) continue;
+            // An edited texture replaces the copy CSWin64 got from an earlier compile.
+            if (source == null || !NeedsCopy(source, target)) continue;
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            File.Copy(source, target);
+            File.Copy(source, target, overwrite: true);
             copied++;
         }
 
@@ -627,6 +627,7 @@ public static class CsWinCompiler
             foreach (var source in Directory.EnumerateFiles(defaults))
             {
                 var target = Path.Combine(defaultsTarget, Path.GetFileName(source));
+                // The addon's own texture of the same name, copied above, wins over the stock one.
                 if (File.Exists(target)) continue;
                 Directory.CreateDirectory(defaultsTarget);
                 File.Copy(source, target);

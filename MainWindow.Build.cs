@@ -85,7 +85,9 @@ public partial class MainWindow
                     continue;
                 }
                 var preset = PresetFor(row.Selected!)!;
-                var withUi = addUiGraph && !string.IsNullOrWhiteSpace(preset.UiGraph);
+                // The saved preference, not the checkbox: an NPC selected above disables it for
+                // itself, while a hero in the batch still gets its UI graph.
+                var withUi = _config.ChkUiGraph && !string.IsNullOrWhiteSpace(preset.UiGraph);
                 var named = addGraph && preset.NamedGraphs.Count > 0 ? preset.NamedGraphs : null;
                 jobs.Add(new CompileJob(row.Path, preset.Skel, preset.Graph, preset.UiGraph, withUi, named,
                     Ag2Expectation.ForCompile(row.Path, preset.Skel, preset.Graph, preset.UiGraph,
