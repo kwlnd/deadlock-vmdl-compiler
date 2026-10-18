@@ -27,29 +27,37 @@ public partial class MainWindow
             .ToList();
 
         // NPCs and neutrals follow the heroes in the same list: walkers, guardians, troopers and
-        // so on, scanned from the game, then the neutral presets of the preset list. Models with the
-        // same skeleton and graphs, like both teams' troopers, share one entry.
+        // so on, scanned from the game, then the neutral presets of the preset list. Both teams'
+        // versions of a model with the same skeleton and graphs, like the troopers, share one entry.
         var npcs = new List<HeroPresetChoice>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var group in _scannedNpcPresets.GroupBy(npc => PresetSignature(npc.Preset)))
+        foreach (var group in _scannedNpcPresets.GroupBy(npc =>
+                     (PresetSignature(npc.Preset), NpcCatalog.DisplayName(npc.SourcePath, withoutTeam: true))))
         {
             var first = group.First();
-            if (!seen.Add(group.Key)) continue;
             var sources = group.Select(npc => npc.SourcePath).ToList();
             npcs.Add(new HeroPresetChoice(first.Key,
                 detail: first.IsNeutral ? "neutral" : NpcCatalog.IsSummon(first.SourcePath) ? "summon" : "npc", preset: first.Preset,
                 displayName: NpcCatalog.DisplayName(first.SourcePath, withoutTeam: sources.Count > 1),
                 sourcePaths: sources));
         }
+        var scannedModels = _scannedNpcPresets
+            .Select(npc => Path.GetFileNameWithoutExtension(npc.SourcePath[..^2]))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var (key, preset) in presets.Where(pair => pair.Value.NamedGraphs.ContainsKey("Neutrals") &&
                                                             !NpcCatalog.IsUnused(pair.Key)))
         {
-            if (!seen.Add(PresetSignature(preset))) continue;
+            // The same neutral from the scan can differ in graphs (park watcher); list it once.
+            if (scannedModels.Contains(key)) continue;
             npcs.Add(new HeroPresetChoice(key, detail: "neutral", displayName: NpcCatalog.DisplayName(key)));
         }
         choices.AddRange(npcs.OrderBy(choice => choice.Detail switch { "npc" => 0, "summon" => 1, _ => 2 })
             .ThenBy(choice => choice.DisplayName, StringComparer.OrdinalIgnoreCase));
-        choices.AddRange(listed.Where(choice => choice.Hero == null)
+        // A custom list can still name an NPC the game scan lists (grey_talon_owl...): keep one.
+        var npcModels = npcs.SelectMany(choice => choice.SourcePaths.Append(choice.Key))
+            .Select(path => Path.GetFileNameWithoutExtension(path.EndsWith("_c") ? path[..^2] : path))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        choices.AddRange(listed.Where(choice => choice.Hero == null && !npcModels.Contains(choice.Key) &&
+                                                !NpcCatalog.IsUnused(choice.Key))
             .OrderBy(choice => choice.Key, StringComparer.OrdinalIgnoreCase));
         choices.Insert(0, new HeroPresetChoice(string.Empty, isAuto: true));
         foreach (var choice in choices)
@@ -77,14 +85,17 @@ public partial class MainWindow
     {
         try
         {
-            var pngs = await Task.Run(() => HeroIconLoader.LoadImages(vpkPath, NpcCatalog.IconPaths));
+            var pngs = await Task.Run(() => HeroIconLoader.LoadImages(vpkPath,
+                NpcCatalog.IconPaths.Where(path => !NpcCatalog.IsBundled(path))));
             if (!IsVisible) return;
             var icons = new Dictionary<string, Bitmap>(StringComparer.OrdinalIgnoreCase);
             foreach (var (path, png) in pngs)
             {
-                using var input = new MemoryStream(NpcCatalog.Trim(path, png));
+                using var input = new MemoryStream(png);
                 icons[path] = new Bitmap(input);
             }
+            foreach (var path in NpcCatalog.IconPaths.Where(NpcCatalog.IsBundled))
+                icons[path] = new Bitmap(Avalonia.Platform.AssetLoader.Open(new Uri(path)));
             foreach (var old in _npcIcons.Values) old.Dispose();
             _npcIcons = icons;
             foreach (var choice in _presetChoices)

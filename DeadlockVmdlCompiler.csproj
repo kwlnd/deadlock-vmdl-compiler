@@ -30,6 +30,7 @@
   <ItemGroup>
     <AvaloniaResource Include="AppIcon.ico" />
     <AvaloniaResource Include="AppIcon.png" />
+    <AvaloniaResource Include="Assets/npc/*.png" />
     <Compile Remove="tests/**/*.cs" />
     <Compile Remove="scratch/**/*.cs" />
     <AvaloniaXaml Remove="tests/**;scratch/**" />

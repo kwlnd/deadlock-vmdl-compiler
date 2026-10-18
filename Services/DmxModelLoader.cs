@@ -149,7 +149,10 @@ public static class DmxModelLoader
             }
 
             var remaps = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            var matches = Regex.Matches(vmdlContent, @"from\s*=\s*""([^""]+)""\s*to\s*=\s*""([^""]+)""");
+            // Named material groups are alternative skins (the patron's black skin2, the walker's
+            // friendly colours); the preview shows the default look, so only other remaps apply.
+            var defaultLook = ModelDocAg2Editor.RemoveNodes(vmdlContent, "MaterialGroup");
+            var matches = Regex.Matches(defaultLook, @"from\s*=\s*""([^""]+)""\s*to\s*=\s*""([^""]+)""");
             foreach (Match m in matches)
             {
                 var from = Path.GetFileNameWithoutExtension(m.Groups[1].Value);

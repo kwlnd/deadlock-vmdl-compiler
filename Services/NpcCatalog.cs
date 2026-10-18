@@ -1,5 +1,3 @@
-using SkiaSharp;
-
 namespace DeadlockVmdlCompiler.Services;
 
 /// <summary>Readable names and HUD icons for the game's NPC models.</summary>
@@ -7,8 +5,9 @@ public static class NpcCatalog
 {
     private const string Npcs = "panorama/images/npcs/";
     private const string Neutrals = Npcs + "neutrals/";
-    // The game has no HUD icon for the mid-boss; its wall graffiti carries an emblem of it.
-    private const string MidBossGraffiti = "materials/overlays/midboss_graffiti_02_color_psd_15ffd570.vtex_c";
+    // Renders of the game models seen from +X with a team-coloured outline, bundled with the app:
+    // the game has no icon for the mid-boss, and its patron and core icons look alike.
+    private const string Renders = "avares://DeadlockVmdlCompiler/Assets/npc/";
 
     /// <summary>
     /// Hero summons with their own skeleton and graphs that the unit list does not name or that
@@ -18,6 +17,7 @@ public static class NpcCatalog
     [
         "models/heroes_staging/grey_talon/grey_talon_owl.vmdl_c",
         "models/heroes_wip/necro/necro_shambler.vmdl_c",
+        "models/heroes_wip/necro/necro_zombietrooper.vmdl_c",
         "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl_c",
     ];
 
@@ -37,6 +37,11 @@ public static class NpcCatalog
         ["medic_01"] = "Medic",
         ["grey_talon_owl"] = "Grey Talon Owl",
         ["necro_shambler"] = "Graves Shambler",
+        ["necro_zombietrooper"] = "Graves Zombie",
+        ["patron_amber"] = "Archmother",
+        ["patron_sapphire"] = "Hidden King",
+        ["core_amber"] = "Archmother Core",
+        ["core_sapphire"] = "Hidden King Core",
         ["werewolf_transform"] = "Silver (wolf form)",
     };
 
@@ -47,15 +52,16 @@ public static class NpcCatalog
         ("grey_talon_owl", "panorama/images/hud/abilities/archer/archer_guided_arrow_psd.vtex_c"),
         ("necro_shambler", "panorama/images/heroes/necro_shambler_psd.vtex_c"),
         ("werewolf_transform", "panorama/images/heroes/werewolf_wolf_card_psd.vtex_c"),
-        ("midboss", MidBossGraffiti),
+        ("necro_zombietrooper", "panorama/images/hud/abilities/necro/necro_skull_psd.vtex_c"),
+        ("midboss", Renders + "midboss.png"),
+        ("patron_amber", Renders + "patron_amber.png"),
+        ("patron_sapphire", Renders + "patron_sapphire.png"),
+        ("core_amber", Renders + "core_amber.png"),
+        ("core_sapphire", Renders + "core_sapphire.png"),
         ("trooper", Npcs + "trooper_psd.vtex_c"),
         ("medic", Npcs + "trooper_psd.vtex_c"),
         ("brazier_guardian", Npcs + "tier_1_boss_psd.vtex_c"),
         ("sun_walker", Npcs + "tier_2_boss_psd.vtex_c"),
-        ("patron_amber", Npcs + "patron_archmother_psd.vtex_c"),
-        ("patron_sapphire", Npcs + "patron_hiddenking_psd.vtex_c"),
-        ("patron", Npcs + "patron_psd.vtex_c"),
-        ("core_", Npcs + "core_psd.vtex_c"),
         ("barrel_mimic_02", Neutrals + "neutral_barrel_heavy_psd.vtex_c"),
         ("barrel_mimic", Neutrals + "neutral_barrel_normal_psd.vtex_c"),
         ("bookmoth", Neutrals + "neutral_book_weak_psd.vtex_c"),
@@ -81,24 +87,8 @@ public static class NpcCatalog
     public static bool IsSummon(string modelPath) =>
         SummonModels.Contains(modelPath.Replace('\\', '/'), StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Trims a decoded icon to the part that shows the NPC, for icons cut from a larger texture.
-    /// Other icons are returned as they are.
-    /// </summary>
-    public static byte[] Trim(string iconPath, byte[] png)
-    {
-        if (!iconPath.Equals(MidBossGraffiti, StringComparison.OrdinalIgnoreCase)) return png;
-        using var bitmap = SKBitmap.Decode(png);
-        if (bitmap == null) return png;
-        // The round crocodile emblem in the middle of the graffiti sheet.
-        var area = SKRectI.Create((int)(bitmap.Width * 0.325f), (int)(bitmap.Height * 0.44f),
-            (int)(bitmap.Width * 0.37f), (int)(bitmap.Height * 0.335f));
-        using var emblem = new SKBitmap();
-        if (!bitmap.ExtractSubset(emblem, area)) return png;
-        using var image = SKImage.FromBitmap(emblem);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return data.ToArray();
-    }
+    /// <summary>Whether the icon is bundled with the app rather than read from the game.</summary>
+    public static bool IsBundled(string iconPath) => iconPath.StartsWith("avares://", StringComparison.Ordinal);
 
     /// <summary>Every icon the catalog can return, for loading them in one pass.</summary>
     public static IReadOnlyList<string> IconPaths { get; } = Icons.Select(icon => icon.Icon).Distinct().ToList();
