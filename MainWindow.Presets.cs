@@ -281,6 +281,18 @@ public partial class MainWindow
         }
     }
 
+    /// <summary>
+    /// Whether a path the model uses belongs to this NPC model. NPCs own their folder, but a hero
+    /// summon shares its hero's folder (Grey Talon's owl, Graves' shambler), so a summon needs
+    /// its own file name in the path.
+    /// </summary>
+    private static bool NpcFileMatches(string reference, string npcModel)
+    {
+        if (NpcCatalog.IsSummon(npcModel))
+            return reference.Contains(Path.GetFileNameWithoutExtension(npcModel[..^2]), StringComparison.OrdinalIgnoreCase);
+        return reference.StartsWith(Path.GetDirectoryName(npcModel)!.Replace('\\', '/') + "/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void SelectPresetQuietly(HeroPresetChoice? choice)
     {
         if (choice == null || ReferenceEquals(CmbHeroPreset.SelectedItem, choice)) return;
@@ -303,7 +315,11 @@ public partial class MainWindow
         HeroPresetChoice? ForKey(string? key)
         {
             if (string.IsNullOrWhiteSpace(key)) return null;
-            var exact = choices.FirstOrDefault(choice => choice.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+            // Scanned NPCs are keyed by model path; a preset key such as neutral_plant_large_01
+            // matches them by file name.
+            var exact = choices.FirstOrDefault(choice => choice.Key.Equals(key, StringComparison.OrdinalIgnoreCase)) ??
+                        choices.FirstOrDefault(choice => choice.SourcePaths.Any(source =>
+                            Path.GetFileNameWithoutExtension(source[..^2]).Equals(key, StringComparison.OrdinalIgnoreCase)));
             if (exact != null) return exact;
             var hero = HeroDatabase.GetDatabase().TryGetValue(key, out var preset)
                 ? HeroPresetMatcher.FindKnownHero(key, preset) : null;
@@ -335,8 +351,7 @@ public partial class MainWindow
             : bySkeletonGraph.Count == 1 ? bySkeletonGraph[0] : null;
         var best = bySkeleton ?? System.Text.RegularExpressions.Regex.Matches(content, @"models/[A-Za-z0-9_./-]+")
             .Select(reference => choices.FirstOrDefault(choice => choice.SourcePaths.Any(source =>
-                                     reference.Value.StartsWith(Path.GetDirectoryName(source)!.Replace('\\', '/') + "/",
-                                         StringComparison.OrdinalIgnoreCase))) ??
+                                     NpcFileMatches(reference.Value, source))) ??
                                  ForKey(CsdkPaths.DetectHeroFromPath(reference.Value)))
             .OfType<HeroPresetChoice>()
             .GroupBy(choice => choice)

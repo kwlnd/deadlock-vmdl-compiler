@@ -183,8 +183,9 @@ public partial class MainWindow
                     LblCompileStage.Text = counter + "[error] failed";
                     LblCompileDetail.Text = msg;
                     Log($"[compile error] {msg}");
-                    // A partly built addon is not packed; free the models compiled before this one.
-                    foreach (var done in compiled) _protected.ReleaseForSource(done);
+                    // A partly built addon is not packed; free the models compiled before this one, and
+                    // this one, which is protected already when only copying its materials failed.
+                    foreach (var done in compiled.Append(job.Path)) _protected.ReleaseForSource(done);
                     await DialogService.ShowErrorAsync(this, "compilation failed",
                         (jobs.Count > 1 ? $"{name} failed to compile (model {index + 1} of {jobs.Count}):\n\n" : "compilation failed:\n\n") + msg);
                     return;
