@@ -56,5 +56,8 @@ public class CompilerSyncTests : IDisposable
         Check(summary.Split('\n').Length == 9 && summary.StartsWith("Error loading texture 0") &&
               !summary.Contains("Read input") && summary.Contains("2 more line(s)"),
             "A failed compile should show a few error lines and point to the log.");
+        Check(CsWinCompiler.SummarizeCompilerErrors(lines, @"C:\logs\compilation_error.log")
+                .EndsWith(@"2 more line(s); full compiler output: C:\logs\compilation_error.log."),
+            "The summary does not say where the full compiler output was saved.");
     }
 }

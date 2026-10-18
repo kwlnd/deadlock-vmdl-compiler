@@ -454,7 +454,11 @@ public static class CsWinCompiler
         if (proc.ExitCode != 0)
         {
             var all = errorLines.Count > 0 ? errorLines : outputLines.Count > 0 ? outputLines : rawLines;
-            return OperationResult.Fail($"CSWin64 Compiler error (code {proc.ExitCode}): {SummarizeCompilerErrors(all)}");
+            List<string> fullOutput;
+            lock (outputLock) fullOutput = rawLines.ToList();
+            var logPath = WriteCompilationErrorLog(csdk12VmdlPath, proc.ExitCode, fullOutput);
+            if (logPath != null) onLog?.Invoke($"[compile] full compiler output saved to: {logPath}");
+            return OperationResult.Fail($"CSWin64 Compiler error (code {proc.ExitCode}): {SummarizeCompilerErrors(all, logPath)}");
         }
 
         if (!File.Exists(csWinCompiledVmdlc))
@@ -500,18 +504,42 @@ public static class CsWinCompiler
 
     /// <summary>
     /// The lines of a failed compile worth showing in a dialog: errors and failures first, a few
-    /// of them; the full output is already in the log.
+    /// of them, and where the full output was saved.
     /// </summary>
-    public static string SummarizeCompilerErrors(IReadOnlyList<string> lines)
+    public static string SummarizeCompilerErrors(IReadOnlyList<string> lines, string? fullLogPath = null)
     {
         const int shown = 8;
         var errors = lines.Where(line => line.Contains("error", StringComparison.OrdinalIgnoreCase) ||
                                          line.Contains("[FAIL]", StringComparison.Ordinal)).ToList();
         var picked = (errors.Count > 0 ? errors : lines).Distinct().ToList();
         var summary = string.Join("\n", picked.Take(shown)).Trim();
-        return picked.Count > shown
-            ? $"{summary}\n... and {picked.Count - shown} more line(s); the log has the full compiler output."
-            : summary;
+        var where = fullLogPath != null ? $"full compiler output: {fullLogPath}" : "the log has the full compiler output";
+        return picked.Count > shown ? $"{summary}\n... and {picked.Count - shown} more line(s); {where}." :
+            fullLogPath != null ? $"{summary}\n{where}." : summary;
+    }
+
+    /// <summary>
+    /// Saves the full output of a failed compile to compilation_error.log beside the app's config,
+    /// replacing the previous one. Returns its path, or null when it could not be written.
+    /// </summary>
+    private static string? WriteCompilationErrorLog(string modelPath, int exitCode, IReadOnlyList<string> output)
+    {
+        try
+        {
+            var path = Path.Combine(Path.GetDirectoryName(ConfigManager.GetConfigPath())!, "compilation_error.log");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllLines(path, new[]
+            {
+                $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} resourcecompiler exit code {exitCode}",
+                $"model: {modelPath}",
+                string.Empty
+            }.Concat(output));
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
     }
 
     private static readonly Regex MaterialTextureReference = new(
