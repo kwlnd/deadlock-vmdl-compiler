@@ -38,10 +38,10 @@ public static class NpcCatalog
         ["grey_talon_owl"] = "Grey Talon Owl",
         ["necro_shambler"] = "Graves Shambler",
         ["necro_zombietrooper"] = "Graves Zombie",
-        ["patron_amber"] = "Archmother",
-        ["patron_sapphire"] = "Hidden King",
-        ["core_amber"] = "Archmother Core",
-        ["core_sapphire"] = "Hidden King Core",
+        ["patron_amber"] = "Hidden King",
+        ["patron_sapphire"] = "Archmother",
+        ["core_amber"] = "Hidden King Core",
+        ["core_sapphire"] = "Archmother Core",
         ["werewolf_transform"] = "Silver (wolf form)",
     };
 
