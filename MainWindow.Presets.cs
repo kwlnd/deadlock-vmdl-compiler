@@ -145,10 +145,12 @@ public partial class MainWindow
 
     private async Task LoadNpcPresetsAsync(string vpkPath)
     {
+        _npcScanPending = true;
         try
         {
             var result = await VpkHeroScanner.ScanVpkForNpcsAsync(vpkPath);
             if (!IsVisible) return;
+            _npcScanPending = false;
 
             _scannedNpcPresets = result.Presets;
             PopulateHeroPresets();
@@ -160,6 +162,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            _npcScanPending = false;
             Log($"[npc presets] scan failed: {ex.Message}");
         }
     }
@@ -243,7 +246,9 @@ public partial class MainWindow
             {
                 SelectPresetQuietly(_presetChoices.FirstOrDefault());
                 ApplyPresetPaths(null);
-                Log($"[presets] could not tell which hero or npc {Path.GetFileName(vmdlPath)} is; pick its preset in the list.");
+                // Detection runs again once the NPC list arrives; only then is a miss final.
+                if (!_npcScanPending)
+                    Log($"[presets] could not tell which hero or npc {Path.GetFileName(vmdlPath)} is; pick its preset in the list.");
                 return;
             }
 

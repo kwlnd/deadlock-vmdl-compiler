@@ -17,7 +17,7 @@ public class DiscoveredAddon
     public string Display { get; set; } = string.Empty;
     
     public string Details => HeroModels.Count > 0
-        ? $"{HeroModels.Count} hero model(s) detected"
+        ? $"{HeroModels.Count} model(s) detected"
         : "addon folder";
 
     public bool HasHero => HeroModels.Count > 0;

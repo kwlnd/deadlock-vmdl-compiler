@@ -226,6 +226,8 @@
                                                FontWeight="Bold" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Button>
+                            <CheckBox x:Name="ChkCompileAllModels" IsVisible="False" Content="compile all models in this addon"
+                                      ToolTip.Tip="Compile every model of the addon with its detected hero or npc preset, then offer one VPK"/>
 
                             <StackPanel x:Name="PanelCompileProgress" IsVisible="False" Spacing="4">
                                 <ProgressBar x:Name="PrgCompile" Height="3" Minimum="0" Maximum="100"

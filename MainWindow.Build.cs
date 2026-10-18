@@ -43,25 +43,59 @@ public partial class MainWindow
             return;
         }
 
-        var requestedSkel = TxtSkel.Text?.Trim();
-        var requestedGraph = TxtGraph.Text?.Trim();
-        var requestedUiGraph = TxtUiGraph.Text?.Trim();
         var addSkel = ChkSkel.IsChecked == true;
         var addGraph = ChkGraph.IsChecked == true;
         var addUiGraph = ChkUiGraph.IsEnabled && ChkUiGraph.IsChecked == true;
-        var namedGraphs = addGraph ? _selectedNamedGraphs : null;
-        var expected = ReadAg2Expectation(targetPath);
-        var heroFallback = (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath;
+        // The selected model compiles with the paths in the fields, as they may be edited.
+        var jobs = new List<CompileJob>
+        {
+            new(targetPath, TxtSkel.Text?.Trim(), TxtGraph.Text?.Trim(), TxtUiGraph.Text?.Trim(), addUiGraph,
+                addGraph ? _selectedNamedGraphs : null, ReadAg2Expectation(targetPath),
+                (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath)
+        };
+        if (ChkCompileAllModels.IsVisible && ChkCompileAllModels.IsChecked == true)
+        {
+            // The other models of the addon get their own detected preset.
+            var undetected = new List<string>();
+            foreach (var model in (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel> ?? [])
+                     .Where(model => !model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)))
+            {
+                var choice = FindPresetForModel(model.FullPath, out _);
+                if (choice == null || PresetFor(choice) is not { } preset)
+                {
+                    undetected.Add(model.Display);
+                    continue;
+                }
+                var withUi = addUiGraph && !string.IsNullOrWhiteSpace(preset.UiGraph);
+                var named = addGraph && preset.NamedGraphs.Count > 0 ? preset.NamedGraphs : null;
+                jobs.Add(new CompileJob(model.FullPath, preset.Skel, preset.Graph, preset.UiGraph, withUi, named,
+                    Ag2Expectation.ForCompile(model.FullPath, preset.Skel, preset.Graph, preset.UiGraph,
+                        addSkel, addGraph, withUi, named),
+                    choice.Hero?.VpkPath));
+                Log($"[compile] {model.Display}: preset {choice.DisplayName}");
+            }
+            if (undetected.Count > 0)
+            {
+                Log($"[compile error] no preset detected for: {string.Join(", ", undetected)}");
+                await DialogService.ShowErrorAsync(this, "preset not detected",
+                    "could not tell which hero or npc these models are:\n\n" +
+                    string.Join("\n", undetected.Select(name => "- " + name)) +
+                    "\n\ncompile them one by one with a preset picked in the list, or untick \"compile all models\".");
+                return;
+            }
+        }
 
-        // Hold the guard while the camera check and an optional sync run, so a second click
+        // Hold the guard while the camera checks and optional syncs run, so a second click
         // cannot start another compile; every target input above is already captured.
         _isProcessing = true;
-        if (!await PrepareCameraFrameAsync(targetPath, heroFallback))
+        foreach (var job in jobs)
         {
+            if (await PrepareCameraFrameAsync(job.Path, job.HeroFallback)) continue;
             _isProcessing = false;
             return;
         }
 
+        var compiled = new List<string>();
         try
         {
             _isProcessing = true;
@@ -75,108 +109,122 @@ public partial class MainWindow
 
             // Show real-time compilation progress bar under compile button
             PanelCompileProgress.IsVisible = true;
-            PrgCompile.Value = 10;
-            LblCompilePercent.Text = "10%";
-            LblCompileStage.Text = "[1/5] preparing source";
-            LblCompileDetail.Text = Path.GetFileName(targetPath);
-
-            Log($"[compile] starting compilation for: {Path.GetFileName(targetPath)}");
-
-            var progress = new Progress<CsWinCompiler.CompileProgress>(p =>
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    PrgCompile.Value = p.Percent;
-                    LblCompilePercent.Text = $"{p.Percent}%";
-                    LblCompileStage.Text = p.Stage;
-                    LblCompileDetail.Text = p.Detail;
-                });
-            });
-
             var compilerErrors = new List<string>();
-            // Parsing, asset sync and the compiler all stay off the UI thread;
-            // the deploy callbacks touch window state, so they hop back.
-            var (success, msg) = await Task.Run(() => CsWinCompiler.ProcessVmdlFileAsync(
-                targetPath,
-                skelPath: requestedSkel,
-                graphPath: requestedGraph,
-                uiGraphPath: requestedUiGraph,
-                createBackup: true,
-                addSkel: addSkel,
-                addGraph: addGraph,
-                addUiGraph: addUiGraph,
-                upgradeHeader: true,
-                compileCsWin: true,
-                revertVmdl: revert,
-                cswinDir: csWinDir,
-                citadelAddonsDir: citadelDir,
-                // Read Avalonia controls before entering Task.Run. Accessing a
-                // control from the compiler worker thread causes "Call from
-                // invalid thread" exceptions.
-                disableAnimationList: disableAnimationList,
-                autoDetectAnims: autoDetectAnims,
-                skipMaterialCompilation: skipMaterialCompilation,
-                namedGraphs: namedGraphs,
-                progress: progress,
-                onLog: Log,
-                beforeDeploy: deployedPath => Dispatcher.UIThread.Invoke(() => _protected.ReleaseForOutput(deployedPath)),
-                afterDeploy: (deployedPath, compilerOutputPath) => Dispatcher.UIThread.Invoke(() =>
-                    _protected.Protect(targetPath, deployedPath, compilerOutputPath, expected)),
-                cancellationToken: cancellation,
-                compilerErrors: compilerErrors
-            ), cancellation);
+            foreach (var (job, index) in jobs.Select((job, index) => (job, index)))
+            {
+                var name = Path.GetFileName(job.Path);
+                var counter = jobs.Count > 1 ? $"[model {index + 1}/{jobs.Count}] " : string.Empty;
+                PrgCompile.Value = 10;
+                LblCompilePercent.Text = "10%";
+                LblCompileStage.Text = counter + "[1/5] preparing source";
+                LblCompileDetail.Text = name;
+                Log($"[compile] starting compilation for: {name}");
+
+                var progress = new Progress<CsWinCompiler.CompileProgress>(p =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        PrgCompile.Value = p.Percent;
+                        LblCompilePercent.Text = $"{p.Percent}%";
+                        LblCompileStage.Text = counter + p.Stage;
+                        LblCompileDetail.Text = p.Detail;
+                    });
+                });
+
+                var jobErrors = new List<string>();
+                // Parsing, asset sync and the compiler all stay off the UI thread;
+                // the deploy callbacks touch window state, so they hop back.
+                var (success, msg) = await Task.Run(() => CsWinCompiler.ProcessVmdlFileAsync(
+                    job.Path,
+                    skelPath: job.Skel,
+                    graphPath: job.Graph,
+                    uiGraphPath: job.UiGraph,
+                    createBackup: true,
+                    addSkel: addSkel,
+                    addGraph: addGraph,
+                    addUiGraph: job.AddUiGraph,
+                    upgradeHeader: true,
+                    compileCsWin: true,
+                    revertVmdl: revert,
+                    cswinDir: csWinDir,
+                    citadelAddonsDir: citadelDir,
+                    // Read Avalonia controls before entering Task.Run. Accessing a
+                    // control from the compiler worker thread causes "Call from
+                    // invalid thread" exceptions.
+                    disableAnimationList: disableAnimationList,
+                    autoDetectAnims: autoDetectAnims,
+                    skipMaterialCompilation: skipMaterialCompilation,
+                    namedGraphs: job.NamedGraphs,
+                    progress: progress,
+                    onLog: Log,
+                    beforeDeploy: deployedPath => Dispatcher.UIThread.Invoke(() => _protected.ReleaseForOutput(deployedPath)),
+                    afterDeploy: (deployedPath, compilerOutputPath) => Dispatcher.UIThread.Invoke(() =>
+                        _protected.Protect(job.Path, deployedPath, compilerOutputPath, job.Expected)),
+                    cancellationToken: cancellation,
+                    compilerErrors: jobErrors
+                ), cancellation);
+
+                if (!success)
+                {
+                    LblCompileStage.Text = counter + "[error] failed";
+                    LblCompileDetail.Text = msg;
+                    Log($"[compile error] {msg}");
+                    // A partly built addon is not packed; free the models compiled before this one.
+                    foreach (var done in compiled) _protected.ReleaseForSource(done);
+                    await DialogService.ShowErrorAsync(this, "compilation failed",
+                        (jobs.Count > 1 ? $"{name} failed to compile (model {index + 1} of {jobs.Count}):\n\n" : "compilation failed:\n\n") + msg);
+                    return;
+                }
+                compiled.Add(job.Path);
+                compilerErrors.AddRange(jobs.Count > 1 ? jobErrors.Select(error => $"{name}: {error}") : jobErrors);
+            }
             EndCompileCancellation();
 
-            if (success)
+            PrgCompile.Value = 100;
+            LblCompilePercent.Text = "100%";
+            LblCompileStage.Text = "[5/5] complete";
+            LblCompileDetail.Text = jobs.Count > 1 ? $"{jobs.Count} models deployed" : "deployed successfully";
+
+            // resourcecompiler can exit cleanly with a broken reference inside the model.
+            var errorNote = compilerErrors.Count == 0 ? string.Empty :
+                $"resourcecompiler reported {compilerErrors.Count} error(s); the model was built, but these parts may be broken in game:\n\n" +
+                string.Join("\n", compilerErrors.Take(6).Select(error => "- " + error)) +
+                (compilerErrors.Count > 6 ? $"\n- and {compilerErrors.Count - 6} more in the log" : string.Empty) + "\n\n";
+            if (compilerErrors.Count > 0)
+                Log($"[compile warning] deployed with {compilerErrors.Count} compiler error(s), see ERROR lines above");
+
+            var packVpk = await DialogService.ShowConfirmAsync(
+                this,
+                compilerErrors.Count == 0 ? "compilation successful" : "compiled with errors",
+                (compilerErrors.Count == 0
+                    ? jobs.Count > 1 ? $"all {jobs.Count} models compiled and deployed successfully!\n\n"
+                        : "model compiled and deployed successfully!\n\n"
+                    : errorNote) +
+                "would you like to package the addon into a .vpk archive now?"
+            );
+
+            if (packVpk)
             {
-                PrgCompile.Value = 100;
-                LblCompilePercent.Text = "100%";
-                LblCompileStage.Text = "[5/5] complete";
-                LblCompileDetail.Text = "deployed successfully";
-
-                // resourcecompiler can exit cleanly with a broken reference inside the model.
-                var errorNote = compilerErrors.Count == 0 ? string.Empty :
-                    $"resourcecompiler reported {compilerErrors.Count} error(s); the model was built, but these parts may be broken in game:\n\n" +
-                    string.Join("\n", compilerErrors.Take(6).Select(error => "- " + error)) +
-                    (compilerErrors.Count > 6 ? $"\n- and {compilerErrors.Count - 6} more in the log" : string.Empty) + "\n\n";
-                if (compilerErrors.Count > 0)
-                    Log($"[compile warning] model deployed with {compilerErrors.Count} compiler error(s), see ERROR lines above");
-
-                var packVpk = await DialogService.ShowConfirmAsync(
-                    this,
-                    compilerErrors.Count == 0 ? "compilation successful" : "compiled with errors",
-                    (compilerErrors.Count == 0 ? "model compiled and deployed successfully!\n\n" : errorNote) +
-                    "would you like to package the addon into a .vpk archive now?"
-                );
-
-                if (packVpk)
-                {
-                    var packed = await MakeVpkAsync(
-                        suppressSuccessDialog: false,
-                        targetPathOverride: targetPath,
-                        citadelDirOverride: citadelDir);
-                    if (!packed)
-                        await OfferProtectionReleaseAfterFailedPackAsync(targetPath, citadelDir);
-                }
-                else
-                {
-                    _protected.ReleaseForSource(targetPath);
-                }
+                // The VPK check covers every protected model of the addon, so all of them.
+                var packed = await MakeVpkAsync(
+                    suppressSuccessDialog: false,
+                    targetPathOverride: targetPath,
+                    citadelDirOverride: citadelDir);
+                if (!packed)
+                    await OfferProtectionReleaseAfterFailedPackAsync(targetPath, citadelDir);
             }
             else
             {
-                LblCompileStage.Text = "[error] failed";
-                LblCompileDetail.Text = msg;
-
-                Log($"[compile error] {msg}");
-                await DialogService.ShowErrorAsync(this, "compilation failed", $"compilation failed:\n\n{msg}");
+                foreach (var done in compiled) _protected.ReleaseForSource(done);
             }
         }
         catch (OperationCanceledException)
         {
+            foreach (var done in compiled) _protected.ReleaseForSource(done);
             LblCompileStage.Text = "[cancelled]";
-            LblCompileDetail.Text = "compilation stopped; nothing was deployed";
-            Log("[compile] cancelled by user; nothing was deployed.");
+            LblCompileDetail.Text = compiled.Count == 0 ? "compilation stopped; nothing was deployed"
+                : "compilation stopped; the addon was not packed";
+            Log("[compile] cancelled by user; nothing was packed.");
         }
         catch (Exception ex)
         {
@@ -191,6 +239,18 @@ public partial class MainWindow
             EndCompileCancellation();
             _isProcessing = false;
         }
+    }
+
+    /// <summary>One model of a compile: its AG2 paths and what the compiled file must contain.</summary>
+    private sealed record CompileJob(string Path, string? Skel, string? Graph, string? UiGraph, bool AddUiGraph,
+        IReadOnlyDictionary<string, string>? NamedGraphs, Ag2Expectation Expected, string? HeroFallback);
+
+    /// <summary>Offers compiling every model of the addon when it has more than one.</summary>
+    private void UpdateCompileAllOption()
+    {
+        var count = (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel>)?.Count() ?? 0;
+        ChkCompileAllModels.IsVisible = count > 1;
+        ChkCompileAllModels.Content = $"compile all {count} models in this addon";
     }
 
     /// <summary>
