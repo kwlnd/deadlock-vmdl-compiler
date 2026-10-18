@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="using:DeadlockVmdlCompiler.Models"
+        xmlns:views="using:DeadlockVmdlCompiler.Views"
+        x:Class="DeadlockVmdlCompiler.Views.BatchCompileWindow"
+        Title="compile all models"
+        Icon="avares://DeadlockVmdlCompiler/AppIcon.ico"
+        Width="640" MinWidth="560"
+        SizeToContent="Height" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource StudioWindow}">
+
+    <Border Classes="studio-card" Margin="12" Padding="16">
+        <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="32,10,*">
+                <Border Width="32" Height="32" CornerRadius="5"
+                        Background="{StaticResource StudioPortrait}" BorderBrush="{StaticResource StudioBorderStrong}"
+                        BorderThickness="1" VerticalAlignment="Top">
+                    <Viewbox Width="16" Height="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Canvas Width="24" Height="24">
+                            <Path Classes="icon" Data="{StaticResource IconPlay}"/>
+                        </Canvas>
+                    </Viewbox>
+                </Border>
+                <StackPanel Grid.Column="2" Spacing="2">
+                    <TextBlock x:Name="TxtTitle" Text="compile all models" FontSize="16" FontWeight="Bold"
+                               Foreground="{StaticResource StudioText}"/>
+                    <TextBlock Classes="body-copy" TextWrapping="Wrap"
+                               Text="Check the preset of each model. Detected presets are picked already; choose another one where it is wrong."/>
+                </StackPanel>
+            </Grid>
+
+            <Border Height="1" Background="{StaticResource StudioBorder}"/>
+
+            <ScrollViewer MaxHeight="380" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl x:Name="ListModels">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Spacing="8"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="views:BatchCompileRow">
+                            <Grid ColumnDefinitions="*,10,280">
+                                <StackPanel VerticalAlignment="Center" Spacing="1">
+                                    <TextBlock Text="{Binding FileName}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource StudioText}" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Note}" Classes="field-hint" TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding Path}"/>
+                                </StackPanel>
+                                <ComboBox Grid.Column="2" Height="40" HorizontalAlignment="Stretch"
+                                          ItemsSource="{Binding Choices}" SelectedItem="{Binding Selected}"
+                                          PlaceholderText="pick a preset">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="models:HeroPresetChoice">
+                                            <Grid ColumnDefinitions="26,*" MinHeight="29" VerticalAlignment="Center">
+                                                <Border Width="26" Height="26" CornerRadius="4"
+                                                        Background="{StaticResource StudioPortrait}"
+                                                        BorderBrush="{StaticResource StudioBorderStrong}"
+                                                        BorderThickness="1" IsVisible="{Binding ShowFallback}">
+                                                    <TextBlock Text="{Binding FallbackGlyph}" FontSize="13" FontWeight="Bold"
+                                                               Foreground="#93B9EE" HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center"/>
+                                                </Border>
+                                                <Border Width="26" Height="26" CornerRadius="4" ClipToBounds="True"
+                                                        IsVisible="{Binding HasPortrait}">
+                                                    <Image Source="{Binding Portrait}" Stretch="UniformToFill"/>
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="11.5" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource StudioText}"/>
+                                                    <TextBlock Text="{Binding Detail}" Classes="field-hint"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <TextBlock x:Name="TxtHint" Classes="field-hint" TextWrapping="Wrap"
+                       Text="Every model stays protected after its compile, so one VPK holds them all."/>
+
+            <Border Height="1" Background="{StaticResource StudioBorder}"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="cancel" MinWidth="86" Height="34" Click="BtnCancel_Click"/>
+                <Button x:Name="BtnCompile" Content="compile" Classes="primary" MinWidth="130" Height="34"
+                        Click="BtnCompile_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

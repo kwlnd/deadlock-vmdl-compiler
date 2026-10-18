@@ -55,34 +55,46 @@ public partial class MainWindow
         };
         if (ChkCompileAllModels.IsVisible && ChkCompileAllModels.IsChecked == true)
         {
-            // The other models of the addon get their own detected preset.
-            var undetected = new List<string>();
-            foreach (var model in (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel> ?? [])
-                     .Where(model => !model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase)))
+            // Every model gets a preset the user confirms: detected ones are picked already, and
+            // the selected model can keep the paths typed in this window.
+            var fields = new HeroPresetChoice("", detail: "paths typed in this window", displayName: "paths from the fields");
+            var presets = _presetChoices.Where(choice => !choice.IsAuto).ToList();
+            var rows = (CmbTargetVmdl.ItemsSource as IEnumerable<DiscoveredModel> ?? []).Select(model =>
             {
-                var choice = FindPresetForModel(model.FullPath, out _);
-                if (choice == null || PresetFor(choice) is not { } preset)
+                if (model.FullPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
+                    return new BatchCompileRow(model.FullPath, model.Display, presets.Prepend(fields).ToList(), fields,
+                        "selected in the main window");
+                var detected = FindPresetForModel(model.FullPath, out var fromContent);
+                return new BatchCompileRow(model.FullPath, model.Display, presets, detected,
+                    detected == null ? "preset not detected, pick one"
+                    : fromContent ? "detected from the files the model uses" : "detected from its path");
+            }).ToList();
+            var addonName = (CmbDiscovered.SelectedItem as DiscoveredAddon)?.Name ?? "addon";
+            var dialog = new BatchCompileWindow(addonName, rows);
+            await dialog.ShowDialog(this);
+            if (!dialog.Confirmed) return;
+
+            jobs.Clear();
+            foreach (var row in rows)
+            {
+                if (ReferenceEquals(row.Selected, fields))
                 {
-                    undetected.Add(model.Display);
+                    jobs.Add(new CompileJob(row.Path, TxtSkel.Text?.Trim(), TxtGraph.Text?.Trim(), TxtUiGraph.Text?.Trim(),
+                        addUiGraph, addGraph ? _selectedNamedGraphs : null, ReadAg2Expectation(row.Path),
+                        (CmbHeroPreset.SelectedItem as HeroPresetChoice)?.Hero?.VpkPath));
                     continue;
                 }
+                var preset = PresetFor(row.Selected!)!;
                 var withUi = addUiGraph && !string.IsNullOrWhiteSpace(preset.UiGraph);
                 var named = addGraph && preset.NamedGraphs.Count > 0 ? preset.NamedGraphs : null;
-                jobs.Add(new CompileJob(model.FullPath, preset.Skel, preset.Graph, preset.UiGraph, withUi, named,
-                    Ag2Expectation.ForCompile(model.FullPath, preset.Skel, preset.Graph, preset.UiGraph,
+                jobs.Add(new CompileJob(row.Path, preset.Skel, preset.Graph, preset.UiGraph, withUi, named,
+                    Ag2Expectation.ForCompile(row.Path, preset.Skel, preset.Graph, preset.UiGraph,
                         addSkel, addGraph, withUi, named),
-                    choice.Hero?.VpkPath));
-                Log($"[compile] {model.Display}: preset {choice.DisplayName}");
+                    row.Selected!.Hero?.VpkPath));
+                Log($"[compile] {row.Display}: preset {row.Selected!.DisplayName}");
             }
-            if (undetected.Count > 0)
-            {
-                Log($"[compile error] no preset detected for: {string.Join(", ", undetected)}");
-                await DialogService.ShowErrorAsync(this, "preset not detected",
-                    "could not tell which hero or npc these models are:\n\n" +
-                    string.Join("\n", undetected.Select(name => "- " + name)) +
-                    "\n\ncompile them one by one with a preset picked in the list, or untick \"compile all models\".");
-                return;
-            }
+            // The selected model compiles first, as a single compile would.
+            jobs = jobs.OrderBy(job => !job.Path.Equals(targetPath, StringComparison.OrdinalIgnoreCase)).ToList();
         }
 
         // Hold the guard while the camera checks and optional syncs run, so a second click
