@@ -17,7 +17,6 @@ public static class NpcCatalog
     [
         "models/heroes_staging/grey_talon/grey_talon_owl.vmdl_c",
         "models/heroes_wip/necro/necro_shambler.vmdl_c",
-        "models/heroes_wip/necro/necro_zombietrooper.vmdl_c",
         "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl_c",
     ];
 
@@ -25,6 +24,7 @@ public static class NpcCatalog
     private static readonly HashSet<string> Unused = new(StringComparer.OrdinalIgnoreCase)
     {
         "neutral_pigeon_cerberus",
+        "necro_zombietrooper",
     };
 
     private static readonly Dictionary<string, string> Names = new(StringComparer.OrdinalIgnoreCase)
@@ -37,7 +37,6 @@ public static class NpcCatalog
         ["medic_01"] = "Medic",
         ["grey_talon_owl"] = "Grey Talon Owl",
         ["necro_shambler"] = "Graves Shambler",
-        ["necro_zombietrooper"] = "Graves Zombie",
         ["patron_amber"] = "Hidden King",
         ["patron_sapphire"] = "Archmother",
         ["core_amber"] = "Hidden King Core",
@@ -52,7 +51,6 @@ public static class NpcCatalog
         ("grey_talon_owl", "panorama/images/hud/abilities/archer/archer_guided_arrow_psd.vtex_c"),
         ("necro_shambler", "panorama/images/heroes/necro_shambler_psd.vtex_c"),
         ("werewolf_transform", "panorama/images/heroes/werewolf_wolf_card_psd.vtex_c"),
-        ("necro_zombietrooper", "panorama/images/hud/abilities/necro/necro_skull_psd.vtex_c"),
         ("midboss", Renders + "midboss.png"),
         ("patron_amber", Renders + "patron_amber.png"),
         ("patron_sapphire", Renders + "patron_sapphire.png"),
