@@ -520,7 +520,9 @@ public static class CsWinCompiler
 
     /// <summary>
     /// Copies textures the CSWin64 copies of the model's materials reference but CSWin64 lacks,
-    /// from the CSDK12 addon, then from CSDK12's citadel and core content. Returns how many.
+    /// from the CSDK12 addon, then from CSDK12's citadel and core content. Shaders also fall back
+    /// to materials/default textures for parameters a material leaves out, so that folder is
+    /// copied whole. Existing files are kept. Returns how many files were copied.
     /// </summary>
     public static int SyncMaterialTextures(string csWinMaterialRoot, string csWinAddonRoot, string csdkAddonRoot)
     {
@@ -545,6 +547,21 @@ public static class CsWinCompiler
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(source, target);
             copied++;
+        }
+
+        var defaultsTarget = Path.Combine(csWinAddonRoot, "materials", "default");
+        foreach (var root in sources.Skip(1))
+        {
+            var defaults = Path.Combine(root, "materials", "default");
+            if (!Directory.Exists(defaults)) continue;
+            foreach (var source in Directory.EnumerateFiles(defaults))
+            {
+                var target = Path.Combine(defaultsTarget, Path.GetFileName(source));
+                if (File.Exists(target)) continue;
+                Directory.CreateDirectory(defaultsTarget);
+                File.Copy(source, target);
+                copied++;
+            }
         }
         return copied;
     }

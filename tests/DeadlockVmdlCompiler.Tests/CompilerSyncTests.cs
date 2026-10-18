@@ -25,6 +25,8 @@ public class CompilerSyncTests : IDisposable
         Write(Path.Combine(csdkAddon, "materials", "default", "addon_mask.png"), "addon");
         Write(Path.Combine(csdkContent, "citadel", "materials", "default", "default_ao.tga"), "citadel");
         Write(Path.Combine(csdkContent, "core", "materials", "default", "default.tga"), "core");
+        // Not named by the material: a shader can still fall back to it.
+        Write(Path.Combine(csdkContent, "citadel", "materials", "default", "default_alt.tga"), "fallback");
         Write(Path.Combine(csWinModel, "materials", "body.vmat"), """
             "Layer0"
             {
@@ -36,11 +38,11 @@ public class CompilerSyncTests : IDisposable
             }
             """);
 
-        Check(CsWinCompiler.SyncMaterialTextures(csWinModel, csWinAddon, csdkAddon) == 3,
+        Check(CsWinCompiler.SyncMaterialTextures(csWinModel, csWinAddon, csdkAddon) == 4,
             "Not every resolvable texture was copied to CSWin64.");
         string Read(string relative) => File.ReadAllText(Path.Combine(csWinAddon, relative));
         Check(Read("materials/default/default_ao.tga") == "citadel" && Read("materials/default/default.tga") == "core" &&
-              Read("materials/default/addon_mask.png") == "addon",
+              Read("materials/default/addon_mask.png") == "addon" && Read("materials/default/default_alt.tga") == "fallback",
             "A texture was taken from the wrong CSDK12 folder.");
         Check(CsWinCompiler.SyncMaterialTextures(csWinModel, csWinAddon, csdkAddon) == 0,
             "Textures already in CSWin64 were copied again.");
