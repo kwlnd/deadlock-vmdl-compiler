@@ -22,9 +22,11 @@ public static class VmdlScanner
                 var filenameStem = Path.GetFileNameWithoutExtension(file.Name).ToLowerInvariant();
                 var db = HeroDatabase.GetDatabase();
 
-                // Heroes live in heroes_wip or heroes_staging. Other models, such as
-                // neutral creeps, are listed only when their file name is a preset.
-                if (!cleanPath.Contains("heroes_wip") && !cleanPath.Contains("heroes_staging") &&
+                // Heroes live in heroes_wip or heroes_staging, NPCs such as the walker and
+                // guardian in models/npc. Other models, such as neutral creeps, are listed
+                // only when their file name is a preset.
+                var isNpc = cleanPath.Contains("/models/npc/");
+                if (!cleanPath.Contains("heroes_wip") && !cleanPath.Contains("heroes_staging") && !isNpc &&
                     !db.ContainsKey(filenameStem))
                     continue;
 
@@ -68,6 +70,9 @@ public static class VmdlScanner
                     }
                 }
 
+                // An NPC's preset comes from the game's VPK scan, keyed by its model path.
+                if (string.IsNullOrEmpty(hero) && isNpc)
+                    hero = filenameStem;
                 if (string.IsNullOrEmpty(hero))
                     continue;
 

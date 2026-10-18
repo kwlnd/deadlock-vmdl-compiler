@@ -191,8 +191,9 @@ public static class DmxModelLoader
             if (Directory.Exists(vmdlDir)) searchDirs.Add(vmdlDir);
             if (!string.IsNullOrEmpty(addonRoot))
             {
-                var addonMats = Path.Combine(addonRoot, "materials");
-                if (Directory.Exists(addonMats)) searchDirs.Add(addonMats);
+                // The whole addon: a model can use materials from a sibling model folder
+                // (the walker's v2 model uses boss_tier_02_sun_walker/materials).
+                if (Directory.Exists(addonRoot)) searchDirs.Add(addonRoot);
             }
             if (!string.IsNullOrEmpty(citadelDir))
             {
